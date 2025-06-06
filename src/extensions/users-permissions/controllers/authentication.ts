@@ -147,13 +147,20 @@ async function getUser(ctx) {
 
 async function sendOTP(ctx) {
   console.log("SEND EMAIL OTP", ctx.state.user);
-  const email = ctx.request.body.email;
+  const { email, type } = ctx.request.body;
 
   const otp = HelperService.generateOtp();
   console.log("OTP", otp);
 
-  //TODO: Implement email sending logic here
-
+  if (type !== "reset-password" && type !== "register") {
+    return ctx.badRequest("Invalid type");
+  }
+  if (type === "reset-password") {
+    //send email with otp for reset password
+  }
+  if (type === "register") {
+    //send email with otp for register
+  }
   const user = await strapi.entityService.findMany(
     "plugin::users-permissions.user",
     {
@@ -180,7 +187,7 @@ async function sendOTP(ctx) {
 }
 
 async function verifyOTP(ctx) {
-  const { otp, email } = ctx.request.body;
+  const { otp, email, type } = ctx.request.body;
   console.log("Email", email, otp);
 
   if (!otp) {
@@ -213,21 +220,41 @@ async function verifyOTP(ctx) {
 
     finalUser = user[0];
     delete finalUser?.password;
+    if (type === "register") {
+      const updateUser = await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        user[0].id,
+        {
+          data: {
+            is_email_verified: true,
+          },
+        }
+      );
+      finalUser.is_email_verified = true;
+      return ctx.send({
+        message: "Email verified successfully!!",
+        user: finalUser,
+      });
+    }
+    if (type === "reset-password") {
+      const token = await strapi
+        .plugin("users-permissions")
+        .service("jwt")
+        .issue(
+          {
+            id: user[0]?.id,
+            token_type: "RESET-PASSWORD",
+          },
+          {
+            expiresIn: "1h",
+          }
+        );
 
-    const token = await strapi.plugin("users-permissions").service("jwt").issue(
-      {
-        id: user[0]?.id,
-        token_type: "RESET-PASSWORD",
-      },
-      {
-        expiresIn: "1h",
-      }
-    );
-
-    return ctx.send({
-      jwt: token,
-      user: finalUser,
-    });
+      return ctx.send({
+        jwt: token,
+        user: finalUser,
+      });
+    }
   } else {
     return ctx.badRequest("Invalid OTP");
   }

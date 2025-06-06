@@ -71,6 +71,11 @@
     },
     "email_otp": {
       "type": "string"
+    },
+    "is_email_verified": {
+      "type": "boolean",
+      "required": true,
+      "default": false
     }
   }
 }
