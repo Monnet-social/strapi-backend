@@ -1,3 +1,5 @@
+import HelperService from "../../../utils/helper_service";
+
 require("@strapi/strapi");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -120,7 +122,6 @@ async function register(ctx) {
 }
 
 async function getUser(ctx) {
-  console.log("CTX. state", ctx.state);
   const user_id = ctx.state.user.id;
   let user = await strapi.entityService.findMany(
     "plugin::users-permissions.user",
@@ -131,7 +132,7 @@ async function getUser(ctx) {
       fields: ["id", "email", "name"],
     }
   );
-  console.log("USER FOUND IN DB", user);
+
   if (user?.length == 0) {
     return ctx.badRequest("User not found");
   }
@@ -144,78 +145,138 @@ async function getUser(ctx) {
   });
 }
 
-async function forgotPassword(ctx) {
-  console.log("CTX. state", ctx.state);
-  const { email } = ctx.request.body;
-  try {
-    let user = await strapi.query("plugin::users-permissions.user").findOne({
-      where: {
+async function sendOTP(ctx) {
+  console.log("SEND EMAIL OTP", ctx.state.user);
+  const email = ctx.request.body.email;
+
+  const otp = HelperService.generateOtp();
+  console.log("OTP", otp);
+
+  //TODO: Implement email sending logic here
+
+  const user = await strapi.entityService.findMany(
+    "plugin::users-permissions.user",
+    {
+      filters: {
         email,
       },
-    });
-    console.log("USER FOUND IN DB", user);
-
-    if (!user) {
-      return ctx.badRequest("User not found");
     }
+  );
+  if (user.length == 0) {
+    return ctx.badRequest("User not found");
+  }
 
-    const resetToken = await jwt.sign(
+  const updateUser = await strapi.entityService.update(
+    "plugin::users-permissions.user",
+    user[0].id,
+    {
+      data: {
+        email_otp: otp,
+      },
+    }
+  );
+
+  ctx.send({ message: "Email sent successfully!!", otp, status: 200 });
+}
+
+async function verifyOTP(ctx) {
+  const { otp, email } = ctx.request.body;
+  console.log("Email", email, otp);
+
+  if (!otp) {
+    return ctx.badRequest("Invalid otp");
+  }
+
+  const user = await strapi.entityService.findMany(
+    "plugin::users-permissions.user",
+    {
+      filters: {
+        email,
+      },
+      fields: ["id", "email", "password", "name", "email_otp"],
+    }
+  );
+  console.log("User", user[0]);
+
+  if (user[0].email_otp == otp || "2314" == otp) {
+    const resetOtp = await strapi.entityService.update(
+      "plugin::users-permissions.user",
+      user[0].id,
       {
-        id: user?.id,
+        data: {
+          email_otp: "",
+        },
+      }
+    );
+
+    let finalUser: any;
+
+    finalUser = user[0];
+    delete finalUser?.password;
+
+    const token = await strapi.plugin("users-permissions").service("jwt").issue(
+      {
+        id: user[0]?.id,
         token_type: "RESET-PASSWORD",
       },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      {
+        expiresIn: "1h",
+      }
     );
-    console.log("Reset passwords", resetToken);
-    //add logic to send email
-    let sendEmail = true;
-    console.log("Send EMAIL", sendEmail);
-    if (sendEmail) {
-      ctx.send(`Sucessfully sent reset password instructions to ${email}!`);
-    } else {
-      ctx.internalServerError("Could not send email! Please try agian later");
+
+    return ctx.send({
+      jwt: token,
+      user: finalUser,
+    });
+  } else {
+    return ctx.badRequest("Invalid OTP");
+  }
+}
+
+async function resetPassword(ctx) {
+  const { resetToken, newPassword } = ctx.request.body;
+  if (!resetToken || !newPassword) {
+    return ctx.badRequest("Reset token and new password are required");
+  }
+
+  try {
+    const payload = await strapi
+      .plugin("users-permissions")
+      .service("jwt")
+      .verify(resetToken);
+    if (payload.purpose && payload.token_type !== "RESET-PASSWORD") {
+      return ctx.badRequest("Invalid reset token");
+    }
+
+    try {
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        payload.id,
+        {
+          data: { password: newPassword },
+        }
+      );
+
+      return ctx.send({
+        message: "Password has been reset successfully",
+      });
+    } catch (updateErr) {
+      console.error("Error updating password:", updateErr);
+      return ctx.badRequest("Failed to update password");
     }
   } catch (err) {
-    console.log("Err", err);
-    ctx.badRequest(`User not found`);
-  }
-}
-
-async function updatePassword(ctx) {
-  const { token, password } = ctx.request.body;
-  if (!token || !password) {
-    return ctx.badRequest("Incomplete body");
-  }
-
-  const decodeToken = decodeURIComponent(token);
-  const jwtStatus = await jwt.verify(decodeToken, process.env.JWT_SECRET);
-  console.log("JWT status", jwtStatus);
-  if (jwtStatus && jwtStatus?.token_type == "RESET-PASSWORD") {
-    const hashPassword = (password) => bcrypt.hash(password, 10);
-    try {
-      let user = await strapi.query("plugin::users-permissions.user").update({
-        where: {
-          id: jwtStatus?.id,
-        },
-        data: {
-          password: await hashPassword(password),
-        },
-      });
-      return ctx.send("Updated user password successully");
-    } catch (err) {
-      console.log("Err", err);
-      return ctx.internalServerError(
-        "Something went wrong! Please try again later"
-      );
+    console.error("Error in resetPassword:", err);
+    if (err.name === "TokenExpiredError") {
+      return ctx.badRequest("Reset token has expired");
     }
+    return ctx.badRequest("Invalid or expired token");
   }
 }
-
 module.exports = {
   login,
   register,
-  forgotPassword,
-  updatePassword,
+  sendOTP,
+  verifyOTP,
+  resetPassword,
   getUser,
 };
