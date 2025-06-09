@@ -58,7 +58,7 @@ async function register(ctx) {
   const { email, password, name } = ctx.request.body;
 
   // Check if email and password is provided
-  if (!password || !email || !name) {
+  if (!password || !email) {
     return ctx.badRequest("Incomplete Fields");
   }
   try {
@@ -254,7 +254,8 @@ async function verifyOTP(ctx) {
         );
 
       return ctx.send({
-        jwt: token,
+        reset_token: token,
+        message: "OTP verified successfully!!",
         user: finalUser,
       });
     }
