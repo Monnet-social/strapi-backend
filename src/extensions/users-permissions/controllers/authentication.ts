@@ -264,8 +264,8 @@ async function verifyOTP(ctx) {
 }
 
 async function resetPassword(ctx) {
-  const { resetToken, newPassword } = ctx.request.body;
-  if (!resetToken || !newPassword) {
+  const { reset_token, new_password } = ctx.request.body;
+  if (!reset_token || !new_password) {
     return ctx.badRequest("Reset token and new password are required");
   }
 
@@ -273,7 +273,7 @@ async function resetPassword(ctx) {
     const payload = await strapi
       .plugin("users-permissions")
       .service("jwt")
-      .verify(resetToken);
+      .verify(reset_token);
     if (payload.purpose && payload.token_type !== "RESET-PASSWORD") {
       return ctx.badRequest("Invalid reset token");
     }
@@ -283,7 +283,7 @@ async function resetPassword(ctx) {
         "plugin::users-permissions.user",
         payload.id,
         {
-          data: { password: newPassword },
+          data: { password: new_password },
         }
       );
 
