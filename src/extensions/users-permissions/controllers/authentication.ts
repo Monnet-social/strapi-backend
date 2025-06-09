@@ -25,6 +25,7 @@ async function login(ctx) {
     if (user?.length == 0) {
       return ctx.badRequest("User not found or wrong password");
     }
+    console.log("User", user[0], password);
 
     if (await bcrypt.compare(password, user[0]?.password)) {
       let finalUser: any = {};
@@ -83,7 +84,7 @@ async function register(ctx) {
       email,
       name,
 
-      password,
+      password: await bcrypt.hash(password, 10),
 
       confirmed: true,
 
@@ -122,6 +123,7 @@ async function register(ctx) {
 }
 
 async function getUser(ctx) {
+  console.log("GET USER", ctx.state.user);
   const user_id = ctx.state.user.id;
   let user = await strapi.entityService.findMany(
     "plugin::users-permissions.user",
@@ -231,6 +233,7 @@ async function verifyOTP(ctx) {
         }
       );
       finalUser.is_email_verified = true;
+      delete finalUser?.email_otp;
       return ctx.send({
         message: "Email verified successfully!!",
         user: finalUser,

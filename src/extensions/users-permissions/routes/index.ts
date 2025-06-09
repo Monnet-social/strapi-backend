@@ -23,7 +23,6 @@ module.exports = [
     handler: "authentication.getUser",
     config: {
       prefix: "",
-      auth: false,
     },
   },
   {
