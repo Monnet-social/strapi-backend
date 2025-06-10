@@ -105,15 +105,15 @@ async function register(ctx) {
       finalUser[key] = finalUserData[key];
     }
 
-    const token = await strapi
-      .plugin("users-permissions")
-      .service("jwt")
-      .issue({
-        id: finalUser?.id,
-      });
+    // const token = await strapi
+    //   .plugin("users-permissions")
+    //   .service("jwt")
+    //   .issue({
+    //     id: finalUser?.id,
+    //   });
 
     return ctx.send({
-      jwt: token,
+      // jwt: token,
       user: finalUser,
     });
   } catch (err) {
