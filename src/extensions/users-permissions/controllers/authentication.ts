@@ -234,9 +234,17 @@ async function verifyOTP(ctx) {
       );
       finalUser.is_email_verified = true;
       delete finalUser?.email_otp;
+
+      const token = await strapi
+        .plugin("users-permissions")
+        .service("jwt")
+        .issue({
+          id: user[0].id,
+        });
       return ctx.send({
         message: "Email verified successfully!!",
         user: finalUser,
+        jwt: token,
       });
     }
     if (type === "reset-password") {
