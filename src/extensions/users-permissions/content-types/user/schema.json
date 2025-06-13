@@ -80,7 +80,7 @@
     "referral_code": {
       "type": "string"
     },
-    "user": {
+    "referred_user": {
       "type": "relation",
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"

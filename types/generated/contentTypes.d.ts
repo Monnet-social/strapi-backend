@@ -860,6 +860,10 @@ export interface PluginUsersPermissionsUser
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
     referral_code: Schema.Attribute.String;
+    referred_user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
     resetPasswordToken: Schema.Attribute.String & Schema.Attribute.Private;
     role: Schema.Attribute.Relation<
       'manyToOne',
@@ -868,10 +872,6 @@ export interface PluginUsersPermissionsUser
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    user: Schema.Attribute.Relation<
-      'oneToOne',
-      'plugin::users-permissions.user'
-    >;
     username: Schema.Attribute.String &
       Schema.Attribute.Required &
       Schema.Attribute.Unique &
