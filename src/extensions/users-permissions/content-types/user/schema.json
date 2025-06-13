@@ -83,14 +83,7 @@
     "user": {
       "type": "relation",
       "relation": "oneToOne",
-      "target": "plugin::users-permissions.user",
-      "inversedBy": "referred_user"
-    },
-    "referred_user": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "plugin::users-permissions.user",
-      "mappedBy": "user"
+      "target": "plugin::users-permissions.user"
     }
   }
 }

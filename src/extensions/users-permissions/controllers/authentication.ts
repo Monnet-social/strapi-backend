@@ -2,7 +2,6 @@ import HelperService from "../../../utils/helper_service";
 
 require("@strapi/strapi");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 import shortid from "shortid";
 
 async function login(ctx) {
@@ -26,7 +25,6 @@ async function login(ctx) {
         if (user?.length == 0) {
             return ctx.badRequest("User not found or wrong password");
         }
-        console.log("User", user[0], password);
 
         if (await bcrypt.compare(password, user[0]?.password)) {
             let finalUser: any = {};
@@ -63,45 +61,48 @@ async function register(ctx) {
     } = ctx.request.body;
 
     if (!email || !password || !name) {
-        return ctx.badRequest("Incomplete fields");
+        return ctx.badRequest(
+            "Incomplete fields: email, password, and name are required."
+        );
     }
 
     try {
-        const existing = await strapi.entityService.findMany(
-            "plugin::users-permissions.user",
-            {
-                filters: { email },
-            }
-        );
+        const existingUser = await strapi
+            .query("plugin::users-permissions.user")
+            .findOne({
+                where: { email },
+            });
 
-        if (existing?.length > 0) {
+        if (existingUser) {
             return ctx.badRequest(
-                "User already exists. Try logging in or resetting password."
+                "User already exists. Try logging in or resetting your password."
             );
         }
 
-        const allReferralCodes = await strapi.entityService.findMany(
-            "plugin::users-permissions.user",
-            {
-                fields: ["referral_code"],
-                limit: -1,
+        let referral_code;
+        let isCodeUnique = false;
+        while (!isCodeUnique) {
+            const candidateCode = shortid.generate();
+
+            const userWithCode = await strapi
+                .query("plugin::users-permissions.user")
+                .findOne({
+                    where: { referral_code: candidateCode },
+                });
+
+            if (!userWithCode) {
+                referral_code = candidateCode;
+                isCodeUnique = true;
             }
-        );
-
-        const usedCodes = new Set(
-            allReferralCodes.map((user) => user.referral_code)
-        );
-
-        const referral_code = generateUniqueReferralCode(usedCodes);
+        }
 
         let referredUserId = null;
         if (fromReferral) {
-            const [referrer] = await strapi.entityService.findMany(
-                "plugin::users-permissions.user",
-                {
-                    filters: { referral_code: fromReferral },
-                }
-            );
+            const referrer = await strapi
+                .query("plugin::users-permissions.user")
+                .findOne({
+                    where: { referral_code: fromReferral },
+                });
 
             if (referrer) {
                 referredUserId = referrer.id;
@@ -119,7 +120,8 @@ async function register(ctx) {
                     password: hashedPassword,
                     name,
                     referral_code,
-                    referred_user: referredUserId,
+                    referred_by: referredUserId,
+                    provider: "local",
                     confirmed: true,
                     blocked: false,
                     role: 1,
@@ -138,90 +140,98 @@ async function register(ctx) {
                 email: newUser.email,
                 name: newUser.name,
                 referral_code: newUser.referral_code,
-                referred_user: referredUserId,
+                referred_by: newUser.referred_by,
                 blocked: newUser.blocked,
             },
         });
-    } catch (err) {
-        console.error("Registration Error:", err);
+    } catch (error) {
+        console.error("Registration Error:", error);
         return ctx.internalServerError(
             "Something went wrong. Please try again later."
         );
     }
 }
 
-function generateUniqueReferralCode(existingSet) {
-    let code = shortid.generate();
-    while (existingSet.has(code)) {
-        code = shortid.generate();
-    }
-    return code;
-}
-
 async function getUser(ctx) {
-    console.log("GET USER", ctx.state.user);
-    const user_id = ctx.state.user.id;
-    let user = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-            filters: {
-                id: user_id,
-            },
-            fields: ["id", "email", "name"],
+    try {
+        console.log("GET USER", ctx.state.user);
+        const userId = ctx.state.user.id;
+
+        const user = await strapi.entityService.findOne(
+            "plugin::users-permissions.user",
+            userId,
+            {
+                fields: ["id", "email", "name"],
+            }
+        );
+
+        if (!user) {
+            return ctx.badRequest("User not found");
         }
-    );
 
-    if (user?.length == 0) {
-        return ctx.badRequest("User not found");
+        return ctx.send({
+            user: user,
+        });
+    } catch (error) {
+        console.error("Get User Error:", error);
+        return ctx.internalServerError(
+            "Something went wrong. Please try again later."
+        );
     }
-    let finalUser: any = {};
-    finalUser = user[0];
-    delete finalUser?.password;
-
-    return ctx.send({
-        user: finalUser,
-    });
 }
 
 async function sendOTP(ctx) {
-    console.log("SEND EMAIL OTP", ctx.state.user);
-    const { email, type } = ctx.request.body;
+    try {
+        console.log("SEND EMAIL OTP", ctx.state.user);
+        const { email, type } = ctx.request.body;
 
-    const otp = HelperService.generateOtp();
-    console.log("OTP", otp);
+        const user = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            {
+                filters: {
+                    email,
+                },
+            }
+        );
 
-    if (type !== "reset-password" && type !== "register") {
-        return ctx.badRequest("Invalid type");
-    }
-    if (type === "reset-password") {
-        //send email with otp for reset password
-    }
-    if (type === "register") {
-        //send email with otp for register
-    }
-    const user = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-            filters: {
-                email,
-            },
+        if (user.length === 0) {
+            return ctx.badRequest("User not found");
         }
-    );
-    if (user.length == 0) {
-        return ctx.badRequest("User not found");
-    }
 
-    const updateUser = await strapi.entityService.update(
-        "plugin::users-permissions.user",
-        user[0].id,
-        {
-            data: {
-                email_otp: otp,
-            },
+        const otp = HelperService.generateOtp();
+        console.log("OTP", otp);
+
+        switch (type) {
+            case "reset-password":
+                //send email with otp for reset password
+                console.log(`Preparing to send reset-password OTP to ${email}`);
+                break;
+
+            case "register":
+                //send email with otp for register
+                console.log(`Preparing to send registration OTP to ${email}`);
+                break;
+
+            default:
+                return ctx.badRequest("Invalid request type");
         }
-    );
 
-    ctx.send({ message: "Email sent successfully!!", otp, status: 200 });
+        await strapi.entityService.update(
+            "plugin::users-permissions.user",
+            user[0].id,
+            {
+                data: {
+                    email_otp: otp,
+                },
+            }
+        );
+
+        ctx.send({
+            message: "OTP has been sent to your email.",
+            status: 200,
+            otp: otp,
+        });
+    } catch (error) {}
 }
 
 async function verifyOTP(ctx) {
@@ -244,7 +254,7 @@ async function verifyOTP(ctx) {
     console.log("User", user[0]);
 
     if (user[0].email_otp == otp || "2314" == otp) {
-        const resetOtp = await strapi.entityService.update(
+        await strapi.entityService.update(
             "plugin::users-permissions.user",
             user[0].id,
             {
@@ -254,54 +264,60 @@ async function verifyOTP(ctx) {
             }
         );
 
-        let finalUser: any;
+        const finalUser = { ...user[0] };
+        delete finalUser.password;
+        delete finalUser.email_otp;
 
-        finalUser = user[0];
-        delete finalUser?.password;
-        if (type === "register") {
-            const updateUser = await strapi.entityService.update(
-                "plugin::users-permissions.user",
-                user[0].id,
-                {
-                    data: {
-                        is_email_verified: true,
-                    },
-                }
-            );
-            finalUser.is_email_verified = true;
-            delete finalUser?.email_otp;
-
-            const token = await strapi
-                .plugin("users-permissions")
-                .service("jwt")
-                .issue({
-                    id: user[0].id,
-                });
-            return ctx.send({
-                message: "Email verified successfully!!",
-                user: finalUser,
-                jwt: token,
-            });
-        }
-        if (type === "reset-password") {
-            const token = await strapi
-                .plugin("users-permissions")
-                .service("jwt")
-                .issue(
+        switch (type) {
+            case "register": {
+                await strapi.entityService.update(
+                    "plugin::users-permissions.user",
+                    user[0].id,
                     {
-                        id: user[0]?.id,
-                        token_type: "RESET-PASSWORD",
-                    },
-                    {
-                        expiresIn: "1h",
+                        data: {
+                            is_email_verified: true,
+                        },
                     }
                 );
+                finalUser.is_email_verified = true;
 
-            return ctx.send({
-                reset_token: token,
-                message: "OTP verified successfully!!",
-                user: finalUser,
-            });
+                const token = await strapi
+                    .plugin("users-permissions")
+                    .service("jwt")
+                    .issue({
+                        id: user[0].id,
+                    });
+
+                return ctx.send({
+                    message: "Email verified successfully!!",
+                    user: finalUser,
+                    jwt: token,
+                });
+            }
+
+            case "reset-password": {
+                const token = await strapi
+                    .plugin("users-permissions")
+                    .service("jwt")
+                    .issue(
+                        {
+                            id: user[0]?.id,
+                            token_type: "RESET-PASSWORD",
+                        },
+                        {
+                            expiresIn: "1h",
+                        }
+                    );
+
+                return ctx.send({
+                    reset_token: token,
+                    message: "OTP verified successfully!!",
+                    user: finalUser,
+                });
+            }
+
+            default:
+                return ctx.badRequest("Invalid request type");
         }
     } else {
         return ctx.badRequest("Invalid OTP");
@@ -346,24 +362,6 @@ async function resetPassword(ctx) {
         }
         return ctx.badRequest("Invalid or expired token");
     }
-}
-
-async function unblockWaitingUsers() {
-    const blockedUsers = await strapi.db
-        .query("plugin::users-permissions.user")
-        .findMany({
-            where: { blocked: true },
-            limit: 1000,
-        });
-
-    for (const user of blockedUsers) {
-        await strapi.db.query("plugin::users-permissions.user").update({
-            where: { id: user.id },
-            data: { blocked: false },
-        });
-    }
-
-    console.log("Unblocked waiting users");
 }
 
 module.exports = {
