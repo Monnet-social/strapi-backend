@@ -12,7 +12,9 @@
     "start": "strapi start",
     "strapi": "strapi",
     "upgrade": "npx @strapi/upgrade latest",
-    "upgrade:dry": "npx @strapi/upgrade latest --dry"
+    "upgrade:dry": "npx @strapi/upgrade latest --dry",
+    "db-server": "ssh admin@213.136.82.3 -i monnet",
+    "backend-server": "ssh admin@213.136.87.122 -i monnet"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",
