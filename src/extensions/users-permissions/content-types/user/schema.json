@@ -76,6 +76,19 @@
       "type": "boolean",
       "required": true,
       "default": false
+    },
+    "referral_code": {
+      "type": "string",
+      "unique": true
+    },
+    "referred_by": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "no_of_referrals": {
+      "type": "integer",
+      "default": 0
     }
   }
 }
