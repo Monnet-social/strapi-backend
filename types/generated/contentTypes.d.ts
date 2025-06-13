@@ -852,6 +852,7 @@ export interface PluginUsersPermissionsUser
     > &
       Schema.Attribute.Private;
     name: Schema.Attribute.String;
+    no_of_referrals: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     password: Schema.Attribute.Password &
       Schema.Attribute.Private &
       Schema.Attribute.SetMinMaxLength<{
@@ -859,8 +860,8 @@ export interface PluginUsersPermissionsUser
       }>;
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
-    referral_code: Schema.Attribute.String;
-    referred_user: Schema.Attribute.Relation<
+    referral_code: Schema.Attribute.String & Schema.Attribute.Unique;
+    referred_by: Schema.Attribute.Relation<
       'oneToOne',
       'plugin::users-permissions.user'
     >;

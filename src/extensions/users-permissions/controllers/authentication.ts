@@ -2,7 +2,6 @@ import HelperService from "../../../utils/helper_service";
 
 require("@strapi/strapi");
 const bcrypt = require("bcryptjs");
-import shortid from "shortid";
 
 async function login(ctx) {
     const { email, password } = ctx.request.body;
@@ -12,15 +11,26 @@ async function login(ctx) {
     }
 
     try {
-        const user = await strapi
-            .query("plugin::users-permissions.user")
-            .findOne({
-                where: { email: email.toLowerCase() },
-            });
+        const users = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            {
+                filters: { email: email.toLowerCase() },
+                fields: [
+                    "id",
+                    "email",
+                    "name",
+                    "password",
+                    "username",
+                    "blocked",
+                ],
+            }
+        );
 
-        if (!user) {
+        if (users.length === 0) {
             return ctx.unauthorized("Invalid credentials.");
         }
+
+        const user = users[0];
 
         const isValidPassword = await bcrypt.compare(password, user.password);
 
@@ -35,11 +45,9 @@ async function login(ctx) {
                 id: user.id,
             });
 
-        const { password: removedPassword, ...sanitizedUser } = user;
-
         return ctx.send({
             jwt: token,
-            user: sanitizedUser,
+            user,
         });
     } catch (err) {
         console.error("Login Error:", err);
@@ -49,7 +57,7 @@ async function login(ctx) {
     }
 }
 
-async function register(ctx) {
+async function register(ctx: any) {
     const {
         email,
         password,
@@ -64,66 +72,58 @@ async function register(ctx) {
     }
 
     try {
-        const existingUser = await strapi
-            .query("plugin::users-permissions.user")
-            .findOne({
-                where: { email },
-            });
+        const existingUsers = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            {
+                filters: { email },
+            }
+        );
 
-        if (existingUser) {
+        if (existingUsers.length > 0) {
             return ctx.badRequest(
                 "User already exists. Try logging in or resetting your password."
             );
         }
 
-        let referral_code;
-        let isCodeUnique = false;
-        while (!isCodeUnique) {
-            const candidateCode = shortid.generate();
+        const referral_code =
+            await HelperService.generateUniqueReferralCode(strapi);
 
-            const userWithCode = await strapi
-                .query("plugin::users-permissions.user")
-                .findOne({
-                    where: { referral_code: candidateCode },
-                });
-
-            if (!userWithCode) {
-                referral_code = candidateCode;
-                isCodeUnique = true;
-            }
-        }
-
-        let referredUserId = null;
+        let referredById = null;
         if (fromReferral) {
-            const referrer = await strapi
-                .query("plugin::users-permissions.user")
-                .findOne({
-                    where: { referral_code: fromReferral },
-                });
+            const referrers = await strapi.entityService.findMany(
+                "plugin::users-permissions.user",
+                {
+                    filters: { referral_code: fromReferral },
+                }
+            );
 
-            if (referrer) {
-                referredUserId = referrer.id;
+            if (referrers.length > 0) {
+                const referrer = referrers[0];
+                referredById = referrer.id;
             }
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const newUser = await strapi
-            .query("plugin::users-permissions.user")
-            .create({
+        const newUser = await strapi.entityService.create(
+            "plugin::users-permissions.user",
+            {
                 data: {
                     username: email,
                     email,
                     password: hashedPassword,
                     name,
                     referral_code,
-                    referred_by: referredUserId,
+
+                    referred_by: referredById,
                     provider: "local",
                     confirmed: true,
                     blocked: false,
+                    is_email_verified: false,
                     role: 1,
                 },
-            });
+            }
+        );
 
         const token = await strapi
             .plugin("users-permissions")
@@ -137,8 +137,8 @@ async function register(ctx) {
                 email: newUser.email,
                 name: newUser.name,
                 referral_code: newUser.referral_code,
-                referred_by: newUser.referred_by,
                 blocked: newUser.blocked,
+                is_email_verified: newUser.is_email_verified,
             },
         });
     } catch (error) {
