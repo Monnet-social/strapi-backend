@@ -8,47 +8,44 @@ async function login(ctx) {
     const { email, password } = ctx.request.body;
 
     if (!password || !email) {
-        return ctx.badRequest("Email or password is not provided");
+        return ctx.badRequest("Email and password must be provided.");
     }
 
     try {
-        let user: any = await strapi.entityService.findMany(
-            "plugin::users-permissions.user",
-            {
-                filters: {
-                    email,
-                },
-                fields: ["id", "email", "name", "password"],
-            }
-        );
-
-        if (user?.length == 0) {
-            return ctx.badRequest("User not found or wrong password");
-        }
-
-        if (await bcrypt.compare(password, user[0]?.password)) {
-            let finalUser: any = {};
-
-            finalUser = user[0];
-            delete finalUser?.password;
-
-            const token = await strapi
-                .plugin("users-permissions")
-                .service("jwt")
-                .issue({
-                    id: user[0]?.id,
-                });
-
-            return ctx.send({
-                jwt: token,
-                user: finalUser,
+        const user = await strapi
+            .query("plugin::users-permissions.user")
+            .findOne({
+                where: { email: email.toLowerCase() },
             });
-        } else {
-            return ctx.unauthorized("Unauthorized");
+
+        if (!user) {
+            return ctx.unauthorized("Invalid credentials.");
         }
+
+        const isValidPassword = await bcrypt.compare(password, user.password);
+
+        if (!isValidPassword) {
+            return ctx.unauthorized("Invalid credentials.");
+        }
+
+        const token = await strapi
+            .plugin("users-permissions")
+            .service("jwt")
+            .issue({
+                id: user.id,
+            });
+
+        const { password: removedPassword, ...sanitizedUser } = user;
+
+        return ctx.send({
+            jwt: token,
+            user: sanitizedUser,
+        });
     } catch (err) {
-        console.log("err", err);
-        return ctx.internalServerError("Something went wrong!");
+        console.error("Login Error:", err);
+        return ctx.internalServerError(
+            "An unexpected error occurred. Please try again."
+        );
     }
 }
 
@@ -326,8 +323,15 @@ async function verifyOTP(ctx) {
 
 async function resetPassword(ctx) {
     const { reset_token, new_password } = ctx.request.body;
+
     if (!reset_token || !new_password) {
-        return ctx.badRequest("Reset token and new password are required");
+        return ctx.badRequest("Reset token and new password are required.");
+    }
+
+    if (new_password.length < 8) {
+        return ctx.badRequest(
+            "Password is too weak. It must be at least 8 characters long."
+        );
     }
 
     try {
@@ -335,32 +339,39 @@ async function resetPassword(ctx) {
             .plugin("users-permissions")
             .service("jwt")
             .verify(reset_token);
-        if (payload.purpose && payload.token_type !== "RESET-PASSWORD") {
-            return ctx.badRequest("Invalid reset token");
-        }
 
-        try {
-            await strapi.entityService.update(
-                "plugin::users-permissions.user",
-                payload.id,
-                {
-                    data: { password: new_password },
-                }
+        if (payload.token_type !== "RESET-PASSWORD") {
+            return ctx.badRequest(
+                "Invalid token. This is not a password reset token."
             );
+        }
 
-            return ctx.send({
-                message: "Password has been reset successfully",
-            });
-        } catch (updateErr) {
-            console.error("Error updating password:", updateErr);
-            return ctx.badRequest("Failed to update password");
-        }
+        const password = await bcrypt.hash(new_password, 10);
+
+        await strapi.entityService.update(
+            "plugin::users-permissions.user",
+            payload.id,
+            {
+                data: { password },
+            }
+        );
+
+        return ctx.send({
+            message:
+                "Your password has been reset successfully. You can now log in.",
+        });
     } catch (err) {
-        console.error("Error in resetPassword:", err);
+        console.error("Password Reset Error:", err);
+
         if (err.name === "TokenExpiredError") {
-            return ctx.badRequest("Reset token has expired");
+            return ctx.badRequest(
+                "Your reset token has expired. Please request a new one."
+            );
         }
-        return ctx.badRequest("Invalid or expired token");
+
+        return ctx.badRequest(
+            "Invalid token or error resetting password. Please try again."
+        );
     }
 }
 
