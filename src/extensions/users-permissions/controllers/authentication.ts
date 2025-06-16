@@ -1,3 +1,4 @@
+import EmailService from "../../../utils/email/email_service";
 import HelperService from "../../../utils/helper_service";
 
 require("@strapi/strapi");
@@ -322,14 +323,18 @@ async function sendTestEmail(ctx) {
     return ctx.badRequest("Email is required.");
   }
   try {
-    const msg = {
-      to: email, // Change to your recipient
-      from: "no-reply@monnetsocial.com", // Change to your verified sender
-      subject: "Sending with SendGrid is Fun",
-      text: "and easy to do anywhere, even with Node.js",
-      html: "<strong>and easy to do anywhere, even with Node.js</strong>",
-    };
-    const resp = await sgMail.send(msg);
+    // const msg = {
+    //   to: email, // Change to your recipient
+    //   from: "no-reply@monnetsocial.com", // Change to your verified sender
+    //   subject: "Sending with SendGrid is Fun",
+    //   text: "and easy to do anywhere, even with Node.js",
+    //   html: "<strong>and easy to do anywhere, even with Node.js</strong>",
+    // };
+    // const resp = await sgMail.send(msg);
+    const resp = await new EmailService().sendEmailVerificationEmail(
+      email,
+      HelperService.generateOtp()
+    );
     console.log("Email sent successfully:", resp);
     return ctx.send({
       message: "Test email sent successfully.",

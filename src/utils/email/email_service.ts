@@ -1,6 +1,7 @@
 import mjml2html from "mjml";
 import Handlebars from "handlebars";
 import fs from "fs";
+import path from "path";
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
@@ -17,7 +18,7 @@ export default class EmailService {
 
     await this.sendEmail(
       email,
-      "./src/utils/email/email_verification.mjml",
+      "public/email/email_verification.mjml",
       "Monnet - One-Time Password",
       data
     );
@@ -47,6 +48,7 @@ export default class EmailService {
     subject: string,
     data: any
   ) {
+    // const final_mjml_path = path.join(__dirname, mjml_template_path);
     const template = fs.readFileSync(mjml_template_path, "utf8");
     const compiledTemplate = Handlebars.compile(template);
     const mjml = compiledTemplate(data);
