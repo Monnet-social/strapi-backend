@@ -13,7 +13,7 @@ export default class EmailService {
 
     const data = {
       email,
-      otp,
+      otp: otp?.split(""),
     };
 
     await this.sendEmail(

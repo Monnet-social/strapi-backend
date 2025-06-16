@@ -8,8 +8,8 @@
     />
     <mj-style>
       .otp-box { font-size: 20px; font-weight: bold; color: #000;
-      background-color: #FFE8F0; border-radius: 6px; padding: 10px 20px;
-      display: inline-block; margin: 0 5px; width: 40px; text-align: center; }
+      background-color: #FFE8F0; border-radius: 6px; padding: 10px 10px;
+      display: inline-block; margin: 0 5px; width: 30px; text-align: center; }
       .link-color { color: #FF3857 !important; font-weight: bold;
       text-decoration: none; }
     </mj-style>
