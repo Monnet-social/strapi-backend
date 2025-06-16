@@ -3,9 +3,10 @@
     <mj-title>MONNET OTP Verification</mj-title>
     <mj-preview>Your One Time Password for Monnet</mj-preview>
     <mj-font
-      name="Inter"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
+      name="Poppins"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap"
     />
+
     <mj-style inline="inline">
       .otp-box { font-size: 20px; font-weight: bold; color: #000;
       background-color: #FFE8F0; border-radius: 6px; padding: 10px; display:

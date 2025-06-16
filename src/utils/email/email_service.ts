@@ -36,7 +36,7 @@ export default class EmailService {
 
     await this.sendEmail(
       email,
-      "./src/utils/email/reset_password.mjml",
+      "public/email/reset_password.mjml",
       "Monnet - Reset Password",
       data
     );

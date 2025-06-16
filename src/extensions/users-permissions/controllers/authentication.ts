@@ -197,11 +197,19 @@ async function sendOTP(ctx) {
     switch (type) {
       case "reset-password":
         //send email with otp for reset password
+        await new EmailService().sendResetPasswordEmail(
+          email,
+          HelperService.generateOtp()
+        );
         console.log(`Preparing to send reset-password OTP to ${email}`);
         break;
 
       case "register":
         //send email with otp for register
+        await new EmailService().sendEmailVerificationEmail(
+          email,
+          HelperService.generateOtp()
+        );
         console.log(`Preparing to send registration OTP to ${email}`);
         break;
 
