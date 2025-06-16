@@ -35,7 +35,7 @@ async function login(ctx) {
         const isValidPassword = await bcrypt.compare(password, user.password);
 
         if (!isValidPassword) return ctx.unauthorized("Invalid credentials.");
-
+        delete user.password;
         const token = await strapi
             .plugin("users-permissions")
             .service("jwt")
