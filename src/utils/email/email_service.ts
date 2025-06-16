@@ -10,7 +10,6 @@ export default class EmailService {
     if (!email || !otp) {
       return;
     }
-
     const data = {
       email,
       otp: otp?.split(""),
