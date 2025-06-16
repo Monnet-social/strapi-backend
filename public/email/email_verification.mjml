@@ -6,14 +6,17 @@
       name="Inter"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap"
     />
-    <mj-style>
+    <mj-style inline="inline">
       .otp-box { font-size: 20px; font-weight: bold; color: #000;
-      background-color: #FFE8F0; border-radius: 6px; padding: 10px 10px;
-      display: inline-block; margin: 0 5px; width: 30px; text-align: center; }
-      .link-color { color: #FF3857 !important; font-weight: bold;
-      text-decoration: none; }
+      background-color: #FFE8F0; border-radius: 6px; padding: 10px; display:
+      inline-block; margin: 5px; width: 30px; text-align: center; } .link-color
+      { color: #FF3857 !important; font-weight: bold; text-decoration: none; }
+      @media only screen and (max-width:480px) { .otp-box { font-size: 16px
+      !important; padding: 8px !important; width: 24px !important; margin: 4px
+      !important; } }
     </mj-style>
   </mj-head>
+
   <mj-body background-color="#ffffff" font-family="Inter, sans-serif">
     <!-- Logo -->
     <mj-section
@@ -42,23 +45,22 @@
     <!-- Greeting and OTP -->
     <mj-section padding-top="20px" padding-bottom="10px">
       <mj-column>
-        <mj-text font-size="20px" font-weight="bold" color="#000000"
-          >Hi User,</mj-text
-        >
+        <mj-text font-size="20px" font-weight="bold" color="#000000">
+          Hi User,
+        </mj-text>
         <mj-text font-size="16px" color="#000000">
           Here is your One Time Password (OTP).<br />
           Please enter this code to verify your email address for Monnet.
         </mj-text>
 
-        <!-- Dynamic OTP -->
-        <mj-text align="center" padding-top="20px">
+        <!-- OTP display -->
+        <mj-text align="center" padding-top="20px" padding-bottom="10px">
           {{#each otp}}
           <span class="otp-box">{{this}}</span>
           {{/each}}
         </mj-text>
 
-        <!-- Expiry -->
-        <mj-text align="center" padding-top="10px">
+        <mj-text align="center" padding-top="0">
           OTP will expire in <strong>5 minutes.</strong>
         </mj-text>
 
