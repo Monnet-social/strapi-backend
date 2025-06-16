@@ -1,0 +1,70 @@
+import mjml2html from "mjml";
+import Handlebars from "handlebars";
+import fs from "fs";
+const sgMail = require("@sendgrid/mail");
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+export default class EmailService {
+  async sendEmailVerificationEmail(email: string, otp: string) {
+    if (!email || !otp) {
+      return;
+    }
+
+    const data = {
+      email,
+      otp,
+    };
+
+    await this.sendEmail(
+      email,
+      "./src/utils/email/email_verification.mjml",
+      "Monnet - One-Time Password",
+      data
+    );
+  }
+
+  async sendResetPasswordEmail(email: string, otp: string) {
+    if (!email || !otp) {
+      return;
+    }
+
+    const data = {
+      email,
+      otp,
+    };
+
+    await this.sendEmail(
+      email,
+      "./src/utils/email/reset_password.mjml",
+      "Monnet - Reset Password",
+      data
+    );
+  }
+
+  async sendEmail(
+    email: string,
+    mjml_template_path: string,
+    subject: string,
+    data: any
+  ) {
+    const template = fs.readFileSync(mjml_template_path, "utf8");
+    const compiledTemplate = Handlebars.compile(template);
+    const mjml = compiledTemplate(data);
+
+    const html = mjml2html(mjml).html;
+
+    try {
+      let msg: any = {
+        to: email, // Change to your recipient
+        from: process.env.SENDER_EMAIL, // Change to your verified sender
+        subject,
+        html,
+      };
+      const response = await sgMail.send(msg);
+
+      console.log("Response from email server", response);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+}
