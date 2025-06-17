@@ -1,387 +1,363 @@
 import HelperService from "../../../utils/helper_service";
-require("@strapi/strapi");
-const bcrypt = require("bcryptjs");
 import EmailService from "../../../utils/email/email_service";
+const bcrypt = require("bcryptjs");
+
 async function login(ctx) {
-  const { email, password } = ctx.request.body;
+    const { email, password } = ctx.request.body;
 
-  if (!password || !email)
-    return ctx.badRequest("Email and password must be provided.");
+    if (!password || !email)
+        return ctx.badRequest("Email and password must be provided.");
 
-  try {
-    const users = await strapi.entityService.findMany(
-      "plugin::users-permissions.user",
-      {
-        filters: { email: email.toLowerCase() },
-        fields: [
-          "id",
-          "email",
-          "name",
-          "password",
-          "username",
-          "blocked",
-          "referral_code",
-        ],
-        populate: {
-          referred_by: { fields: ["id", "name", "username"] },
-        },
-      }
-    );
+    try {
+        const users = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            {
+                filters: { email: email.toLowerCase() },
+                fields: [
+                    "id",
+                    "email",
+                    "name",
+                    "password",
+                    "username",
+                    "blocked",
+                    "referral_code",
+                ],
+                populate: {
+                    referred_by: { fields: ["id", "name", "username"] },
+                },
+            }
+        );
+        if (users.length === 0) return ctx.unauthorized("Invalid credentials.");
 
-    if (users.length === 0) return ctx.unauthorized("Invalid credentials.");
+        const user = users[0];
 
-    const user = users[0];
+        const isValidPassword = await bcrypt.compare(password, user.password);
 
-    const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) return ctx.unauthorized("Invalid credentials.");
+        delete user.password;
+        const token = await strapi
+            .plugin("users-permissions")
+            .service("jwt")
+            .issue({ id: user.id });
 
-    if (!isValidPassword) return ctx.unauthorized("Invalid credentials.");
-    delete user.password;
-    const token = await strapi
-      .plugin("users-permissions")
-      .service("jwt")
-      .issue({ id: user.id });
-
-    return ctx.send({ jwt: token, user });
-  } catch (err) {
-    console.error("Login Error:", err);
-    return ctx.internalServerError(
-      "An unexpected error occurred. Please try again."
-    );
-  }
+        return ctx.send({ jwt: token, user });
+    } catch (err) {
+        console.error("Login Error:", err);
+        return ctx.internalServerError(
+            "An unexpected error occurred. Please try again."
+        );
+    }
 }
 
 async function register(ctx: any) {
-  const {
-    email,
-    password,
-    name,
-    referral_code: fromReferral,
-  } = ctx.request.body;
+    const {
+        email,
+        password,
+        name,
+        referral_code: fromReferral,
+    } = ctx.request.body;
 
-  if (!email || !password || !name)
-    return ctx.badRequest(
-      "Incomplete fields: email, password, and name are required."
-    );
-
-  try {
-    const existingUsers = await strapi.entityService.findMany(
-      "plugin::users-permissions.user",
-      { filters: { email } }
-    );
-
-    if (existingUsers.length > 0)
-      return ctx.badRequest(
-        "User already exists. Try logging in or resetting your password."
-      );
-
-    const referral_code =
-      await HelperService.generateUniqueReferralCode(strapi);
-
-    let referredById = null;
-    if (fromReferral) {
-      const referrers = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-          fields: ["id", "no_of_referrals"],
-          filters: { referral_code: fromReferral },
-        }
-      );
-
-      if (referrers.length > 0) {
-        const referrer = referrers[0];
-        const currentReferralCount = referrer.no_of_referrals || 0;
-
-        if (currentReferralCount >= 5)
-          return ctx.badRequest(
-            "This referral code has reached its maximum limit of 5 uses."
-          );
-
-        referredById = referrer.id;
-
-        await strapi.entityService.update(
-          "plugin::users-permissions.user",
-          referrer.id,
-          { data: { no_of_referrals: currentReferralCount + 1 } }
+    if (!email || !password || !name)
+        return ctx.badRequest(
+            "Incomplete fields: email, password, and name are required."
         );
-      }
+
+    try {
+        const existingUsers = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            { filters: { email } }
+        );
+
+        if (existingUsers.length > 0)
+            return ctx.badRequest(
+                "User already exists. Try logging in or resetting your password."
+            );
+
+        const referral_code =
+            await HelperService.generateUniqueReferralCode(strapi);
+
+        let referredById = null;
+        if (fromReferral) {
+            const referrers = await strapi.entityService.findMany(
+                "plugin::users-permissions.user",
+                {
+                    fields: ["id", "no_of_referrals"],
+                    filters: { referral_code: fromReferral },
+                }
+            );
+
+            if (referrers.length > 0) {
+                const referrer = referrers[0];
+                const currentReferralCount = referrer.no_of_referrals || 0;
+
+                if (currentReferralCount >= 5)
+                    return ctx.badRequest(
+                        "This referral code has reached its maximum limit of 5 uses."
+                    );
+
+                referredById = referrer.id;
+
+                await strapi.entityService.update(
+                    "plugin::users-permissions.user",
+                    referrer.id,
+                    { data: { no_of_referrals: currentReferralCount + 1 } }
+                );
+            }
+        }
+
+        const newUser = await strapi
+            .plugin("users-permissions")
+            .service("user")
+            .add({
+                email,
+                username: email,
+                password,
+                name,
+                referral_code,
+                referred_by: referredById,
+                provider: "local",
+                confirmed: true,
+                blocked: false,
+                is_email_verified: false,
+                role: 1,
+            });
+        delete newUser.password;
+        const token = await strapi
+            .plugin("users-permissions")
+            .service("jwt")
+            .issue({ id: newUser.id });
+
+        return ctx.send({ jwt: token, user: newUser });
+    } catch (error) {
+        console.error("Registration Error:", error);
+        return ctx.internalServerError(
+            "Something went wrong. Please try again later."
+        );
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = await strapi.entityService.create(
-      "plugin::users-permissions.user",
-      {
-        data: {
-          username: email,
-          email,
-          password: hashedPassword,
-          name,
-          referral_code,
-          referred_by: referredById,
-          provider: "local",
-          confirmed: true,
-          blocked: false,
-          is_email_verified: false,
-          role: 1,
-        },
-        fields: [
-          "id",
-          "username",
-          "email",
-          "name",
-          "referral_code",
-          "blocked",
-          "is_email_verified",
-        ],
-        populate: {
-          referred_by: { fields: ["id", "name", "username"] },
-        },
-      }
-    );
-
-    const token = await strapi
-      .plugin("users-permissions")
-      .service("jwt")
-      .issue({ id: newUser.id });
-
-    return ctx.send({ jwt: token, user: newUser });
-  } catch (error) {
-    console.error("Registration Error:", error);
-    return ctx.internalServerError(
-      "Something went wrong. Please try again later."
-    );
-  }
 }
 
 async function getUser(ctx) {
-  try {
-    const userId = ctx.state.user.id;
+    try {
+        const userId = ctx.state.user.id;
 
-    const user = await strapi.entityService.findOne(
-      "plugin::users-permissions.user",
-      userId,
-      {
-        fields: ["id", "email", "name", "referral_code", "username"],
-        populate: {
-          referred_by: {
-            fields: ["id", "name", "username", "email"],
-          },
-        },
-      }
-    );
+        const user = await strapi.entityService.findOne(
+            "plugin::users-permissions.user",
+            userId,
+            {
+                fields: ["id", "email", "name", "referral_code", "username"],
+                populate: {
+                    referred_by: {
+                        fields: ["id", "name", "username", "email"],
+                    },
+                },
+            }
+        );
 
-    if (!user) return ctx.badRequest("User not found");
+        if (!user) return ctx.badRequest("User not found");
 
-    return ctx.send({ user: user });
-  } catch (error) {
-    console.error("Get User Error:", error);
-    return ctx.internalServerError(
-      "Something went wrong. Please try again later."
-    );
-  }
+        return ctx.send({ user: user });
+    } catch (error) {
+        console.error("Get User Error:", error);
+        return ctx.internalServerError(
+            "Something went wrong. Please try again later."
+        );
+    }
 }
 
 async function sendOTP(ctx: any) {
-  try {
-    const { email, type } = ctx.request.body;
-    //test
-    if (!email || !type) return ctx.badRequest("Email and type are required.");
+    try {
+        const { email, type } = ctx.request.body;
 
-    const users = await strapi.entityService.findMany(
-      "plugin::users-permissions.user",
-      { filters: { email } }
-    );
+        if (!email || !type)
+            return ctx.badRequest("Email and type are required.");
 
-    if (users.length === 0) return ctx.badRequest("User not found");
+        const users = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            { filters: { email } }
+        );
 
-    const user = users[0];
-    const otp = HelperService.generateOtp();
-    console.log("OTP inn auth ", otp);
-    switch (type) {
-      case "reset-password":
-        //send email with otp for reset password
-        await new EmailService().sendResetPasswordEmail(email, otp);
-        console.log(`Preparing to send reset-password OTP to ${email}`);
-        break;
+        if (users.length === 0) return ctx.badRequest("User not found");
 
-      case "register":
-        //send email with otp for register
-        await new EmailService().sendEmailVerificationEmail(email, otp);
-        console.log(`Preparing to send registration OTP to ${email}`);
-        break;
+        const user = users[0];
+        const otp = HelperService.generateOtp();
+        console.log("OTP inn auth ", otp);
+        switch (type) {
+            case "reset-password":
+                //send email with otp for reset password
+                await new EmailService().sendResetPasswordEmail(email, otp);
+                console.log(`Preparing to send reset-password OTP to ${email}`);
+                break;
 
-      default:
-        return ctx.badRequest("Invalid request type");
+            case "register":
+                //send email with otp for register
+                await new EmailService().sendEmailVerificationEmail(email, otp);
+                console.log(`Preparing to send registration OTP to ${email}`);
+                break;
+
+            default:
+                return ctx.badRequest("Invalid request type");
+        }
+        await strapi.entityService.update(
+            "plugin::users-permissions.user",
+            user.id,
+            { data: { email_otp: otp } }
+        );
+
+        return ctx.send({
+            message: "An OTP has been sent to your email address.",
+            status: 200,
+        });
+    } catch (error) {
+        console.error("sendOTP Error:", error);
+        return ctx.internalServerError("An unexpected error occurred.");
     }
-    await strapi.entityService.update(
-      "plugin::users-permissions.user",
-      user.id,
-      { data: { email_otp: otp } }
-    );
-
-    return ctx.send({
-      message: "An OTP has been sent to your email address.",
-      status: 200,
-    });
-  } catch (error) {
-    console.error("sendOTP Error:", error);
-    return ctx.internalServerError("An unexpected error occurred.");
-  }
 }
 
 async function verifyOTP(ctx) {
-  const { otp, email, type } = ctx.request.body;
-  console.log("Email", email, otp);
+    const { otp, email, type } = ctx.request.body;
+    console.log("Email", email, otp);
 
-  if (!otp) return ctx.badRequest("Invalid otp");
+    if (!otp) return ctx.badRequest("Invalid otp");
 
-  const user = await strapi.entityService.findMany(
-    "plugin::users-permissions.user",
-    {
-      filters: { email },
-      fields: ["id", "email", "name", "email_otp"],
-    }
-  );
-
-  if (user[0].email_otp == otp || "2314" == otp) {
-    await strapi.entityService.update(
-      "plugin::users-permissions.user",
-      user[0].id,
-      { data: { email_otp: "" } }
+    const user = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+            filters: { email },
+            fields: ["id", "email", "name", "email_otp"],
+        }
     );
 
-    const finalUser = { ...user[0] };
-    delete finalUser.email_otp;
-
-    switch (type) {
-      case "register": {
+    if (user[0].email_otp == otp) {
         await strapi.entityService.update(
-          "plugin::users-permissions.user",
-          user[0].id,
-          { data: { is_email_verified: true } }
+            "plugin::users-permissions.user",
+            user[0].id,
+            { data: { email_otp: "" } }
         );
-        finalUser.is_email_verified = true;
 
-        const token = await strapi
-          .plugin("users-permissions")
-          .service("jwt")
-          .issue({ id: user[0].id });
+        const finalUser = { ...user[0] };
+        delete finalUser.email_otp;
 
-        return ctx.send({
-          message: "Email verified successfully!!",
-          user: finalUser,
-          jwt: token,
-        });
-      }
+        switch (type) {
+            case "register": {
+                await strapi.entityService.update(
+                    "plugin::users-permissions.user",
+                    user[0].id,
+                    { data: { is_email_verified: true } }
+                );
+                finalUser.is_email_verified = true;
 
-      case "reset-password": {
-        const token = await strapi
-          .plugin("users-permissions")
-          .service("jwt")
-          .issue(
-            { id: user[0]?.id, token_type: "RESET-PASSWORD" },
-            { expiresIn: "1h" }
-          );
+                const token = await strapi
+                    .plugin("users-permissions")
+                    .service("jwt")
+                    .issue({ id: user[0].id });
 
-        return ctx.send({
-          reset_token: token,
-          message: "OTP verified successfully!!",
-          user: finalUser,
-        });
-      }
+                return ctx.send({
+                    message: "Email verified successfully!!",
+                    user: finalUser,
+                    jwt: token,
+                });
+            }
 
-      default:
-        return ctx.badRequest("Invalid request type");
-    }
-  } else return ctx.badRequest("Invalid OTP");
+            case "reset-password": {
+                const token = await strapi
+                    .plugin("users-permissions")
+                    .service("jwt")
+                    .issue(
+                        { id: user[0]?.id, token_type: "RESET-PASSWORD" },
+                        { expiresIn: "1h" }
+                    );
+
+                return ctx.send({
+                    reset_token: token,
+                    message: "OTP verified successfully!!",
+                    user: finalUser,
+                });
+            }
+
+            default:
+                return ctx.badRequest("Invalid request type");
+        }
+    } else return ctx.badRequest("Invalid OTP");
 }
 
 async function sendTestEmail(ctx) {
-  const { email } = ctx.request.body;
-  if (!email) return ctx.badRequest("Email is required.");
+    const { email } = ctx.request.body;
+    if (!email) return ctx.badRequest("Email is required.");
 
-  try {
-    // const msg = {
-    //   to: email, // Change to your recipient
-    //   from: "no-reply@monnetsocial.com", // Change to your verified sender
-    //   subject: "Sending with SendGrid is Fun",
-    //   text: "and easy to do anywhere, even with Node.js",
-    //   html: "<strong>and easy to do anywhere, even with Node.js</strong>",
-    // };
-    // const resp = await sgMail.send(msg);
-    const resp = await new EmailService().sendEmailVerificationEmail(
-      email,
-      HelperService.generateOtp()
-    );
-    console.log("Email sent successfully:", resp);
-    return ctx.send({
-      message: "Test email sent successfully.",
-      status: 200,
-    });
-  } catch (error) {
-    console.error("Error sending email:", error);
-    if (error.response) {
-      console.error("Error response body:", error.response.body);
+    try {
+        const resp = await new EmailService().sendEmailVerificationEmail(
+            email,
+            HelperService.generateOtp()
+        );
+        console.log("Email sent successfully:", resp);
+        return ctx.send({
+            message: "Test email sent successfully.",
+            status: 200,
+        });
+    } catch (error) {
+        console.error("Error sending email:", error);
+        if (error.response) {
+            console.error("Error response body:", error.response.body);
+        }
+        return ctx.internalServerError(
+            "Failed to send test email. Please check the server logs for more details."
+        );
     }
-    return ctx.internalServerError(
-      "Failed to send test email. Please check the server logs for more details."
-    );
-  }
 }
 
 async function resetPassword(ctx) {
-  const { reset_token, new_password } = ctx.request.body;
+    const { reset_token, new_password } = ctx.request.body;
 
-  if (!reset_token || !new_password)
-    return ctx.badRequest("Reset token and new password are required.");
+    if (!reset_token || !new_password)
+        return ctx.badRequest("Reset token and new password are required.");
 
-  if (new_password.length < 6)
-    return ctx.badRequest(
-      "Password is too weak. It must be at least 6 characters long."
-    );
+    if (new_password.length < 6)
+        return ctx.badRequest(
+            "Password is too weak. It must be at least 6 characters long."
+        );
 
-  try {
-    const payload = await strapi
-      .plugin("users-permissions")
-      .service("jwt")
-      .verify(reset_token);
+    try {
+        const payload = await strapi
+            .plugin("users-permissions")
+            .service("jwt")
+            .verify(reset_token);
 
-    if (payload.token_type !== "RESET-PASSWORD")
-      return ctx.badRequest(
-        "Invalid token. This is not a password reset token."
-      );
+        if (payload.token_type !== "RESET-PASSWORD")
+            return ctx.badRequest(
+                "Invalid token. This is not a password reset token."
+            );
 
-    const password = await bcrypt.hash(new_password, 10);
+        await strapi
+            .plugin("users-permissions")
+            .service("user")
+            .edit(payload.id, {
+                password: new_password,
+            });
 
-    await strapi.entityService.update(
-      "plugin::users-permissions.user",
-      payload.id,
-      { data: { password } }
-    );
+        return ctx.send({
+            message:
+                "Your password has been reset successfully. You can now log in.",
+        });
+    } catch (err) {
+        console.error("Password Reset Error:", err);
 
-    return ctx.send({
-      message: "Your password has been reset successfully. You can now log in.",
-    });
-  } catch (err) {
-    console.error("Password Reset Error:", err);
+        if (err.name === "TokenExpiredError")
+            return ctx.badRequest(
+                "Your reset token has expired. Please request a new one."
+            );
 
-    if (err.name === "TokenExpiredError")
-      return ctx.badRequest(
-        "Your reset token has expired. Please request a new one."
-      );
-
-    return ctx.badRequest(
-      "Invalid token or error resetting password. Please try again."
-    );
-  }
+        return ctx.badRequest(
+            "Invalid token or error resetting password. Please try again."
+        );
+    }
 }
 
 module.exports = {
-  login,
-  register,
-  sendOTP,
-  verifyOTP,
-  resetPassword,
-  getUser,
-  sendTestEmail,
+    login,
+    register,
+    sendOTP,
+    verifyOTP,
+    resetPassword,
+    getUser,
+    sendTestEmail,
 };
