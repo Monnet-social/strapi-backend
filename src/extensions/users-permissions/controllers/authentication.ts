@@ -285,11 +285,12 @@ async function sendTestEmail(ctx) {
   if (!email) return ctx.badRequest("Email is required.");
 
   try {
-    const resp = await new EmailService().sendEmailVerificationEmail(
+    const resp: any = await new EmailService().sendEmailVerificationEmail(
       email,
       HelperService.generateOtp()
     );
     console.log("Email sent successfully:", resp);
+    console.log("Email sent to:", resp?.body);
     return ctx.send({
       message: "Test email sent successfully.",
       status: 200,
