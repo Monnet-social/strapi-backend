@@ -19,6 +19,7 @@ export default class EmailService {
 
     console.log("Email verification email sent successfully.");
   }
+  //test
 
   async sendResetPasswordEmail(email: string, otp: string) {
     if (!email || !otp) return;
