@@ -1,5 +1,6 @@
 import HelperService from "../../../utils/helper_service";
 import EmailService from "../../../utils/email/email_service";
+import { useResolvedPath } from "react-router-dom";
 const bcrypt = require("bcryptjs");
 
 async function login(ctx) {
@@ -360,6 +361,39 @@ async function resetPassword(ctx) {
     }
 }
 
+async function checkUserStatus(ctx) {
+    const { email } = ctx.request.body;
+
+    if (!email) return ctx.badRequest("Email is required.");
+
+    try {
+        const users = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            {
+                filters: { email: email.toLowerCase() },
+                fields: ["is_email_verified", "confirmed"],
+            }
+        );
+
+        if (users.length === 0)
+            return ctx.send({
+                exists: false,
+                message: "User does'nt exists with this email.",
+            });
+
+        const user = users[0];
+
+        return ctx.send({
+            exists: user.confirmed,
+            message: "User already exists with this email.",
+            user,
+        });
+    } catch (err) {
+        console.error("Check User Status Error:", err);
+        return ctx.internalServerError("An unexpected error occurred.");
+    }
+}
+
 module.exports = {
     login,
     register,
@@ -368,4 +402,5 @@ module.exports = {
     resetPassword,
     getUser,
     sendTestEmail,
+    checkUserStatus,
 };
