@@ -118,7 +118,7 @@ async function register(ctx: any) {
                 referral_code,
                 referred_by: referredById,
                 provider: "local",
-                confirmed: true,
+                confirmed: false,
                 blocked: false,
                 is_email_verified: false,
                 role: 1,
@@ -249,7 +249,7 @@ async function verifyOTP(ctx) {
                 await strapi.entityService.update(
                     "plugin::users-permissions.user",
                     user[0].id,
-                    { data: { is_email_verified: true } }
+                    { data: { is_email_verified: true, confirmed: true } }
                 );
                 finalUser.is_email_verified = true;
 
@@ -383,7 +383,7 @@ async function checkUserStatus(ctx) {
         const user = users[0];
 
         return ctx.send({
-            exists: user.confirmed,
+            exists: true,
             message: "User already exists with this email.",
             user,
         });
