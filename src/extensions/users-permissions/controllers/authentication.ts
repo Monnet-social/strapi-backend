@@ -1,6 +1,5 @@
 import HelperService from "../../../utils/helper_service";
 import EmailService from "../../../utils/email/email_service";
-import { useResolvedPath } from "react-router-dom";
 const bcrypt = require("bcryptjs");
 
 async function login(ctx) {
