@@ -1,0 +1,32 @@
+{
+  "kind": "collectionType",
+  "collectionName": "file_optimisations",
+  "info": {
+    "singularName": "file-optimisation",
+    "pluralName": "file-optimisations",
+    "displayName": "File Optimisation"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "media": {
+      "type": "media",
+      "multiple": false,
+      "required": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "thumbnail_url": {
+      "type": "string"
+    },
+    "compressed_url": {
+      "type": "string"
+    }
+  }
+}
