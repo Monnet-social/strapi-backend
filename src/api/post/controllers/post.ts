@@ -148,6 +148,48 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       return ctx.internalServerError("An error occurred while fetching posts.");
     }
   },
+  //replace by followers for now returning all users except the current user
+  async getFriendsToTag(ctx) {
+    const { id: userId } = ctx.state.user;
+    const { pagination_size, page } = ctx.query;
+
+    let default_pagination = {
+      pagination: { page: 1, pageSize: 20 },
+    };
+    if (pagination_size) {
+      default_pagination.pagination.pageSize = pagination_size;
+    }
+
+    if (page) {
+      default_pagination.pagination.page = page;
+    }
+    if (!userId)
+      return ctx.unauthorized("You must be logged in to get friends to tag.");
+
+    try {
+      const users = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+          filters: { id: { $ne: userId } },
+          fields: ["id", "username", "name"],
+          start:
+            (default_pagination.pagination.page - 1) *
+            default_pagination.pagination.pageSize,
+          limit: default_pagination.pagination.pageSize,
+        }
+      );
+
+      return ctx.send({
+        data: users,
+        message: "Friends fetched successfully.",
+      });
+    } catch (err) {
+      console.error("Get Friends Error:", err);
+      return ctx.internalServerError(
+        "An error occurred while fetching friends."
+      );
+    }
+  },
   async testFIleUpload(ctx) {
     const { file } = ctx.request.files;
     if (!file) {

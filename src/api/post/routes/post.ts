@@ -33,5 +33,10 @@ module.exports = {
       path: "/test-file",
       handler: "post.testFIleUpload",
     },
+    {
+      method: "GET",
+      path: "/friends",
+      handler: "post.getFriendsToTag",
+    },
   ],
 };
