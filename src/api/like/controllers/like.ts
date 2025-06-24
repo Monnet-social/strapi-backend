@@ -8,12 +8,12 @@ export default factories.createCoreController(
   "api::like.like",
   ({ strapi }) => ({
     async likePost(ctx) {
-      const { postId } = ctx.request.body;
+      const { post_id } = ctx.request.body;
       const userId = ctx.state.user.id;
       const existingLike = await strapi.entityService.findMany(
         "api::like.like",
         {
-          filters: { post: postId, liked_by: userId },
+          filters: { post: post_id, liked_by: userId },
         }
       );
       if (existingLike.length > 0) {
@@ -21,19 +21,19 @@ export default factories.createCoreController(
       }
       const createLike = await strapi.entityService.create("api::like.like", {
         data: {
-          post: postId,
+          post: post_id,
           liked_by: userId,
         },
       });
       return ctx.send("Post liked successfully");
     },
     async unlikePost(ctx) {
-      const { postId } = ctx.request.body;
+      const { post_id } = ctx.request.body;
       const userId = ctx.state.user.id;
       const existingLike = await strapi.entityService.findMany(
         "api::like.like",
         {
-          filters: { post: postId, liked_by: userId },
+          filters: { post: post_id, liked_by: userId },
         }
       );
       if (existingLike.length === 0) {
