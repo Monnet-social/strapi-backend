@@ -158,6 +158,16 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           default_pagination.pagination.pageSize,
         limit: default_pagination.pagination.pageSize,
       });
+      for (let i = 0; i < results.length; i++) {
+        const likesCount = await strapi.services[
+          "api::like.like"
+        ].getLikesCount(results[i].id);
+        results[i].likes_count = likesCount;
+        const commentsCount = await strapi.services[
+          "api::comment.comment"
+        ].getCommentsCount(results[i].id);
+        results[i].comments_count = commentsCount;
+      }
 
       const count = await strapi.entityService.count(
         "plugin::users-permissions.user",
@@ -227,6 +237,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         const expirationTime =
           createdAt.getTime() + STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
         results[i].expiration_time = expirationTime;
+        const likesCount = await strapi.services[
+          "api::like.like"
+        ].getLikesCount(results[i].id);
+        results[i].likes_count = likesCount;
+        const commentsCount = await strapi.services[
+          "api::comment.comment"
+        ].getCommentsCount(results[i].id);
+        results[i].comments_count = commentsCount;
       }
 
       return ctx.send({
