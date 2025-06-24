@@ -161,6 +161,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           default_pagination.pagination.pageSize,
         limit: default_pagination.pagination.pageSize,
       });
+      console.log("Feed results:", results);
       for (let i = 0; i < results.length; i++) {
         const likesCount = await strapi.services[
           "api::like.like"
@@ -172,14 +173,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         results[i].comments_count = commentsCount;
       }
 
-      const count = await strapi.entityService.count(
-        "plugin::users-permissions.user",
-        {
-          filters: {
-            post_type: "post",
-          },
-        }
-      );
+      const count = await strapi.entityService.count("api::post.post", {
+        filters: {
+          post_type: "post",
+        },
+      });
 
       return ctx.send({
         data: results,
