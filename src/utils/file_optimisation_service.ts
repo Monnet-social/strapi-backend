@@ -1,8 +1,11 @@
 import { Storage } from "@google-cloud/storage";
 import fs from "fs";
-import ffmpeg from "fluent-ffmpeg";
+
 import axios from "axios";
 import sharp from "sharp";
+const ffmpegPath = require("@ffmpeg-installer/ffmpeg").path;
+const ffmpeg = require("fluent-ffmpeg");
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 // AWS.config.update({
 //     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -24,6 +27,7 @@ export default class FileOptimisationService {
   getFileType(
     mime: string
   ): "image" | "video" | "audio" | "document" | "other" {
+    console.log("MIME type:", mime);
     if (mime.startsWith("image")) {
       return "image";
     } else if (mime.startsWith("video")) {
@@ -47,7 +51,7 @@ export default class FileOptimisationService {
 
     switch (file_type) {
       case "image":
-        data.thumbnail_url = await this.generateThumbnailFromImage(url);
+        // data.thumbnail_url = await this.generateThumbnailFromImage(url);
         data.compressed_url = await this.compressImage(url);
         break;
       case "video":
@@ -120,7 +124,7 @@ export default class FileOptimisationService {
     try {
       // const file_content = fs.readFileSync(file_path);
       const file_id = Math.floor(Math.random() * 1000000000);
-      const file_key = `media/media-${file_id}`;
+      const file_key = `media-${file_id}`;
 
       const result = await this.gcs.upload(file_path, {
         destination: file_key,
@@ -132,7 +136,7 @@ export default class FileOptimisationService {
       });
       console.log("Uploaded file to Cloud Storage:", result);
 
-      return "media" + file_id || null;
+      return file_key;
     } catch (error) {
       console.error("Error uploading file:", error);
       throw new Error("Failed to upload file");

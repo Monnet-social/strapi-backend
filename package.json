@@ -17,6 +17,7 @@
     "backend-server": "ssh admin@213.136.87.122 -i monnet"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@google-cloud/storage": "^7.16.0",
     "@sendgrid/mail": "^8.1.5",
     "@strapi-community/strapi-provider-upload-google-cloud-storage": "^5.0.4",

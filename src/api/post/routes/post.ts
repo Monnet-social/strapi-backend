@@ -33,11 +33,11 @@ module.exports = {
       path: "/feed",
       handler: "post.feed",
     },
-    {
-      method: "POST",
-      path: "/upload",
-      handler: "post.testFIleUpload",
-    },
+    // {
+    //   method: "POST",
+    //   path: "/upload",
+    //   handler: "post.testFIleUpload",
+    // },
     {
       method: "GET",
       path: "/test-file/:media_id",
