@@ -30,7 +30,7 @@ module.exports = {
     },
     {
       method: "POST",
-      path: "/test-file",
+      path: "/upload",
       handler: "post.testFIleUpload",
     },
     {
