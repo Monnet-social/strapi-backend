@@ -443,7 +443,7 @@ export interface ApiFileOptimisationFileOptimisation
     singularName: 'file-optimisation';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     compressed_url: Schema.Attribute.String;

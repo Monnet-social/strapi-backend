@@ -7,7 +7,7 @@
     "displayName": "File Optimisation"
   },
   "options": {
-    "draftAndPublish": true
+    "draftAndPublish": false
   },
   "pluginOptions": {},
   "attributes": {
