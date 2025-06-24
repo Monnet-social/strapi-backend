@@ -18,10 +18,8 @@ export default factories.createCoreController(
         }
       );
       if (existingLike.length > 0) {
-        return ctx.send({
-          message: "Post liked successfully",
-          status: 200,
-        });
+        await strapi.entityService.delete("api::like.like", existingLike[0].id);
+        return ctx.send({ message: "Post unliked successfully ", status: 200 });
       }
       const createLike = await strapi.entityService.create("api::like.like", {
         data: {
@@ -31,21 +29,21 @@ export default factories.createCoreController(
       });
       return ctx.send({ message: "Post liked successfully ", status: 200 });
     },
-    async unlikePost(ctx) {
-      const { post_id } = ctx.request.body;
-      const userId = ctx.state.user.id;
-      const existingLike = await strapi.entityService.findMany(
-        "api::like.like",
-        {
-          filters: { post: post_id, liked_by: userId },
-        }
-      );
-      if (existingLike.length === 0) {
-        return ctx.send({ message: "Post unliked successfully ", status: 200 });
-      }
-      await strapi.entityService.delete("api::like.like", existingLike[0].id);
-      return ctx.send({ message: "Post unliked successfully ", status: 200 });
-    },
+    // async unlikePost(ctx) {
+    //   const { post_id } = ctx.request.body;
+    //   const userId = ctx.state.user.id;
+    //   const existingLike = await strapi.entityService.findMany(
+    //     "api::like.like",
+    //     {
+    //       filters: { post: post_id, liked_by: userId },
+    //     }
+    //   );
+    //   if (existingLike.length === 0) {
+    //     return ctx.send({ message: "Post unliked successfully ", status: 200 });
+    //   }
+    //   await strapi.entityService.delete("api::like.like", existingLike[0].id);
+    //   return ctx.send({ message: "Post unliked successfully ", status: 200 });
+    // },
     async getLikesByPostId(ctx) {
       const { post_id } = ctx.params;
       const likes = await strapi.entityService.findMany("api::like.like", {
