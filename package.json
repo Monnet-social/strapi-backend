@@ -19,6 +19,7 @@
   "dependencies": {
     "@google-cloud/storage": "^7.16.0",
     "@sendgrid/mail": "^8.1.5",
+    "@strapi-community/strapi-provider-upload-google-cloud-storage": "^5.0.4",
     "@strapi/plugin-cloud": "5.14.0",
     "@strapi/plugin-users-permissions": "5.14.0",
     "@strapi/strapi": "5.14.0",

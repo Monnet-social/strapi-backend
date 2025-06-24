@@ -9,14 +9,14 @@ export default {
       },
     },
 
-    {
-      method: "POST",
-      path: "/unlike",
-      handler: "like.unlikePost",
-      config: {
-        prefix: "",
-      },
-    },
+    // {
+    //   method: "POST",
+    //   path: "/unlike",
+    //   handler: "like.unlikePost",
+    //   config: {
+    //     prefix: "",
+    //   },
+    // },
     {
       method: "GET",
       path: "/:post_id/likes",
