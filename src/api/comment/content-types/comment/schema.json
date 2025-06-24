@@ -23,6 +23,10 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false
     }
   }
 }
