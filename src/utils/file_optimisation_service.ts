@@ -43,7 +43,6 @@ export default class FileOptimisationService {
     let data = {
       thumbnail_url: "",
       compressed_url: "",
-      reels_optimised_url: "",
     };
 
     switch (file_type) {
@@ -133,7 +132,7 @@ export default class FileOptimisationService {
       });
       console.log("Uploaded file to Cloud Storage:", result);
 
-      return result[0].metadata.mediaLink;
+      return file_id?.toString() || null;
     } catch (error) {
       console.error("Error uploading file:", error);
       throw new Error("Failed to upload file");
