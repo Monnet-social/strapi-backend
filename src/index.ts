@@ -20,6 +20,7 @@ export default {
     strapi.db.lifecycles.subscribe({
       models: ["plugin::upload.file"],
       async afterCreate(event) {
+        console.log("File created:", event.result.id);
         strapi
           .service("api::file-optimisation.file-optimisation")
           .optimiseFile(event.result.id);

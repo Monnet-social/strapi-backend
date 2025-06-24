@@ -124,7 +124,7 @@ export default class FileOptimisationService {
     try {
       // const file_content = fs.readFileSync(file_path);
       const file_id = Math.floor(Math.random() * 1000000000);
-      const file_key = `media-${file_id}`;
+      const file_key = `media/media-${file_id}`;
 
       const result = await this.gcs.upload(file_path, {
         destination: file_key,
@@ -172,7 +172,7 @@ export default class FileOptimisationService {
         action: "read",
         expires: Date.now() + expiryTimeInSeconds, // Expiration time in milliseconds
       };
-      const file_path = `media/media-${file_id}`;
+      const file_path = `${file_id}`;
       console.log("Generating signed URL for file:", options, file_path);
       const [url] = await this.gcs.file(file_path).getSignedUrl(options);
       console.log("Generated signed URL:", url);

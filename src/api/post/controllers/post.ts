@@ -155,6 +155,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           posted_by: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
           tagged_users: { fields: ["id", "username", "name"] },
+          media: true,
         },
         start:
           (default_pagination.pagination.page - 1) *
@@ -171,6 +172,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           "api::comment.comment"
         ].getCommentsCount(results[i].id);
         results[i].comments_count = commentsCount;
+        console.log("Optimised m41324edia for post:", results[i].media);
+        results[i].media = await strapi
+          .service("api::post.post")
+          .getOptimisedFileData(results[i].media);
+        console.log("Optimised media for post:", results[i].media);
       }
 
       const count = await strapi.entityService.count("api::post.post", {
@@ -219,6 +225,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           posted_by: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
           tagged_users: { fields: ["id", "username", "name"] },
+          media: true,
         },
         start:
           (default_pagination.pagination.page - 1) *
@@ -246,6 +253,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           "api::comment.comment"
         ].getCommentsCount(results[i].id);
         results[i].comments_count = commentsCount;
+        results[i].media = await strapi
+          .service("api::post.post")
+          .getOptimisedFileData(results[i].media);
+        console.log("Optimised media for post:", results[i].media);
       }
 
       return ctx.send({
