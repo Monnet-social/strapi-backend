@@ -35,6 +35,11 @@ module.exports = {
     },
     {
       method: "GET",
+      path: "/test-file/:media_id",
+      handler: "post.getTestFile",
+    },
+    {
+      method: "GET",
       path: "/friends",
       handler: "post.getFriendsToTag",
     },

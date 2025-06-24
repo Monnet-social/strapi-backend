@@ -19,6 +19,7 @@ export default class FileOptimisationService {
   // constructor() {
   //     this.s3 = new AWS.S3();
   // }
+  gcs = storage.bucket("gs://" + process.env.GCP_STORAGE_BUCKET);
 
   getFileType(
     mime: string
@@ -121,8 +122,8 @@ export default class FileOptimisationService {
       // const file_content = fs.readFileSync(file_path);
       const file_id = Math.floor(Math.random() * 1000000000);
       const file_key = `media/media-${file_id}`;
-      const gcs = storage.bucket("gs://" + process.env.GCP_STORAGE_BUCKET);
-      const result = await gcs.upload(file_path, {
+
+      const result = await this.gcs.upload(file_path, {
         destination: file_key,
         // public: true,
 
@@ -155,6 +156,28 @@ export default class FileOptimisationService {
     //     console.error('Error uploading file:', error);
     //     throw new Error('Failed to upload file');
     // }
+  }
+
+  async getSignedUrl(file_id: string) {
+    try {
+      let expiryTime = process.env.IMAGE_EXPIRE_TIME
+        ? Number(process.env.IMAGE_EXPIRE_TIME)
+        : 3600; // Default to 1 hour if not set
+      let expiryTimeInSeconds = parseInt(expiryTime?.toString(), 10);
+      const options: any = {
+        version: "v4",
+        action: "read",
+        expires: Date.now() + expiryTimeInSeconds, // Expiration time in milliseconds
+      };
+      const file_path = `media/media-${file_id}`;
+      console.log("Generating signed URL for file:", options, file_path);
+      const [url] = await this.gcs.file(file_path).getSignedUrl(options);
+      console.log("Generated signed URL:", url);
+      return url;
+    } catch (error) {
+      console.error("Error generating signed URL:", error);
+      return null;
+    }
   }
 
   async generateThumbnailFromImage(media_url: string): Promise<string> {

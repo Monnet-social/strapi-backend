@@ -206,6 +206,20 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       file_url: file_service,
     });
   },
+  async getTestFile(ctx) {
+    const { media_id } = ctx.params;
+    if (!media_id) return ctx.badRequest("Media ID is required.");
+
+    const file_url = await new FileOptimisationService().getSignedUrl(media_id);
+    if (file_url) {
+      return ctx.send({
+        file_url,
+        message: "File fetched successfully.",
+      });
+    } else {
+      return ctx.badRequest("Failed to fetch the file.");
+    }
+  },
   async update(ctx) {
     const { id: postId } = ctx.params;
     const { id: userId } = ctx.state.user;
