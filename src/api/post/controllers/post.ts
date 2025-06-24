@@ -128,22 +128,57 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
   async feed(ctx) {
     console.log("Fetching feed with query:", ctx.state);
+    const { id: userId } = ctx.state.user;
+    const { pagination_size, page } = ctx.query;
+
+    let default_pagination = {
+      pagination: { page: 1, pageSize: 10 },
+    };
+    if (pagination_size) {
+      default_pagination.pagination.pageSize = pagination_size;
+    }
+
+    if (page) {
+      default_pagination.pagination.page = page;
+    }
     try {
-      const { results, pagination } = await strapi.entityService.findPage(
-        "api::post.post",
+      const results = await strapi.entityService.findMany("api::post.post", {
+        filters: {
+          post_type: "post",
+        },
+
+        populate: {
+          posted_by: { fields: ["id", "username", "name"] },
+          category: { fields: ["id", "name"] },
+          tagged_users: { fields: ["id", "username", "name"] },
+        },
+        start:
+          (default_pagination.pagination.page - 1) *
+          default_pagination.pagination.pageSize,
+        limit: default_pagination.pagination.pageSize,
+      });
+
+      const count = await strapi.entityService.count(
+        "plugin::users-permissions.user",
         {
-          ...ctx.query,
-          populate: {
-            posted_by: { fields: ["id", "username", "name"] },
-            category: { fields: ["id", "name"] },
-            tagged_users: { fields: ["id", "username", "name"] },
+          filters: {
+            post_type: "post",
           },
         }
       );
 
       return ctx.send({
         data: results,
-        meta: { pagination },
+        meta: {
+          pagination: {
+            page: Number(default_pagination.pagination.page),
+            pageSize: Number(default_pagination.pagination.pageSize),
+            pageCount: Math.ceil(
+              count / default_pagination.pagination.pageSize
+            ),
+            total: count,
+          },
+        },
         message: "Posts fetched successfully.",
       });
     } catch (err) {
@@ -182,9 +217,26 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }
       );
 
+      const count = await strapi.entityService.count(
+        "plugin::users-permissions.user",
+        {
+          filters: { id: { $ne: userId } },
+        }
+      );
+
       return ctx.send({
         data: users,
         message: "Friends fetched successfully.",
+        meta: {
+          pagination: {
+            page: Number(default_pagination.pagination.page),
+            pageSize: Number(default_pagination.pagination.pageSize),
+            pageCount: Math.ceil(
+              count / default_pagination.pagination.pageSize
+            ),
+            total: count,
+          },
+        },
       });
     } catch (err) {
       console.error("Get Friends Error:", err);
