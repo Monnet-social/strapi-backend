@@ -3,6 +3,7 @@
  */
 
 import { factories } from "@strapi/strapi";
+import { stat } from "fs";
 
 export default factories.createCoreController(
   "api::like.like",
@@ -17,7 +18,10 @@ export default factories.createCoreController(
         }
       );
       if (existingLike.length > 0) {
-        return ctx.send("Post liked successfully");
+        return ctx.send({
+          message: "Post liked successfully 123",
+          status: 200,
+        });
       }
       const createLike = await strapi.entityService.create("api::like.like", {
         data: {
@@ -25,7 +29,7 @@ export default factories.createCoreController(
           liked_by: userId,
         },
       });
-      return ctx.send("Post liked successfully");
+      return ctx.send({ message: "Post liked successfully ", status: 200 });
     },
     async unlikePost(ctx) {
       const { post_id } = ctx.request.body;

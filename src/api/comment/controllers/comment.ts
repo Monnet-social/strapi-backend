@@ -21,7 +21,10 @@ export default factories.createCoreController(
           },
         }
       );
-      return ctx.send("Add comment successfully on post");
+      return ctx.send({
+        message: "Add comment successfully on post",
+        status: 200,
+      });
     },
     async pinComment(ctx) {
       const { comment_id } = ctx.state.params;
