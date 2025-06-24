@@ -132,7 +132,7 @@ export default class FileOptimisationService {
       });
       console.log("Uploaded file to Cloud Storage:", result);
 
-      return file_id?.toString() || null;
+      return "media" + file_id || null;
     } catch (error) {
       console.error("Error uploading file:", error);
       throw new Error("Failed to upload file");
