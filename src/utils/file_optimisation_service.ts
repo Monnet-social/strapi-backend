@@ -124,12 +124,15 @@ export default class FileOptimisationService {
       const gcs = storage.bucket("gs://" + process.env.GCP_STORAGE_BUCKET);
       const result = await gcs.upload(file_path, {
         destination: file_key,
-        public: true,
+        // public: true,
+
         metadata: {
           contentType: mime, //application/csv for excel or csv file upload
         },
       });
       console.log("Uploaded file to Cloud Storage:", result);
+      await result[0].makePublic();
+
       return result[0].metadata.mediaLink;
     } catch (error) {
       console.error("Error uploading file:", error);

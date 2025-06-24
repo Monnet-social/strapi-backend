@@ -454,6 +454,10 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::post.post'> &
       Schema.Attribute.Private;
     location: Schema.Attribute.Component<'location.location', false>;
+    media: Schema.Attribute.Media<
+      'images' | 'files' | 'videos' | 'audios',
+      true
+    >;
     post_type: Schema.Attribute.Enumeration<['story', 'post']>;
     posted_by: Schema.Attribute.Relation<
       'oneToOne',
