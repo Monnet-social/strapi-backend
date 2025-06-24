@@ -32,6 +32,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       Array.isArray(data.tagged_users) &&
       data.tagged_users.length > 0
     ) {
+      if (data?.tagged_users?.includes(userId)) {
+        return ctx.badRequest("You cannot tag yourself in a post.");
+      }
       const foundUsers = await strapi.entityService.findMany(
         "plugin::users-permissions.user",
         {
