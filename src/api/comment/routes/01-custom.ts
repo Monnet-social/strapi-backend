@@ -26,7 +26,7 @@ export default {
     },
     {
       method: "POST",
-      path: "/comment/:comment_id/un-pin",
+      path: "/comment/:comment_id/unpin",
       handler: "comment.unpinComment",
       config: {
         prefix: "",

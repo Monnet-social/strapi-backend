@@ -17,7 +17,7 @@ export default factories.createCoreController(
           data: {
             post: post_id,
             commented_by: userId,
-            content: comment,
+            comment,
           },
         }
       );
@@ -57,7 +57,11 @@ export default factories.createCoreController(
           },
         }
       );
-      return ctx.send("Comment pinned successfully");
+
+      return ctx.send({
+        message: "Comment pinned successfully",
+        status: 200,
+      });
     },
     async unpinComment(ctx) {
       const { comment_id } = ctx.params;
@@ -79,7 +83,10 @@ export default factories.createCoreController(
         return ctx.badRequest("You cannot unpin this comment");
       }
       if (comment[0].pinned === false) {
-        return ctx.send("Comment unpinned successfully");
+        return ctx.send({
+          message: "Comment unpinned successfully",
+          status: 200,
+        });
       }
       if (comment[0].post.posted_by.id !== userId) {
         return ctx.badRequest("You cannot unpin this comment");
@@ -93,7 +100,11 @@ export default factories.createCoreController(
           },
         }
       );
-      return ctx.send("Comment unpinned successfully");
+
+      return ctx.send({
+        message: "Comment unpinned successfully",
+        status: 200,
+      });
     },
 
     async getCommentsByPostId(ctx) {
