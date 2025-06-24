@@ -131,7 +131,6 @@ export default class FileOptimisationService {
         },
       });
       console.log("Uploaded file to Cloud Storage:", result);
-      await result[0].makePublic();
 
       return result[0].metadata.mediaLink;
     } catch (error) {

@@ -13,6 +13,9 @@
     },
     "address": {
       "type": "string"
+    },
+    "zip_code": {
+      "type": "string"
     }
   },
   "config": {}
