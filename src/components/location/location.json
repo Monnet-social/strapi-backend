@@ -14,7 +14,7 @@
     "address": {
       "type": "string"
     },
-    "zip_code": {
+    "zip": {
       "type": "string"
     }
   },

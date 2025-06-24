@@ -50,7 +50,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
     }
     if (data.location) {
-      const { latitute, longitude } = data.location;
+      const { latitute, longitude, address, zip } = data.location;
       if (
         (latitute !== undefined && typeof latitute !== "number") ||
         (longitude !== undefined && typeof longitude !== "number")
@@ -58,6 +58,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         return ctx.badRequest(
           "If provided, location latitude and longitude must be numbers."
         );
+      if (!zip) {
+        return ctx.badRequest("Zip code is required for location.");
+      }
     }
 
     try {
