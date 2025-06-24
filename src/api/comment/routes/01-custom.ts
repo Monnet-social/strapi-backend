@@ -8,5 +8,29 @@ export default {
         prefix: "",
       },
     },
+    {
+      method: "GET",
+      path: "/:post_id/comments",
+      handler: "comment.getCommentsByPostId",
+      config: {
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/comment/:comment_id/pin",
+      handler: "comment.pinComment",
+      config: {
+        prefix: "",
+      },
+    },
+    {
+      method: "POST",
+      path: "/comment/:comment_id/un-pin",
+      handler: "comment.unpinComment",
+      config: {
+        prefix: "",
+      },
+    },
   ],
 };

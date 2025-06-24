@@ -42,5 +42,17 @@ export default factories.createCoreController(
       await strapi.entityService.delete("api::like.like", existingLike[0].id);
       return ctx.send("Post unliked successfully");
     },
+    async getLikesByPostId(ctx) {
+      const { post_id } = ctx.state.params;
+      const likes = await strapi.entityService.findMany("api::like.like", {
+        filters: { post: { id: post_id } },
+        populate: {
+          liked_by: {
+            fields: ["id", "username", "email", "name"],
+          },
+        },
+      });
+      return ctx.send(likes);
+    },
   })
 );

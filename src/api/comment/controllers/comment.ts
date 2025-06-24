@@ -92,5 +92,21 @@ export default factories.createCoreController(
       );
       return ctx.send("Comment unpinned successfully");
     },
+
+    async getCommentsByPostId(ctx) {
+      const { post_id } = ctx.state.params;
+      const comments = await strapi.entityService.findMany(
+        "api::comment.comment",
+        {
+          filters: { post: { id: post_id } },
+          populate: {
+            commented_by: {
+              fields: ["id", "username", "email", "name"],
+            },
+          },
+        }
+      );
+      return ctx.send(comments);
+    },
   })
 );

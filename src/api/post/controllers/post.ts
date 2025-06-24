@@ -268,6 +268,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
+
   //replace by followers for now returning all users except the current user
   async getFriendsToTag(ctx) {
     const { id: userId } = ctx.state.user;
