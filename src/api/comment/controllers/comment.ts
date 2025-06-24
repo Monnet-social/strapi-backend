@@ -27,7 +27,7 @@ export default factories.createCoreController(
       });
     },
     async pinComment(ctx) {
-      const { comment_id } = ctx.state.params;
+      const { comment_id } = ctx.params;
       const userId = ctx.state.user.id;
       const comment: any = await strapi.entityService.findMany(
         "api::comment.comment",
@@ -60,7 +60,7 @@ export default factories.createCoreController(
       return ctx.send("Comment pinned successfully");
     },
     async unpinComment(ctx) {
-      const { comment_id } = ctx.state.params;
+      const { comment_id } = ctx.params;
       const userId = ctx.state.user.id;
       const comment: any = await strapi.entityService.findMany(
         "api::comment.comment",
@@ -97,7 +97,7 @@ export default factories.createCoreController(
     },
 
     async getCommentsByPostId(ctx) {
-      const { post_id } = ctx.state.params;
+      const { post_id } = ctx.params;
       const comments = await strapi.entityService.findMany(
         "api::comment.comment",
         {

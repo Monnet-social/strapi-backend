@@ -19,7 +19,7 @@ export default factories.createCoreController(
       );
       if (existingLike.length > 0) {
         return ctx.send({
-          message: "Post liked successfully 123",
+          message: "Post liked successfully",
           status: 200,
         });
       }
@@ -41,13 +41,13 @@ export default factories.createCoreController(
         }
       );
       if (existingLike.length === 0) {
-        return ctx.send("Post unliked successfully");
+        return ctx.send({ message: "Post unliked successfully ", status: 200 });
       }
       await strapi.entityService.delete("api::like.like", existingLike[0].id);
-      return ctx.send("Post unliked successfully");
+      return ctx.send({ message: "Post unliked successfully ", status: 200 });
     },
     async getLikesByPostId(ctx) {
-      const { post_id } = ctx.state.params;
+      const { post_id } = ctx.params;
       const likes = await strapi.entityService.findMany("api::like.like", {
         filters: { post: { id: post_id } },
         populate: {
