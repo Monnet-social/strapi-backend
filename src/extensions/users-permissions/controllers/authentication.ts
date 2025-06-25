@@ -2,11 +2,17 @@ import HelperService from "../../../utils/helper_service";
 import EmailService from "../../../utils/email/email_service";
 const bcrypt = require("bcryptjs");
 
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
 async function login(ctx) {
     const { email, password } = ctx.request.body;
 
     if (!password || !email)
         return ctx.badRequest("Email and password must be provided.");
+
+    if (!email || !EMAIL_REGEX.test(email))
+        return ctx.badRequest("A valid email address is required.");
 
     try {
         const users = await strapi.entityService.findMany(
@@ -60,10 +66,23 @@ async function register(ctx: any) {
         referral_code: fromReferral,
     } = ctx.request.body;
 
+    const birthDate = new Date(date_of_birth);
+    const today = new Date();
+
     if (!email || !password || !date_of_birth)
         return ctx.badRequest(
             "Incomplete fields: email, password,date_of_birth and name are required."
         );
+    if (!email || !EMAIL_REGEX.test(email))
+        return ctx.badRequest("A valid email address is required.");
+
+    if (!DATE_REGEX.test(date_of_birth))
+        return ctx.badRequest(
+            "Invalid date format for date_of_birth. Please use YYYY-MM-DD."
+        );
+
+    if (birthDate > today)
+        return ctx.badRequest("Date of birth cannot be in the future.");
 
     try {
         const existingUsers = await strapi.entityService.findMany(
@@ -183,6 +202,9 @@ async function sendOTP(ctx: any) {
         if (!email || !type)
             return ctx.badRequest("Email and type are required.");
 
+        if (!email || !EMAIL_REGEX.test(email))
+            return ctx.badRequest("A valid email address is required.");
+
         const users = await strapi.entityService.findMany(
             "plugin::users-permissions.user",
             { filters: { email } }
@@ -225,7 +247,9 @@ async function sendOTP(ctx: any) {
 
 async function verifyOTP(ctx) {
     const { otp, email, type } = ctx.request.body;
-    console.log("Email", email, otp);
+
+    if (!email || !EMAIL_REGEX.test(email))
+        return ctx.badRequest("A valid email address is required.");
 
     if (!otp) return ctx.badRequest("Invalid otp");
 
@@ -293,6 +317,8 @@ async function verifyOTP(ctx) {
 async function sendTestEmail(ctx) {
     const { email } = ctx.request.body;
     if (!email) return ctx.badRequest("Email is required.");
+    if (!email || !EMAIL_REGEX.test(email))
+        return ctx.badRequest("A valid email address is required.");
 
     try {
         const resp: any = await new EmailService().sendEmailVerificationEmail(
@@ -367,6 +393,8 @@ async function checkUserStatus(ctx) {
     const { email } = ctx.request.body;
 
     if (!email) return ctx.badRequest("Email is required.");
+    if (!email || !EMAIL_REGEX.test(email))
+        return ctx.badRequest("A valid email address is required.");
 
     try {
         const users = await strapi.entityService.findMany(
