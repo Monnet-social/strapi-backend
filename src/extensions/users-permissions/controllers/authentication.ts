@@ -56,12 +56,13 @@ async function register(ctx: any) {
         email,
         password,
         name,
+        date_of_birth,
         referral_code: fromReferral,
     } = ctx.request.body;
 
-    if (!email || !password)
+    if (!email || !password || !date_of_birth)
         return ctx.badRequest(
-            "Incomplete fields: email, password, and name are required."
+            "Incomplete fields: email, password,date_of_birth and name are required."
         );
 
     try {
@@ -85,6 +86,7 @@ async function register(ctx: any) {
                 {
                     fields: ["id", "no_of_referrals"],
                     filters: { referral_code: fromReferral },
+                    limit: 1,
                 }
             );
 
@@ -122,6 +124,7 @@ async function register(ctx: any) {
                 blocked: false,
                 is_email_verified: false,
                 role: 1,
+                date_of_birth,
             });
         delete newUser.password;
         const token = await strapi
