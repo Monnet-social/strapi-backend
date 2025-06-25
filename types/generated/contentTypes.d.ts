@@ -426,6 +426,10 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
       'api::comment.comment'
     > &
       Schema.Attribute.Private;
+    parent_comment: Schema.Attribute.Relation<
+      'oneToOne',
+      'api::comment.comment'
+    >;
     pinned: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
     publishedAt: Schema.Attribute.DateTime;

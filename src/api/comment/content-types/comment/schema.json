@@ -27,6 +27,11 @@
     "pinned": {
       "type": "boolean",
       "default": false
+    },
+    "parent_comment": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::comment.comment"
     }
   }
 }
