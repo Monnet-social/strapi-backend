@@ -64,14 +64,15 @@ async function register(ctx: any) {
         name,
         date_of_birth,
         referral_code: fromReferral,
+        tos_accepted,
     } = ctx.request.body;
 
     const birthDate = new Date(date_of_birth);
     const today = new Date();
 
-    if (!email || !password || !date_of_birth)
+    if (!email || !password || !date_of_birth || !tos_accepted)
         return ctx.badRequest(
-            "Incomplete fields: email, password,date_of_birth and name are required."
+            "Incomplete fields: email, password,date_of_birth,tos_accepted and name are required."
         );
     if (!email || !EMAIL_REGEX.test(email))
         return ctx.badRequest("A valid email address is required.");
@@ -144,6 +145,7 @@ async function register(ctx: any) {
                 is_email_verified: false,
                 role: 1,
                 date_of_birth,
+                tos_accepted,
             });
         delete newUser.password;
         const token = await strapi
