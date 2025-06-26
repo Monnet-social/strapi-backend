@@ -14,8 +14,31 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
     const data = ctx.request.body;
 
-    if (!data || !data.title || !data.post_type)
-      return ctx.badRequest("Title and post_type are required fields.");
+    if (
+      !data ||
+      !data.title ||
+      !data.post_type ||
+      data.category ||
+      data?.media?.length === 0
+    )
+      return ctx.badRequest("Missing required fields.");
+
+    if (data?.media?.length > 0) {
+      for (let i = 0; i < data.media.length; i++) {
+        const file_id = data.media[i];
+        try {
+          const file_data = await strapi.entityService.findOne(
+            "plugin::upload.file",
+            file_id
+          );
+          if (!file_data) {
+            return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
+          }
+        } catch (error) {
+          return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
+        }
+      }
+    }
 
     if (data.category) {
       const categoryExists = await strapi.entityService.findOne(
@@ -77,11 +100,23 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           category: { fields: ["id", "name"] },
         },
       });
+      const find_user = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+          filters: { id: userId },
+          fields: ["id", "username", "name"],
+        }
+      );
 
       const message =
         data.post_type === "post" ? "Post created" : "Story added";
       return ctx.send({
         post: newPost,
+        user: {
+          ...find_user[0],
+          profile_picture:
+            "https://storage.googleapis.com/monnet-dev/media/Map_icon_3e1c0d13b0/Map_icon_3e1c0d13b0.png?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=strapi-bakend%40monnet-social.iam.gserviceaccount.com%2F20250626%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20250626T065242Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=2a95fbcd983df51219273ba1e98343899144361e315af92f05faa723a2c9b6d2473d96acf95db689813259cca9c1e95fc31d3f10e873d2080b2660b5efbc07260c3217aebe6c09eb00e6ce29272e3b329f261faa41533386feaf4ae6060075d4f87fc1b719c193cb6def73d211a342a661b32b51e23d9fbbb50fb3bd5bf7902623c9418384d87637de7cdc46afe87164cd804eb0c716fc019140971eda8ff9e5d84956462b594f8ed0fb74e0040396efbf26026a5fba66cdc88e61b6da0bfc591b494bc2e62175115666a17ef36a0c8618efce9e6bdec3a6e8b136c89c923cd3c7317a16080b9d4949f9205d4047cde376d398d3772b218eb8656c55852b88e7",
+        },
         message: `${message} successfully.`,
       });
     } catch (err) {
@@ -150,6 +185,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         filters: {
           post_type: "post",
         },
+        sort: { createdAt: "desc" },
 
         populate: {
           posted_by: { fields: ["id", "username", "name"] },
@@ -221,6 +257,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         filters: {
           post_type: "story",
         },
+        sort: { createdAt: "desc" },
         populate: {
           posted_by: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
