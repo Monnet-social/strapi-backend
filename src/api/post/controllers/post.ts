@@ -84,9 +84,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         return ctx.badRequest(
           "If provided, location latitude and longitude must be numbers."
         );
-      if (!zip) {
-        return ctx.badRequest("Zip code is required for location.");
-      }
     }
 
     try {
