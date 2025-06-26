@@ -19,7 +19,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       !data ||
       !data.title ||
       !data.post_type ||
-      data.category ||
+      !data.category ||
       data?.media?.length === 0
     )
       return ctx.badRequest("Missing required fields.");
