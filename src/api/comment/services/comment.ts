@@ -5,29 +5,48 @@
 import { factories } from "@strapi/strapi";
 
 export default factories.createCoreService(
-  "api::comment.comment",
-  ({ strapi }) => ({
-    async getCommentsCount(postId: number) {
-      const likes = await strapi.db.query("api::comment.comment").count({
-        where: { post: postId },
-      });
+    "api::comment.comment",
+    ({ strapi }) => ({
+        async getCommentsCount(postId: number): Promise<number> {
+            const totalCount = await strapi.entityService.count(
+                "api::comment.comment",
+                { filters: { post: { id: postId } } }
+            );
 
-      return likes;
-    },
-    async getCommentsByPostId(postId: number) {
-      const likes = await strapi.entityService.findMany(
-        "api::comment.comment",
-        {
-          filters: { post: { id: postId } },
-          populate: {
-            commented_by: {
-              fields: ["id", "username", "email", "name"],
-            },
-          },
-        }
-      );
+            return totalCount;
+        },
 
-      return likes;
-    },
-  })
+        async getCommentsByPostId(postId: number): Promise<any[]> {
+            const topLevelComments = await strapi.entityService.findMany(
+                "api::comment.comment",
+                {
+                    filters: {
+                        post: { id: postId },
+                        parent_comment: { id: { $null: true } },
+                    },
+                    populate: {
+                        commented_by: {
+                            fields: ["id", "username", "email", "name"],
+                        },
+                    },
+                }
+            );
+
+            const commentsWithRepliesCount = await Promise.all(
+                topLevelComments.map(async (comment) => {
+                    const repliesCount = await strapi.entityService.count(
+                        "api::comment.comment",
+                        { filters: { parent_comment: { id: comment.id } } }
+                    );
+
+                    return {
+                        ...comment,
+                        replies_count: repliesCount,
+                    };
+                })
+            );
+
+            return commentsWithRepliesCount;
+        },
+    })
 );
