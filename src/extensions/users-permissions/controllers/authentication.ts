@@ -28,6 +28,8 @@ async function login(ctx) {
                     "blocked",
                     "referral_code",
                     "is_email_verified",
+                    "tos_accepted",
+                    "date_of_birth"
                 ],
                 populate: {
                     referred_by: { fields: ["id", "name", "username"] },
@@ -177,6 +179,8 @@ async function getUser(ctx) {
                     "referral_code",
                     "username",
                     "is_email_verified",
+                    "tos_accepted",
+                    "date_of_birth"
                 ],
                 populate: {
                     referred_by: {
