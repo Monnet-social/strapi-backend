@@ -79,4 +79,13 @@ module.exports = [
             auth: false,
         },
     },
+    {
+        method: "POST",
+        path: "/profile-picture",
+        handler: "profile.updateProfilePicture",
+        config: {
+            prefix: "",
+            auth: false,
+        },
+    },
 ];
