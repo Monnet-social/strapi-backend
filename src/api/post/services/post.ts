@@ -38,6 +38,13 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         });
       } else {
         // If no optimisation data found, trigger it
+        finalMedia.push({
+          id: file.id,
+          url: file.url,
+          mime: file.mime,
+          thumbnail_url: null,
+          compressed_url: null,
+        });
       }
     }
     return finalMedia;
