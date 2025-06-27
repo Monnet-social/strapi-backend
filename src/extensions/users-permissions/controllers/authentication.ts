@@ -29,7 +29,7 @@ async function login(ctx) {
                     "referral_code",
                     "is_email_verified",
                     "tos_accepted",
-                    "date_of_birth"
+                    "date_of_birth",
                 ],
                 populate: {
                     referred_by: { fields: ["id", "name", "username"] },
@@ -72,7 +72,13 @@ async function register(ctx: any) {
     const birthDate = new Date(date_of_birth);
     const today = new Date();
 
-    if (!email || !password || !date_of_birth || !tos_accepted)
+    if (
+        !email ||
+        !password ||
+        !date_of_birth ||
+        tos_accepted === null ||
+        tos_accepted === undefined
+    )
         return ctx.badRequest(
             "Incomplete fields: email, password,date_of_birth,tos_accepted and name are required."
         );
@@ -98,8 +104,9 @@ async function register(ctx: any) {
                 "User already exists. Try logging in or resetting your password."
             );
 
-        const referral_code =
-            await HelperService.generateUniqueReferralCode(strapi);
+        const referral_code = await HelperService.generateUniqueReferralCode(
+            strapi
+        );
 
         let referredById = null;
         if (fromReferral) {
@@ -180,7 +187,7 @@ async function getUser(ctx) {
                     "username",
                     "is_email_verified",
                     "tos_accepted",
-                    "date_of_birth"
+                    "date_of_birth",
                 ],
                 populate: {
                     referred_by: {
