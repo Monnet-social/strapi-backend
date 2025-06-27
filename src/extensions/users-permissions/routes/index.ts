@@ -79,4 +79,12 @@ module.exports = [
             auth: false,
         },
     },
+    {
+        method: "PUT",
+        path: "/accept-tos",
+        handler: "authentication.acceptTos",
+        config: {
+            prefix: "",
+        },
+    },
 ];

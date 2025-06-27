@@ -104,9 +104,8 @@ async function register(ctx: any) {
                 "User already exists. Try logging in or resetting your password."
             );
 
-        const referral_code = await HelperService.generateUniqueReferralCode(
-            strapi
-        );
+        const referral_code =
+            await HelperService.generateUniqueReferralCode(strapi);
 
         let referredById = null;
         if (fromReferral) {
@@ -437,6 +436,29 @@ async function checkUserStatus(ctx) {
     }
 }
 
+async function acceptTos(ctx) {
+    const { user } = ctx.state;
+    if (!user)
+        return ctx.unauthorized("You must be logged in to accept the terms.");
+
+    try {
+        await strapi.entityService.update(
+            "plugin::users-permissions.user",
+            user.id,
+            { data: { tos_accepted: true } }
+        );
+
+        return ctx.send({
+            success: true,
+            message: "Terms and Conditions have been accepted successfully.",
+        });
+    } catch (error) {
+        console.error("Error accepting Terms and Conditions:", error);
+        return ctx.internalServerError(
+            "An error occurred while accepting the terms."
+        );
+    }
+}
 module.exports = {
     login,
     register,
@@ -446,4 +468,5 @@ module.exports = {
     getUser,
     sendTestEmail,
     checkUserStatus,
+    acceptTos,
 };
