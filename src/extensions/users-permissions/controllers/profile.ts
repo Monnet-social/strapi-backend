@@ -4,9 +4,10 @@ const { sanitize } = require("@strapi/utils");
 
 async function updateProfilePicture(ctx) {
     const { user } = ctx.state;
+    console.log(ctx);
     if (!user)
         return ctx.unauthorized(
-            "You must be logged in to perform this action."
+            "You must be logged in to perform this action.Please login first."
         );
 
     const { mediaId } = ctx.request.body;

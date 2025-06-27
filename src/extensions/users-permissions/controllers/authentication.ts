@@ -35,7 +35,7 @@ async function login(ctx) {
                 limit: 1,
             }
         );
-        if (users.length === 0) return ctx.notFound("Invalid credentials.");
+        if (users.length === 0) return ctx.notFound("User not found.");
 
         const user = users[0];
         if (!user.is_email_verified)
@@ -210,14 +210,13 @@ async function sendOTP(ctx: any) {
 
         const users = await strapi.entityService.findMany(
             "plugin::users-permissions.user",
-            { filters: { email } }
+            { filters: { email }, limit: 1 }
         );
 
-        if (users.length === 0) return ctx.badRequest("User not found");
+        if (users.length === 0) return ctx.notFound("User not found");
 
         const user = users[0];
         const otp = HelperService.generateOtp();
-        console.log("OTP inn auth ", otp);
         switch (type) {
             case "reset-password":
                 await new EmailService().sendResetPasswordEmail(email, otp);
@@ -261,6 +260,7 @@ async function verifyOTP(ctx) {
         {
             filters: { email },
             fields: ["id", "email", "name", "email_otp"],
+            limit: 1,
         }
     );
 
@@ -336,9 +336,9 @@ async function sendTestEmail(ctx) {
         });
     } catch (error) {
         console.error("Error sending email:", error);
-        if (error.response) {
+        if (error.response)
             console.error("Error response body:", error.response.body);
-        }
+
         return ctx.internalServerError(
             "Failed to send test email. Please check the server logs for more details."
         );
@@ -405,6 +405,7 @@ async function checkUserStatus(ctx) {
             {
                 filters: { email: email.toLowerCase() },
                 fields: ["is_email_verified", "confirmed"],
+                limit: 1,
             }
         );
 
