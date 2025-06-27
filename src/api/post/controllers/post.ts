@@ -214,6 +214,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           profile_picture:
             "https://storage.googleapis.com/monnet-dev/media/Map_icon_3e1c0d13b0/Map_icon_3e1c0d13b0.png?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=strapi-bakend%40monnet-social.iam.gserviceaccount.com%2F20250626%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20250626T065242Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=2a95fbcd983df51219273ba1e98343899144361e315af92f05faa723a2c9b6d2473d96acf95db689813259cca9c1e95fc31d3f10e873d2080b2660b5efbc07260c3217aebe6c09eb00e6ce29272e3b329f261faa41533386feaf4ae6060075d4f87fc1b719c193cb6def73d211a342a661b32b51e23d9fbbb50fb3bd5bf7902623c9418384d87637de7cdc46afe87164cd804eb0c716fc019140971eda8ff9e5d84956462b594f8ed0fb74e0040396efbf26026a5fba66cdc88e61b6da0bfc591b494bc2e62175115666a17ef36a0c8618efce9e6bdec3a6e8b136c89c923cd3c7317a16080b9d4949f9205d4047cde376d398d3772b218eb8656c55852b88e7",
         };
+        results[i].is_liked = await strapi.services[
+          "api::like.like"
+        ].verifyPostLikeByUser(results[i].id, userId);
         console.log("Optimised media for post:", results[i].media);
       }
 

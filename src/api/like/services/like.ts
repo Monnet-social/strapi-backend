@@ -24,4 +24,15 @@ export default factories.createCoreService("api::like.like", ({ strapi }) => ({
 
     return likes;
   },
+  async verifyPostLikeByUser(postId: number, userId: number) {
+    const like = await strapi.entityService.findMany("api::like.like", {
+      filters: {
+        post: { id: postId },
+        liked_by: { id: userId },
+      },
+      limit: 1,
+    });
+
+    return like.length > 0;
+  },
 }));
