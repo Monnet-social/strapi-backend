@@ -94,6 +94,11 @@
         "date_of_birth": {
             "type": "date",
             "required": true
+        },
+        "tos_accepted": {
+            "type": "boolean",
+            "required": true,
+            "default": false
         }
     }
 }
