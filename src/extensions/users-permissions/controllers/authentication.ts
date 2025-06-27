@@ -32,6 +32,7 @@ async function login(ctx) {
                 populate: {
                     referred_by: { fields: ["id", "name", "username"] },
                 },
+                limit: 1,
             }
         );
         if (users.length === 0) return ctx.notFound("Invalid credentials.");
@@ -88,7 +89,7 @@ async function register(ctx: any) {
     try {
         const existingUsers = await strapi.entityService.findMany(
             "plugin::users-permissions.user",
-            { filters: { email } }
+            { filters: { email }, limit: 1 }
         );
 
         if (existingUsers.length > 0)
@@ -186,7 +187,7 @@ async function getUser(ctx) {
             }
         );
 
-        if (!user) return ctx.badRequest("User not found");
+        if (!user) return ctx.notFound("User not found");
 
         return ctx.send({ user: user });
     } catch (error) {

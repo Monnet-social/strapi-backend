@@ -6,13 +6,8 @@ interface Strapi {
 }
 
 export default class HelperService {
-    static generateOtp(length: number = 6): string {
-        let otp = "";
-        for (let i = 0; i < length; i++) {
-            otp += Math.floor(Math.random() * 10);
-        }
-        return otp;
-    }
+    static generateOtp = (length: number = 6): string =>
+        Array.from({ length }, () => Math.floor(Math.random() * 10)).join("");
 
     static async generateUniqueReferralCode(strapi: Strapi): Promise<string> {
         let referral_code!: string;
@@ -26,6 +21,7 @@ export default class HelperService {
                 {
                     filters: { referral_code: candidateCode },
                     fields: ["id"],
+                    limit: 1,
                 }
             );
 
