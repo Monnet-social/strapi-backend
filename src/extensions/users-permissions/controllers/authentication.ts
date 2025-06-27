@@ -34,7 +34,7 @@ async function login(ctx) {
                 },
             }
         );
-        if (users.length === 0) return ctx.notFound("Invalid credentials.");
+        if (users.length === 0) return ctx.notFound("User not found.");
 
         const user = users[0];
         if (!user.is_email_verified)
