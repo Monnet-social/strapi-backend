@@ -384,6 +384,14 @@ export interface ApiBlockBlock extends Struct.CollectionTypeSchema {
     draftAndPublish: true;
   };
   attributes: {
+    blocked_by: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    blocked_user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
