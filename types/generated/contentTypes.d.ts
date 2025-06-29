@@ -439,6 +439,34 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiDislikeDislike extends Struct.CollectionTypeSchema {
+  collectionName: 'dislikes';
+  info: {
+    displayName: 'Dislike';
+    pluralName: 'dislikes';
+    singularName: 'dislike';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    comment: Schema.Attribute.Relation<'oneToOne', 'api::comment.comment'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::dislike.dislike'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiFileOptimisationFileOptimisation
   extends Struct.CollectionTypeSchema {
   collectionName: 'file_optimisations';
@@ -1069,6 +1097,7 @@ declare module '@strapi/strapi' {
       'admin::user': AdminUser;
       'api::category.category': ApiCategoryCategory;
       'api::comment.comment': ApiCommentComment;
+      'api::dislike.dislike': ApiDislikeDislike;
       'api::file-optimisation.file-optimisation': ApiFileOptimisationFileOptimisation;
       'api::like.like': ApiLikeLike;
       'api::post.post': ApiPostPost;

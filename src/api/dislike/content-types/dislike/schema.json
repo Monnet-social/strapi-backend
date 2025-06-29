@@ -1,10 +1,10 @@
 {
   "kind": "collectionType",
-  "collectionName": "likes",
+  "collectionName": "dislikes",
   "info": {
-    "singularName": "like",
-    "pluralName": "likes",
-    "displayName": "Like"
+    "singularName": "dislike",
+    "pluralName": "dislikes",
+    "displayName": "Dislike"
   },
   "options": {
     "draftAndPublish": false
@@ -16,7 +16,7 @@
       "relation": "oneToOne",
       "target": "api::post.post"
     },
-    "liked_by": {
+    "disliked_by": {
       "type": "relation",
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
