@@ -234,8 +234,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 results[i].media = await strapi
                     .service("api::post.post")
                     .getOptimisedFileData(results[i].media);
+                results[i].media = results[i].media || [];
 
-                // This now correctly includes the profile_picture object
                 results[i].posted_by = {
                     id: results[i].posted_by?.id,
                     username: results[i].posted_by?.username,
@@ -248,15 +248,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 ].verifyPostLikeByUser(results[i].id, userId);
             }
 
-            // --- The 'formattedResults' mapping has been removed ---
-            // We will now send the 'results' array directly.
-
             const count = await strapi.entityService.count("api::post.post", {
                 filters: { post_type: "post" },
             });
 
             return ctx.send({
-                data: results, // <-- Changed back to 'results'
+                data: results,
                 meta: {
                     pagination: {
                         page: Number(default_pagination.pagination.page),
