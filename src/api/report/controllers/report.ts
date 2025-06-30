@@ -5,7 +5,6 @@ import { Context } from "koa";
 type ReportCreateData = {
     message: string;
     reported_by: number;
-    publishedAt: Date;
     reported_post?: number;
     reported_user?: number;
 };
@@ -47,7 +46,6 @@ module.exports = factories.createCoreController(
             const dataToCreate: ReportCreateData = {
                 message: message.trim(),
                 reported_by: reporter.id,
-                publishedAt: new Date(),
             };
 
             try {
