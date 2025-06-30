@@ -1,0 +1,35 @@
+{
+    "kind": "collectionType",
+    "collectionName": "reports",
+    "info": {
+        "singularName": "report",
+        "pluralName": "reports",
+        "displayName": "Report"
+    },
+    "options": {
+        "draftAndPublish": true
+    },
+    "pluginOptions": {},
+    "attributes": {
+        "message": {
+            "type": "text",
+            "required": true
+        },
+        "reported_by": {
+            "type": "relation",
+            "required": true,
+            "relation": "oneToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "reported_user": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "reported_post": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "api::post.post"
+        }
+    }
+}

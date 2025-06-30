@@ -608,6 +608,44 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiReportReport extends Struct.CollectionTypeSchema {
+  collectionName: 'reports';
+  info: {
+    displayName: 'Report';
+    pluralName: 'reports';
+    singularName: 'report';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::report.report'
+    > &
+      Schema.Attribute.Private;
+    message: Schema.Attribute.Text & Schema.Attribute.Required;
+    publishedAt: Schema.Attribute.DateTime;
+    reported_by: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    > &
+      Schema.Attribute.Required;
+    reported_post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
+    reported_user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface PluginContentReleasesRelease
   extends Struct.CollectionTypeSchema {
   collectionName: 'strapi_releases';
@@ -1140,6 +1178,7 @@ declare module '@strapi/strapi' {
       'api::file-optimisation.file-optimisation': ApiFileOptimisationFileOptimisation;
       'api::like.like': ApiLikeLike;
       'api::post.post': ApiPostPost;
+      'api::report.report': ApiReportReport;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
       'plugin::i18n.locale': PluginI18NLocale;
