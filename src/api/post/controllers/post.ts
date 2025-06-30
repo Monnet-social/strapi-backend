@@ -168,6 +168,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                     );
             }
 
+            entity.media = entity.media || [];
+
             return ctx.send(entity);
         } catch (err) {
             console.error("Find One Post Error:", err);
@@ -187,18 +189,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         };
         if (pagination_size)
             default_pagination.pagination.pageSize = pagination_size;
-
         if (page) default_pagination.pagination.page = page;
 
         try {
             const results = await strapi.entityService.findMany(
                 "api::post.post",
                 {
-                    filters: {
-                        post_type: "post",
-                    },
+                    filters: { post_type: "post" },
                     sort: { createdAt: "desc" },
-
                     populate: {
                         posted_by: {
                             fields: ["id", "username", "name"],
@@ -219,6 +217,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             );
 
             console.log("Feed results:", results);
+
+            // Your `for` loop enriches the `results` array directly,
+            // creating the flat structure your frontend needs.
             for (let i = 0; i < results.length; i++) {
                 const likesCount = await strapi.services[
                     "api::like.like"
@@ -234,6 +235,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                     .service("api::post.post")
                     .getOptimisedFileData(results[i].media);
 
+                // This now correctly includes the profile_picture object
                 results[i].posted_by = {
                     id: results[i].posted_by?.id,
                     username: results[i].posted_by?.username,
@@ -246,12 +248,15 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 ].verifyPostLikeByUser(results[i].id, userId);
             }
 
+            // --- The 'formattedResults' mapping has been removed ---
+            // We will now send the 'results' array directly.
+
             const count = await strapi.entityService.count("api::post.post", {
                 filters: { post_type: "post" },
             });
 
             return ctx.send({
-                data: results,
+                data: results, // <-- Changed back to 'results'
                 meta: {
                     pagination: {
                         page: Number(default_pagination.pagination.page),
@@ -335,6 +340,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 results[i].media = await strapi
                     .service("api::post.post")
                     .getOptimisedFileData(results[i].media);
+
+                results[i].media = results[i].media || [];
 
                 results[i].posted_by = {
                     id: results[i].posted_by?.id,
