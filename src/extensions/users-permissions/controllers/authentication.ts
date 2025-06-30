@@ -2,16 +2,13 @@ import HelperService from "../../../utils/helper_service";
 import EmailService from "../../../utils/email/email_service";
 const bcrypt = require("bcryptjs");
 
-const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-
 async function login(ctx) {
     const { email, password } = ctx.request.body;
 
     if (!password || !email)
         return ctx.badRequest("Email and password must be provided.");
 
-    if (!email || !EMAIL_REGEX.test(email))
+    if (!email || !HelperService.EMAIL_REGEX.test(email))
         return ctx.badRequest("A valid email address is required.");
 
     try {
@@ -82,10 +79,10 @@ async function register(ctx: any) {
         return ctx.badRequest(
             "Incomplete fields: email, password,date_of_birth,tos_accepted and name are required."
         );
-    if (!email || !EMAIL_REGEX.test(email))
+    if (!email || !HelperService.EMAIL_REGEX.test(email))
         return ctx.badRequest("A valid email address is required.");
 
-    if (!DATE_REGEX.test(date_of_birth))
+    if (!HelperService.DATE_REGEX.test(date_of_birth))
         return ctx.badRequest(
             "Invalid date format for date_of_birth. Please use YYYY-MM-DD."
         );
@@ -214,7 +211,7 @@ async function sendOTP(ctx: any) {
         if (!email || !type)
             return ctx.badRequest("Email and type are required.");
 
-        if (!email || !EMAIL_REGEX.test(email))
+        if (!email || !HelperService.EMAIL_REGEX.test(email))
             return ctx.badRequest("A valid email address is required.");
 
         const users = await strapi.entityService.findMany(
@@ -260,7 +257,7 @@ async function sendOTP(ctx: any) {
 async function verifyOTP(ctx) {
     const { otp, email, type } = ctx.request.body;
 
-    if (!email || !EMAIL_REGEX.test(email))
+    if (!email || !HelperService.EMAIL_REGEX.test(email))
         return ctx.badRequest("A valid email address is required.");
 
     if (!otp) return ctx.badRequest("Invalid otp");
@@ -329,7 +326,7 @@ async function verifyOTP(ctx) {
 async function sendTestEmail(ctx) {
     const { email } = ctx.request.body;
     if (!email) return ctx.badRequest("Email is required.");
-    if (!email || !EMAIL_REGEX.test(email))
+    if (!email || !HelperService.EMAIL_REGEX.test(email))
         return ctx.badRequest("A valid email address is required.");
 
     try {
@@ -405,7 +402,7 @@ async function checkUserStatus(ctx) {
     const { email } = ctx.request.body;
 
     if (!email) return ctx.badRequest("Email is required.");
-    if (!email || !EMAIL_REGEX.test(email))
+    if (!email || !HelperService.EMAIL_REGEX.test(email))
         return ctx.badRequest("A valid email address is required.");
 
     try {

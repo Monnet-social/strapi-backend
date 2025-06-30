@@ -95,4 +95,12 @@ module.exports = [
             prefix: "",
         },
     },
+    {
+        method: "PUT",
+        path: "/profile",
+        handler: "profile.updateProfile",
+        config: {
+            prefix: "",
+        },
+    },
 ];

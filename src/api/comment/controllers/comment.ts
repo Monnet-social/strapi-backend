@@ -122,6 +122,7 @@ export default factories.createCoreController(
                     populate: {
                         commented_by: {
                             fields: ["id", "username", "email", "name"],
+                            populate: { profile_picture: true },
                         },
                     },
                 }
