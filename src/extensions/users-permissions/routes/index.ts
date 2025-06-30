@@ -87,4 +87,12 @@ module.exports = [
             prefix: "",
         },
     },
+    {
+        method: "PUT",
+        path: "/profile-picture",
+        handler: "profile.updateProfilePicture",
+        config: {
+            prefix: "",
+        },
+    },
 ];
