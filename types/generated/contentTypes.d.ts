@@ -654,7 +654,7 @@ export interface ApiShareShare extends Struct.CollectionTypeSchema {
     singularName: 'share';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     createdAt: Schema.Attribute.DateTime;
