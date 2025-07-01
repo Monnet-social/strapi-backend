@@ -217,9 +217,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             );
 
             console.log("Feed results:", results);
-
-            // Your `for` loop enriches the `results` array directly,
-            // creating the flat structure your frontend needs.
             for (let i = 0; i < results.length; i++) {
                 const likesCount = await strapi.services[
                     "api::like.like"
@@ -230,6 +227,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                     "api::comment.comment"
                 ].getCommentsCount(results[i].id);
                 results[i].comments_count = commentsCount;
+
+                const commentLikesCount = await strapi
+                    .service("api::comment.comment")
+                    .getTotalLikesOnCommentsByPostId(results[i].id);
+                results[i].comment_likes_count = commentLikesCount;
 
                 results[i].media = await strapi
                     .service("api::post.post")

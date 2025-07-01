@@ -26,27 +26,61 @@ export default factories.createCoreService(
                     },
                     populate: {
                         commented_by: {
-                            fields: ["id", "username", "email", "name"],
+                            fields: ["id", "username", "name"],
+                            populate: { profile_picture: true },
                         },
                     },
                 }
             );
 
-            const commentsWithRepliesCount = await Promise.all(
+            if (topLevelComments.length === 0) return [];
+
+            const finalComments = await Promise.all(
                 topLevelComments.map(async (comment) => {
                     const repliesCount = await strapi.entityService.count(
                         "api::comment.comment",
                         { filters: { parent_comment: { id: comment.id } } }
                     );
 
+                    const likesCount = await strapi.entityService.count(
+                        "api::like.like",
+                        { filters: { comment: { id: comment.id } } }
+                    );
+
                     return {
                         ...comment,
                         replies_count: repliesCount,
+                        likes_count: likesCount,
                     };
                 })
             );
 
-            return commentsWithRepliesCount;
+            return finalComments;
+        },
+
+        async getCommentLikesCount(commentId: number): Promise<number> {
+            const likesCount = await strapi.entityService.count(
+                "api::like.like",
+                { filters: { comment: { id: commentId } } }
+            );
+            return likesCount;
+        },
+        async getTotalLikesOnCommentsByPostId(postId: number): Promise<number> {
+            const commentsOnPost = await strapi.entityService.findMany(
+                "api::comment.comment",
+                { filters: { post: { id: postId } }, fields: ["id"] }
+            );
+
+            if (commentsOnPost.length === 0) return 0;
+
+            const commentIds = commentsOnPost.map((c) => c.id);
+
+            const likesCount = await strapi.entityService.count(
+                "api::like.like",
+                { filters: { comment: { id: { $in: commentIds } } } }
+            );
+
+            return likesCount;
         },
     })
 );
