@@ -8,10 +8,9 @@ import { Context } from "koa";
 interface CommentRequestBody {
     post_id: number;
     comment: string;
-    parent_comment_id?: number; // This is now an optional field for replies
+    parent_comment_id?: number;
 }
 
-// Define the data structure for creating the comment
 interface CommentCreateData {
     post: number;
     commented_by: number;
