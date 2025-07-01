@@ -195,7 +195,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             const results = await strapi.entityService.findMany(
                 "api::post.post",
                 {
-                    filters: { post_type: "post" },
+                    filters: {
+                        post_type: "post",
+                        media: { id: { $notNull: true } },
+                    },
                     sort: { createdAt: "desc" },
                     populate: {
                         posted_by: {
@@ -228,11 +231,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 ].getCommentsCount(results[i].id);
                 results[i].comments_count = commentsCount;
 
-                const commentLikesCount = await strapi
-                    .service("api::comment.comment")
-                    .getTotalLikesOnCommentsByPostId(results[i].id);
-                results[i].comment_likes_count = commentLikesCount;
-
                 results[i].media = await strapi
                     .service("api::post.post")
                     .getOptimisedFileData(results[i].media);
@@ -251,7 +249,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             }
 
             const count = await strapi.entityService.count("api::post.post", {
-                filters: { post_type: "post" },
+                filters: {
+                    post_type: "post",
+                    media: { id: { $notNull: true } },
+                },
             });
 
             return ctx.send({
@@ -294,6 +295,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 {
                     filters: {
                         post_type: "story",
+                        media: { id: { $notNull: true } },
                     },
                     sort: { createdAt: "desc" },
                     populate: {
@@ -316,7 +318,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             );
 
             const count = await strapi.entityService.count("api::post.post", {
-                filters: { post_type: "story" },
+                filters: {
+                    post_type: "story",
+                    media: { id: { $notNull: true } },
+                },
             });
 
             for (let i = 0; i < results.length; i++) {
