@@ -17,7 +17,10 @@ export default factories.createCoreController(
           shared_by: userId,
         },
       });
-      return share;
+      return {
+        message: "Post shared successfully",
+        share: `${process.env.FRONTEND_URL}/post/${postId}`,
+      };
     },
   })
 );
