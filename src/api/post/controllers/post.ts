@@ -266,6 +266,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
   async stories(ctx) {
     const { pagination_size, page } = ctx.query;
+    const { id: userId } = ctx.state.user;
     let default_pagination = {
       pagination: { page: 1, pageSize: 5 },
     };
@@ -327,6 +328,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           .getOptimisedFileData(results[i].media);
 
         results[i].media = results[i].media || [];
+
+        results[i].is_liked = await strapi.services[
+          "api::like.like"
+        ].verifyPostLikeByUser(results[i].id, userId);
+
+        results[i].share_count = await strapi.services[
+          "api::share.share"
+        ].countShares(results[i].id);
 
         results[i].posted_by = {
           id: results[i].posted_by?.id,
