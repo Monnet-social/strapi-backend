@@ -7,7 +7,7 @@ export default {
         },
         {
             method: "GET",
-            path: "/posts/:post_id/dislikes",
+            path: "/:post_id/dislikes",
             handler: "dislike.getDislikesByPostId",
         },
     ],
