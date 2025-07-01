@@ -1,72 +1,80 @@
 "use strict";
 
-/**
- * dislike service
- */
-
-const { factories } = require("@strapi/strapi");
+import { factories } from "@strapi/strapi";
 
 export default factories.createCoreService(
     "api::dislike.dislike",
     ({ strapi }) => ({
-        /**
-         * Gets the total dislike count for a specific post.
-         * @param {number} postId The ID of the post.
-         * @returns {Promise<number>} The total number of dislikes.
-         */
-        async getDislikesCountByPostId(postId: number) {
-            // Changed from db.query to entityService.count
-            const dislikes = await strapi.entityService.count(
+        async getDislikesCountByPostId(postId: number): Promise<number> {
+            const dislikesCount = await strapi.entityService.count(
                 "api::dislike.dislike",
                 {
                     filters: { post: { id: postId } },
                 }
             );
-            return dislikes;
+            return dislikesCount;
         },
 
-        /**
-         * Gets the total dislike count for a specific comment.
-         * @param {number} commentId The ID of the comment.
-         * @returns {Promise<number>} The total number of dislikes.
-         */
-        async getDislikesCountByCommentId(commentId: number) {
-            // Changed from db.query to entityService.count
-            const dislikes = await strapi.entityService.count(
+        async getDislikesCountByCommentId(commentId: number): Promise<number> {
+            const dislikesCount = await strapi.entityService.count(
                 "api::dislike.dislike",
                 {
                     filters: { comment: { id: commentId } },
                 }
             );
+            return dislikesCount;
+        },
+
+        async getDislikesByPostId(postId: number) {
+            const dislikes = await strapi.entityService.findMany(
+                "api::dislike.dislike",
+                {
+                    filters: { post: { id: postId } },
+                    populate: {
+                        disliked_by: {
+                            fields: ["id", "username", "name"],
+                            populate: { profile_picture: true },
+                        },
+                    },
+                }
+            );
             return dislikes;
         },
 
-        async verifyPostDislikeByUser(postId: number, userId: number) {
-            const dislike = await strapi.entityService.findMany(
+        async verifyPostDislikedByUser(
+            postId: number,
+            userId: number
+        ): Promise<boolean> {
+            if (!postId || !userId) return false;
+
+            const count = await strapi.entityService.count(
                 "api::dislike.dislike",
                 {
                     filters: {
                         post: { id: postId },
                         disliked_by: { id: userId },
                     },
-                    limit: 1,
                 }
             );
-            return dislike.length > 0;
+            return count > 0;
         },
 
-        async verifyCommentDislikeByUser(commentId: number, userId: number) {
-            const dislike = await strapi.entityService.findMany(
+        async verifyCommentDislikedByUser(
+            commentId: number,
+            userId: number
+        ): Promise<boolean> {
+            if (!commentId || !userId) return false;
+
+            const count = await strapi.entityService.count(
                 "api::dislike.dislike",
                 {
                     filters: {
                         comment: { id: commentId },
                         disliked_by: { id: userId },
                     },
-                    limit: 1,
                 }
             );
-            return dislike.length > 0;
+            return count > 0;
         },
     })
 );
