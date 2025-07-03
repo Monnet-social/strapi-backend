@@ -1,18 +1,28 @@
-/**
- * category controller
- */
+"use strict";
 
-import { factories } from "@strapi/strapi";
-
-export default factories.createCoreController(
-  "api::category.category",
-  ({ strapi }) => ({
+module.exports = {
     async getCategories(ctx) {
-      const categories = await strapi.entityService.findMany(
-        "api::category.category",
-        {}
-      );
-      return ctx.send(categories);
+        try {
+            const categories = await strapi.entityService.findMany(
+                "api::category.category",
+                { populate: { subcategories: { fields: ["id", "name"] } } }
+            );
+
+            const formattedResponse = categories.map((category) => ({
+                id: category.id,
+                name: category.name,
+                subcategories: (category as any).subcategories,
+            }));
+
+            return ctx.send(formattedResponse);
+        } catch (error) {
+            strapi.log.error(
+                "Error fetching categories with subcategories:",
+                error
+            );
+            return ctx.internalServerError(
+                "An error occurred while fetching the categories."
+            );
+        }
     },
-  })
-);
+};
