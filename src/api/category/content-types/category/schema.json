@@ -14,12 +14,6 @@
         "name": {
             "type": "string",
             "unique": true
-        },
-        "subcategories": {
-            "type": "relation",
-            "relation": "oneToMany",
-            "target": "api::subcategory.subcategory",
-            "mappedBy": "category"
         }
     }
 }
