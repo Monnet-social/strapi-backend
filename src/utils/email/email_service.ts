@@ -5,11 +5,9 @@ const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export default class EmailService {
-    // FIX: The function now accepts 'name' as a parameter
     async sendEmailVerificationEmail(email: string, otp: string) {
         if (!email || !otp) return;
 
-        // FIX: The user's name is now included in the data object for the template
         const data = {
             name: email.split("@")[0] || "User",
             otp: otp?.split(""),
@@ -25,11 +23,9 @@ export default class EmailService {
         console.log("Email verification email sent successfully.");
     }
 
-    // FIX: The function now accepts 'name' as a parameter
     async sendResetPasswordEmail(email: string, otp: string) {
         if (!email || !otp) return;
 
-        // FIX: The user's name is now included in the data object
         const data = {
             name: email.split("@")[0] || "User",
             otp: otp?.split(""),
