@@ -192,12 +192,24 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         if (page) default_pagination.pagination.page = page;
 
         try {
-            const results = await strapi.entityService.findMany(
+            const blockEntries = await strapi.entityService.findMany(
+                "api::block.block",
+                {
+                    filters: { blocked_by: { id: userId } },
+                    fields: ["id"],
+                    populate: { blocked_user: { fields: ["id"] } },
+                }
+            );
+            const blockedUserIds = blockEntries.map(
+                (entry) => entry.blocked_user.id
+            );
+            const results = await strapi.entityService.findPage(
                 "api::post.post",
                 {
                     filters: {
                         post_type: "post",
                         media: { id: { $notNull: true } },
+                        posted_by: { id: { $notIn: blockedUserIds } },
                     },
                     sort: { createdAt: "desc" },
                     populate: {
@@ -305,12 +317,24 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         if (page) default_pagination.pagination.page = page;
 
         try {
-            const results = await strapi.entityService.findMany(
+            const blockEntries = await strapi.entityService.findMany(
+                "api::block.block",
+                {
+                    filters: { blocked_by: { id: userId } },
+                    fields: ["id"],
+                    populate: { blocked_user: { fields: ["id"] } },
+                }
+            );
+            const blockedUserIds = blockEntries.map(
+                (entry) => entry.blocked_user.id
+            );
+            const results = await strapi.entityService.findPage(
                 "api::post.post",
                 {
                     filters: {
                         post_type: "story",
                         media: { id: { $notNull: true } },
+                        posted_by: { id: { $notIn: blockedUserIds } },
                     },
                     sort: { createdAt: "desc" },
                     populate: {

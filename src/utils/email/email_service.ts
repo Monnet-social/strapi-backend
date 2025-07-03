@@ -5,10 +5,16 @@ const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export default class EmailService {
+    // FIX: The function now accepts 'name' as a parameter
     async sendEmailVerificationEmail(email: string, otp: string) {
         if (!email || !otp) return;
 
-        const data = { email, otp: otp?.split("") };
+        // FIX: The user's name is now included in the data object for the template
+        const data = {
+            name: email.split("@")[0] || "User",
+            otp: otp?.split(""),
+        };
+
         await this.sendEmail(
             email,
             "public/email/email_verification.mjml",
@@ -18,20 +24,24 @@ export default class EmailService {
 
         console.log("Email verification email sent successfully.");
     }
-    //test
 
+    // FIX: The function now accepts 'name' as a parameter
     async sendResetPasswordEmail(email: string, otp: string) {
         if (!email || !otp) return;
 
-        const data = { email, otp: otp?.split("") };
-        console.log(otp);
+        // FIX: The user's name is now included in the data object
+        const data = {
+            name: email.split("@")[0] || "User",
+            otp: otp?.split(""),
+        };
+
         await this.sendEmail(
             email,
             "public/email/reset_password.mjml",
             "Monnet - Reset Password",
             data
         );
-        console.log("RESET PASS Eamil sent successfully.");
+        console.log("RESET PASS Email sent successfully.");
     }
 
     async sendEmail(
@@ -40,28 +50,28 @@ export default class EmailService {
         subject: string,
         data: any
     ) {
-        // const final_mjml_path = path.join(__dirname, mjml_template_path);
         const template = fs.readFileSync(mjml_template_path, "utf8");
         const compiledTemplate = Handlebars.compile(template);
         const mjml = compiledTemplate(data);
 
         const html = mjml2html(mjml).html;
-        console.log("Email sent successfully:", process.env.SENDER_EMAIL);
+
         try {
             let msg: any = {
-                to: email, // Change to your recipient
-                from: process.env.SENDER_EMAIL, // Change to your verified sender
+                to: email,
+                from: process.env.SENDER_EMAIL,
                 subject,
                 html,
             };
             const response = await sgMail.send(msg);
-
             console.log("Response from email server", response);
         } catch (error) {
-            console.error("Error sending email verification email:", error);
-            console.log("ERROR SENDING EMAIL", error?.body?.errors);
-            console.log("ERROR SENDING EMAIL", error?.response?.body);
-            throw new Error("Failed to send email verification email.");
+            console.error("Error sending email:", error);
+            // It's helpful to log the detailed error from SendGrid
+            if (error.response) {
+                console.error(error.response.body);
+            }
+            throw new Error("Failed to send email.");
         }
     }
 }

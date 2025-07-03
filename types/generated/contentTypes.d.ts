@@ -381,7 +381,7 @@ export interface ApiBlockBlock extends Struct.CollectionTypeSchema {
     singularName: 'block';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
     blocked_by: Schema.Attribute.Relation<

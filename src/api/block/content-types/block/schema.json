@@ -1,25 +1,25 @@
 {
-  "kind": "collectionType",
-  "collectionName": "blocks",
-  "info": {
-    "singularName": "block",
-    "pluralName": "blocks",
-    "displayName": "Block"
-  },
-  "options": {
-    "draftAndPublish": true
-  },
-  "pluginOptions": {},
-  "attributes": {
-    "blocked_by": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "plugin::users-permissions.user"
+    "kind": "collectionType",
+    "collectionName": "blocks",
+    "info": {
+        "singularName": "block",
+        "pluralName": "blocks",
+        "displayName": "Block"
     },
-    "blocked_user": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "plugin::users-permissions.user"
+    "options": {
+        "draftAndPublish": false
+    },
+    "pluginOptions": {},
+    "attributes": {
+        "blocked_by": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "blocked_user": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "plugin::users-permissions.user"
+        }
     }
-  }
 }
