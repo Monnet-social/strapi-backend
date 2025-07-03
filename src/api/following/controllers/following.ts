@@ -13,6 +13,9 @@ export default factories.createCoreController(
       if (!subjectId) {
         return ctx.badRequest("Subject ID is required");
       }
+      if (userId === subjectId) {
+        return ctx.badRequest("You cannot follow/unfollow yourself");
+      }
 
       const existingFollow = await strapi.entityService.findMany(
         "api::following.following",
@@ -40,7 +43,9 @@ export default factories.createCoreController(
           }
         );
 
-        return ctx.send(following);
+        return ctx.send({
+          message: "Followed successfully",
+        });
       } catch (error) {
         return ctx.internalServerError("Error following user", { error });
       }
