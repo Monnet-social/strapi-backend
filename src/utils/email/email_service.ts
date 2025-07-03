@@ -46,6 +46,7 @@ export default class EmailService {
         subject: string,
         data: any
     ) {
+        // const final_mjml_path = path.join(__dirname, mjml_template_path);
         const template = fs.readFileSync(mjml_template_path, "utf8");
         const compiledTemplate = Handlebars.compile(template);
         const mjml = compiledTemplate(data);
@@ -63,7 +64,6 @@ export default class EmailService {
             console.log("Response from email server", response);
         } catch (error) {
             console.error("Error sending email:", error);
-            // It's helpful to log the detailed error from SendGrid
             if (error.response) {
                 console.error(error.response.body);
             }
