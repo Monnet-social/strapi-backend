@@ -3,7 +3,7 @@
         <mj-title>MONNET Email Verification</mj-title>
         <mj-preview>Your One Time Password for Monnet</mj-preview>
 
-        <!-- Using Inter font which is clean and modern -->
+        <!-- Using Inter font -->
         <mj-font
             name="Inter"
             href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
@@ -39,7 +39,7 @@
                     <!-- New Red Header with Logo -->
                     <mj-section background-color="#FF3857" padding="30px 0">
                         <mj-column>
-                            <!-- This is the logo image. Replace the src with the URL of your new logo. -->
+                            <!-- Logo image.  -->
                             <mj-image
                                 width="60px"
                                 src="https://s3.eu-west-2.amazonaws.com/forly-s3-bucket/Subtract_07255e0c8f.png"
@@ -56,7 +56,6 @@
                                 font-weight="bold"
                                 color="#111827"
                             >
-                                <!-- Using Handlebars syntax which matches your EmailService -->
                                 Dear {{name}},
                             </mj-text>
                             <mj-text
@@ -69,7 +68,7 @@
                                 email address.
                             </mj-text>
 
-                            <!-- OTP display with circular boxes -->
+                            <!-- OTP display -->
                             <mj-text align="center" padding="30px 0">
                                 {{#each otp}}
                                 <span class="otp-box">{{this}}</span>
