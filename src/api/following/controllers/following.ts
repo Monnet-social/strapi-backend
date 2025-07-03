@@ -52,7 +52,7 @@ export default factories.createCoreController(
     },
     async getUserFollowers(ctx) {
       const userId = ctx.params.userId;
-
+      console.log("User ID:", userId);
       const { pagination_size, page } = ctx.query;
 
       let default_pagination: any = {
@@ -79,17 +79,22 @@ export default factories.createCoreController(
             },
           }
         );
+        console.log("Followers:", followers);
         for (let i = 0; i < followers.length; i++) {
-          followers[i].follower.profile_picture = await strapi
-            .service("api::post.post")
-            .getOptimisedFileData([followers[i].follower.profile_picture]);
+          if (followers[i].follower.profile_picture) {
+            followers[i].follower.profile_picture = await strapi
+              .service("api::post.post")
+              .getOptimisedFileData([followers[i].follower.profile_picture]);
+          } else {
+            followers[i].follower.profile_picture = [];
+          }
         }
-        const count = await strapi.entityService.count("api::post.post", {
-          filters: {
-            post_type: "post",
-            media: { id: { $notNull: true } },
-          },
-        });
+        const count = await strapi.entityService.count(
+          "api::following.following",
+          {
+            filters: { subject: { id: userId } },
+          }
+        );
         return ctx.send({
           followers,
 
@@ -142,16 +147,20 @@ export default factories.createCoreController(
           }
         );
         for (let i = 0; i < following.length; i++) {
-          following[i].subject.profile_picture = await strapi
-            .service("api::post.post")
-            .getOptimisedFileData([following[i].subject.profile_picture]);
+          if (following[i].subject.profile_picture) {
+            following[i].subject.profile_picture = await strapi
+              .service("api::post.post")
+              .getOptimisedFileData([following[i].subject.profile_picture]);
+          } else {
+            following[i].follower.profile_picture = [];
+          }
         }
-        const count = await strapi.entityService.count("api::post.post", {
-          filters: {
-            post_type: "post",
-            media: { id: { $notNull: true } },
-          },
-        });
+        const count = await strapi.entityService.count(
+          "api::following.following",
+          {
+            filters: { follower: { id: userId } },
+          }
+        );
         return ctx.send({
           following,
           meta: {
@@ -197,7 +206,7 @@ export default factories.createCoreController(
         }
       );
       if (existingCloseFriends.length == 0) {
-        return ctx.badRequest("You are not following this user");
+        return ctx.badRequest("User is not follwing you back");
       }
       const updateCloseFriends = await strapi.entityService.update(
         "api::following.following",
@@ -208,7 +217,9 @@ export default factories.createCoreController(
           },
         }
       );
-      return ctx.send(updateCloseFriends);
+      return ctx.send({
+        message: "Close friends updated successfully",
+      });
     },
   })
 );
