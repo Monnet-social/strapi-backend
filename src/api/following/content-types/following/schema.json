@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "followings",
+  "info": {
+    "singularName": "following",
+    "pluralName": "followings",
+    "displayName": "Following"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "subject": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "follower": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "is_close_friend": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

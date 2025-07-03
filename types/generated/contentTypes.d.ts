@@ -536,6 +536,41 @@ export interface ApiFileOptimisationFileOptimisation
   };
 }
 
+export interface ApiFollowingFollowing extends Struct.CollectionTypeSchema {
+  collectionName: 'followings';
+  info: {
+    displayName: 'Following';
+    pluralName: 'followings';
+    singularName: 'following';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    follower: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::following.following'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    subject: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiLikeLike extends Struct.CollectionTypeSchema {
   collectionName: 'likes';
   info: {
@@ -1235,6 +1270,7 @@ declare module '@strapi/strapi' {
       'api::comment.comment': ApiCommentComment;
       'api::dislike.dislike': ApiDislikeDislike;
       'api::file-optimisation.file-optimisation': ApiFileOptimisationFileOptimisation;
+      'api::following.following': ApiFollowingFollowing;
       'api::like.like': ApiLikeLike;
       'api::post.post': ApiPostPost;
       'api::report.report': ApiReportReport;
