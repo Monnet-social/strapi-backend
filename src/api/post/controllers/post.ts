@@ -4,7 +4,7 @@ import FileOptimisationService from "../../../utils/file_optimisation_service";
 
 const { createCoreController } = require("@strapi/strapi").factories;
 
-const STORY_EXPIRATION_HOURS = 24;
+import HelperService from "../../../utils/helper_service";
 
 module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     async create(ctx) {
@@ -162,7 +162,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 const now = new Date();
                 const expirationTime =
                     createdAt.getTime() +
-                    STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
+                    HelperService.STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
                 entity.expiration_time = expirationTime;
                 if (now.getTime() > expirationTime)
                     return ctx.notFound(
@@ -363,7 +363,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             for (let i = 0; i < results.length; i++) {
                 results[i].expiration_time =
                     new Date(results[i].createdAt).getTime() +
-                    STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
+                    HelperService.STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
 
                 results[i].likes_count = await strapi.services[
                     "api::like.like"

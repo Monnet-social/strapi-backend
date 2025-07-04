@@ -111,4 +111,12 @@ module.exports = [
             prefix: "",
         },
     },
+    {
+        method: "PUT",
+        path: "/username",
+        handler: "authentication.updateUsername",
+        config: {
+            prefix: "",
+        },
+    },
 ];

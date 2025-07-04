@@ -6,6 +6,7 @@ interface Strapi {
 }
 
 export default class HelperService {
+    static STORY_EXPIRATION_HOURS = 24;
     static DATE_REGEX: RegExp = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
     static USERNAME_REGEX: RegExp = /^[a-zA-Z0-9_]{3,20}$/;
     static EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;

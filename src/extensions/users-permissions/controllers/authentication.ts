@@ -75,11 +75,10 @@ async function register(ctx: any) {
         !password ||
         !date_of_birth ||
         tos_accepted === null ||
-        !username ||
         tos_accepted === undefined
     )
         return ctx.badRequest(
-            "Incomplete fields: email, password,date_of_birth,tos_accepted,username  are required."
+            "Incomplete fields: email, password,date_of_birth,tos_accepted  are required."
         );
     if (!email || !HelperService.EMAIL_REGEX.test(email))
         return ctx.badRequest("A valid email address is required.");
@@ -145,7 +144,7 @@ async function register(ctx: any) {
             .service("user")
             .add({
                 email,
-                username,
+                username: email,
                 password,
                 name,
                 referral_code,
@@ -510,6 +509,65 @@ async function checkUsername(ctx: any) {
         );
     }
 }
+
+async function updateUsername(ctx) {
+    const { user } = ctx.state;
+    const { username: newUsername } = ctx.request.body;
+
+    if (!user)
+        return ctx.unauthorized(
+            "You must be logged in to update your username."
+        );
+
+    if (!newUsername || typeof newUsername !== "string")
+        return ctx.badRequest('A new "username" must be provided as a string.');
+
+    const trimmedUsername = newUsername.trim();
+
+    if (!HelperService.USERNAME_REGEX.test(trimmedUsername))
+        return ctx.badRequest(
+            "Username must be 4-20 characters long and can only contain letters, numbers, and underscores."
+        );
+
+    try {
+        const existingUser = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            {
+                filters: {
+                    username: trimmedUsername,
+                    id: { $ne: user.id },
+                },
+                limit: 1,
+            }
+        );
+
+        if (existingUser.length > 0)
+            return ctx.conflict(
+                "This username is already taken. Please choose another."
+            );
+
+        await strapi.entityService.update(
+            "plugin::users-permissions.user",
+            user.id,
+            {
+                data: {
+                    username: trimmedUsername,
+                },
+            }
+        );
+
+        return ctx.send({
+            success: true,
+            message: "Username updated successfully.",
+            username: trimmedUsername,
+        });
+    } catch (error) {
+        strapi.log.error("Error in updateUsername controller:", error);
+        return ctx.internalServerError(
+            "An error occurred while updating the username."
+        );
+    }
+}
 module.exports = {
     login,
     register,
@@ -521,4 +579,5 @@ module.exports = {
     checkUserStatus,
     acceptTos,
     checkUsername,
+    updateUsername,
 };
