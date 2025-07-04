@@ -3,7 +3,7 @@
         <mj-title>MONNET Email Verification</mj-title>
         <mj-preview>Your One Time Password for Monnet</mj-preview>
 
-        <!-- Using Inter font -->
+        <!-- Using Inter font which is clean and modern -->
         <mj-font
             name="Inter"
             href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap"
@@ -20,10 +20,11 @@
             font-family: 'Inter', sans-serif; } .link-color { color: #6B7280
             !important; font-weight: 500; text-decoration: none; font-family:
             'Inter', sans-serif; } .signature-text { font-size: 16px; color:
-            #333333; line-height: 24px; } @media only screen and
-            (max-width:480px) { .otp-box { width: 40px !important; height: 40px
-            !important; line-height: 40px !important; font-size: 18px
-            !important; margin: 0 3px !important; } }
+            #333333; line-height: 24px; } /* Style for the red signature text */
+            .monnet-signature { color: #FF3857 !important; font-weight: bold; }
+            @media only screen and (max-width:480px) { .otp-box { width: 40px
+            !important; height: 40px !important; line-height: 40px !important;
+            font-size: 18px !important; margin: 0 3px !important; } }
         </mj-style>
     </mj-head>
 
@@ -36,13 +37,12 @@
                     background-color="#FFFFFF"
                     padding="0"
                 >
-                    <!-- New Red Header with Logo -->
-                    <mj-section background-color="#FF3857" padding="30px 0">
+                    <mj-section background-color="#FF3857" padding="0px 0">
                         <mj-column>
-                            <!-- Logo image.  -->
+                            <!-- Using the reliable S3 image URL and adjusted size -->
                             <mj-image
-                                width="60px"
-                                src="https://s3.eu-west-2.amazonaws.com/forly-s3-bucket/Subtract_07255e0c8f.png"
+                                width="200px"
+                                src="https://storage.googleapis.com/monnet-dev/media/image_6_04395459c8/image_6_04395459c8.png"
                                 alt="Monnet Logo"
                             />
                         </mj-column>
@@ -56,7 +56,8 @@
                                 font-weight="bold"
                                 color="#111827"
                             >
-                                Dear {{name}},
+                                <!-- Using a robust Handlebars helper for the name -->
+                                Dear {{#if name}}{{name}}{{else}}User{{/if}},
                             </mj-text>
                             <mj-text
                                 font-size="16px"
@@ -68,7 +69,7 @@
                                 email address.
                             </mj-text>
 
-                            <!-- OTP display -->
+                            <!-- OTP display with circular boxes -->
                             <mj-text align="center" padding="30px 0">
                                 {{#each otp}}
                                 <span class="otp-box">{{this}}</span>
@@ -77,7 +78,7 @@
 
                             <!-- Expiry Info -->
                             <mj-text
-                                align="center"
+                                align="start"
                                 padding-top="0"
                                 font-size="14px"
                                 color="#6B7280"
@@ -92,7 +93,7 @@
                                 padding-top="30px"
                             >
                                 Best regards,<br />
-                                Monnet
+                                <span class="monnet-signature">Monnet</span>
                             </mj-text>
                         </mj-column>
                     </mj-section>
