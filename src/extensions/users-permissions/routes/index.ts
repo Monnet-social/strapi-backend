@@ -103,4 +103,12 @@ module.exports = [
             prefix: "",
         },
     },
+    {
+        method: "GET",
+        path: "/check-username",
+        handler: "authentication.checkUsername",
+        config: {
+            prefix: "",
+        },
+    },
 ];

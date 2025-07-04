@@ -456,6 +456,54 @@ async function acceptTos(ctx) {
         );
     }
 }
+
+async function checkUsername(ctx: any) {
+    const { username } = ctx.query;
+
+    if (!username || typeof username !== "string")
+        return ctx.badRequest("Username query parameter is required.");
+
+    const trimmedUsername = username.trim();
+
+    if (trimmedUsername.length < 4)
+        return ctx.send({
+            available: false,
+            message: "Username must be at least 4 characters.",
+        });
+
+    if (!HelperService.USERNAME_REGEX.test(trimmedUsername))
+        return ctx.send({
+            available: false,
+            message:
+                "Username can only contain letters, numbers, and underscores.",
+        });
+
+    try {
+        const existingUser = await strapi.entityService.findMany(
+            "plugin::users-permissions.user",
+            {
+                filters: { username: trimmedUsername },
+                limit: 1,
+            }
+        );
+
+        if (existingUser.length > 0)
+            return ctx.send({
+                available: false,
+                message: "Username unavailable",
+            });
+
+        return ctx.send({
+            available: true,
+            message: "Username available",
+        });
+    } catch (error) {
+        strapi.log.error("Error in checkUsername controller:", error);
+        return ctx.internalServerError(
+            "An error occurred while checking username availability."
+        );
+    }
+}
 module.exports = {
     login,
     register,
@@ -466,4 +514,5 @@ module.exports = {
     sendTestEmail,
     checkUserStatus,
     acceptTos,
+    checkUsername,
 };
