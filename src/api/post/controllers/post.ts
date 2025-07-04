@@ -235,34 +235,30 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
             console.log("Feed results:", results);
             for (let i = 0; i < results.length; i++) {
-                const likesCount = await strapi.services[
+                results[i].likes_count = await strapi.services[
                     "api::like.like"
                 ].getLikesCount(results[i].id);
-                results[i].likes_count = likesCount;
 
                 results[i].is_liked = await strapi.services[
                     "api::like.like"
                 ].verifyPostLikeByUser(results[i].id, userId);
 
-                const dislikesCount = await strapi
+                results[i].dislikes_count = await strapi
                     .service("api::dislike.dislike")
                     .getDislikesCountByPostId(results[i].id);
-                results[i].dislikes_count = dislikesCount;
 
-                const isDisliked = await strapi
+                results[i].is_disliked = await strapi
                     .service("api::dislike.dislike")
                     .verifyPostDislikedByUser(results[i].id, userId);
-                results[i].is_disliked = isDisliked;
 
-                const commentsCount = await strapi.services[
+                results[i].comments_count = await strapi.services[
                     "api::comment.comment"
                 ].getCommentsCount(results[i].id);
-                results[i].comments_count = commentsCount;
 
-                results[i].media = await strapi
-                    .service("api::post.post")
-                    .getOptimisedFileData(results[i].media);
-                results[i].media = results[i].media || [];
+                results[i].media =
+                    (await strapi
+                        .service("api::post.post")
+                        .getOptimisedFileData(results[i].media)) || [];
 
                 results[i].posted_by = {
                     id: results[i].posted_by?.id,
@@ -365,11 +361,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             });
 
             for (let i = 0; i < results.length; i++) {
-                const createdAt = new Date(results[i].createdAt);
-                const expirationTime =
-                    createdAt.getTime() +
+                results[i].expiration_time =
+                    new Date(results[i].createdAt).getTime() +
                     STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
-                results[i].expiration_time = expirationTime;
 
                 results[i].likes_count = await strapi.services[
                     "api::like.like"
@@ -379,26 +373,22 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                     "api::like.like"
                 ].verifyPostLikeByUser(results[i].id, userId);
 
-                const dislikesCount = await strapi
+                results[i].dislikes_count = await strapi
                     .service("api::dislike.dislike")
                     .getDislikesCountByPostId(results[i].id);
-                results[i].dislikes_count = dislikesCount;
 
-                const isDisliked = await strapi
+                results[i].is_disliked = await strapi
                     .service("api::dislike.dislike")
                     .verifyPostDislikedByUser(results[i].id, userId);
-                results[i].is_disliked = isDisliked;
 
-                const commentsCount = await strapi.services[
+                results[i].comments_count = await strapi.services[
                     "api::comment.comment"
                 ].getCommentsCount(results[i].id);
-                results[i].comments_count = commentsCount;
 
-                results[i].media = await strapi
-                    .service("api::post.post")
-                    .getOptimisedFileData(results[i].media);
-
-                results[i].media = results[i].media || [];
+                results[i].media =
+                    (await strapi
+                        .service("api::post.post")
+                        .getOptimisedFileData(results[i].media)) || [];
 
                 results[i].share_count = await strapi.services[
                     "api::share.share"
