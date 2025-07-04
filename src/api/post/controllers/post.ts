@@ -18,10 +18,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             !data ||
             !data.title ||
             !data.post_type ||
-            !data.category ||
+            (data.post_type === "post" && !data.category) ||
             data?.media?.length === 0
         )
-            return ctx.badRequest("Missing required fields.");
+            return ctx.badRequest(
+                "Missing required fields.(title,post_type,category,media)"
+            );
 
         if (data?.media?.length > 0) {
             for (let i = 0; i < data.media.length; i++) {
@@ -369,10 +371,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                     STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
                 results[i].expiration_time = expirationTime;
 
-                const likesCount = await strapi.services[
+                results[i].likes_count = await strapi.services[
                     "api::like.like"
                 ].getLikesCount(results[i].id);
-                results[i].likes_count = likesCount;
 
                 results[i].is_liked = await strapi.services[
                     "api::like.like"
@@ -402,6 +403,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 results[i].share_count = await strapi.services[
                     "api::share.share"
                 ].countShares(results[i].id);
+
+                results[i].viewers_count = await strapi.services[
+                    "api::post.post"
+                ].getStoryViewersCount(results[i].id);
 
                 results[i].posted_by = {
                     id: results[i].posted_by?.id,
@@ -652,6 +657,100 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             console.error("Delete Post Error:", err);
             return ctx.internalServerError(
                 "An error occurred while deleting the post."
+            );
+        }
+    },
+
+    async viewStory(ctx) {
+        const { id: postId } = ctx.params;
+        const { user } = ctx.state;
+
+        if (!user)
+            return ctx.unauthorized("You must be logged in to view a story.");
+
+        if (!postId || isNaN(postId))
+            return ctx.badRequest("A valid Post ID is required in the URL.");
+
+        try {
+            const story = await strapi.entityService.findOne(
+                "api::post.post",
+                postId,
+                {
+                    filters: { post_type: "story" },
+                    populate: { viewers: { fields: ["id"] } },
+                }
+            );
+
+            if (!story)
+                return ctx.notFound(
+                    "The story you are trying to view does not exist."
+                );
+
+            const hasAlreadyViewed = story.viewers.some(
+                (viewer) => viewer.id === user.id
+            );
+            if (hasAlreadyViewed)
+                return ctx.send({
+                    success: true,
+                    message: "Story already marked as viewed.",
+                });
+
+            await strapi.entityService.update("api::post.post", postId, {
+                data: { viewers: { connect: [user.id] } },
+            });
+
+            return ctx.send({
+                success: true,
+                message: "Story successfully marked as viewed.",
+            });
+        } catch (error) {
+            strapi.log.error("Error in viewStory controller:", error);
+            return ctx.internalServerError(
+                "An error occurred while marking the story as viewed."
+            );
+        }
+    },
+
+    async getStoryViewers(ctx) {
+        const { id: postId } = ctx.params;
+        const { page = 1, pageSize = 20 } = ctx.query;
+
+        try {
+            const post = await strapi.entityService.findOne(
+                "api::post.post",
+                postId,
+                {
+                    populate: {
+                        viewers: { populate: { profile_picture: true } },
+                    },
+                }
+            );
+
+            if (!post) return ctx.notFound("Post not found.");
+
+            const allViewers = post.viewers || [];
+            const totalViewers = allViewers.length;
+
+            const start = (Number(page) - 1) * Number(pageSize);
+            const end = start + Number(pageSize);
+
+            const paginatedViewers = allViewers.slice(start, end);
+
+            return ctx.send({
+                data: paginatedViewers,
+                meta: {
+                    pagination: {
+                        page: Number(page),
+                        pageSize: Number(pageSize),
+                        total: totalViewers,
+                        pageCount: Math.ceil(totalViewers / Number(pageSize)),
+                    },
+                },
+            });
+        } catch (error) {
+            strapi.log.error("Error fetching story viewers:", error);
+            return ctx.internalServerError(
+                "An error occurred while fetching the viewers."
             );
         }
     },
