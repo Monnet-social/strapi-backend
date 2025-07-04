@@ -711,7 +711,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 postId,
                 {
                     populate: {
-                        viewers: { populate: { profile_picture: true } },
+                        viewers: {
+                            fields: ["id", "username", "email", "name"],
+                            populate: {
+                                profile_picture: true,
+                            },
+                        },
                     },
                 }
             );
