@@ -107,6 +107,9 @@ export default factories.createCoreController(
                                 fields: ["id", "username", "name"],
                                 populate: { profile_picture: true },
                             },
+                            repost_of: {
+                                fields: ["id", "comment"],
+                            },
                         },
                     }
                 );

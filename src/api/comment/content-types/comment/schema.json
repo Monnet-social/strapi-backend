@@ -1,37 +1,42 @@
 {
-  "kind": "collectionType",
-  "collectionName": "comments",
-  "info": {
-    "singularName": "comment",
-    "pluralName": "comments",
-    "displayName": "Comment"
-  },
-  "options": {
-    "draftAndPublish": false
-  },
-  "pluginOptions": {},
-  "attributes": {
-    "comment": {
-      "type": "string"
+    "kind": "collectionType",
+    "collectionName": "comments",
+    "info": {
+        "singularName": "comment",
+        "pluralName": "comments",
+        "displayName": "Comment"
     },
-    "post": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::post.post"
+    "options": {
+        "draftAndPublish": false
     },
-    "commented_by": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "plugin::users-permissions.user"
-    },
-    "pinned": {
-      "type": "boolean",
-      "default": false
-    },
-    "parent_comment": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::comment.comment"
+    "pluginOptions": {},
+    "attributes": {
+        "comment": {
+            "type": "string"
+        },
+        "post": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "api::post.post"
+        },
+        "commented_by": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "plugin::users-permissions.user"
+        },
+        "pinned": {
+            "type": "boolean",
+            "default": false
+        },
+        "parent_comment": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "api::comment.comment"
+        },
+        "repost_of": {
+            "type": "relation",
+            "relation": "oneToOne",
+            "target": "api::comment.comment"
+        }
     }
-  }
 }
