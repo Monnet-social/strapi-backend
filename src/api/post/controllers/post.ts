@@ -749,4 +749,44 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             );
         }
     },
+
+    async getTaggedUsers(ctx) {
+        const { id: postId } = ctx.params;
+        const { page = 1, pageSize = 20 } = ctx.query;
+
+        if (!postId || isNaN(postId))
+            return ctx.badRequest("A valid Post ID is required in the URL.");
+
+        try {
+            const postExists = await strapi.entityService.count(
+                "api::post.post",
+                { filters: { id: postId } }
+            );
+            if (postExists === 0)
+                return ctx.notFound("The specified post does not exist.");
+
+            const paginatedUsers = await strapi.entityService.findPage(
+                "plugin::users-permissions.user",
+                {
+                    filters: { tagged_in_posts: { id: { $eq: postId } } },
+                    fields: ["id", "username", "name"],
+                    populate: { profile_picture: true },
+                    page: Number(page),
+                    pageSize: Number(pageSize),
+                }
+            );
+
+            return ctx.send({
+                data: paginatedUsers.results,
+                meta: {
+                    pagination: paginatedUsers.pagination,
+                },
+            });
+        } catch (error) {
+            strapi.log.error("Error fetching tagged users:", error);
+            return ctx.internalServerError(
+                "An error occurred while fetching the tagged users."
+            );
+        }
+    },
 }));
