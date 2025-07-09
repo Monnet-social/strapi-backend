@@ -124,11 +124,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
   async findOne(ctx) {
     const { id } = ctx.params;
-    const { query } = ctx;
+
+    console.log("Fetching post with ID:", id);
 
     try {
       const entity = await strapi.entityService.findOne("api::post.post", id, {
-        ...query,
         populate: {
           posted_by: {
             fields: ["id", "username", "name"],
@@ -140,7 +140,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           },
           category: { fields: ["id", "name"] },
           media: true,
-          ...query.populate,
         },
       });
       if (!entity) return ctx.notFound("Post not found");
