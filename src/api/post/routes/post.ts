@@ -58,10 +58,5 @@ module.exports = {
             path: "/stories/:id/viewers",
             handler: "post.getStoryViewers",
         },
-        {
-            method: "GET",
-            path: "/post/:id/tagged-users",
-            handler: "post.getTaggedUsers",
-        },
     ],
 };
