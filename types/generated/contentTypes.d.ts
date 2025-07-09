@@ -465,6 +465,7 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
     pinned: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
     publishedAt: Schema.Attribute.DateTime;
+    repost_of: Schema.Attribute.Relation<'oneToOne', 'api::comment.comment'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
