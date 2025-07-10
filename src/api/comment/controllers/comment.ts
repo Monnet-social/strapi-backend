@@ -192,15 +192,13 @@ export default factories.createCoreController(
             const { user } = ctx.state;
             const { page = 1, pageSize = 10 } = ctx.query;
 
-            if (!user) {
+            if (!user)
                 return ctx.unauthorized(
                     "You must be logged in to view comments."
                 );
-            }
 
-            if (!postId || isNaN(postId)) {
+            if (!postId || isNaN(postId))
                 return ctx.badRequest("A valid Post ID is required.");
-            }
 
             try {
                 const paginatedComments = await strapi.entityService.findPage(
@@ -225,9 +223,8 @@ export default factories.createCoreController(
                 const { results: comments, pagination } = paginatedComments;
                 const userId = user.id;
 
-                if (comments.length === 0) {
+                if (comments.length === 0)
                     return ctx.send({ data: [], meta: { pagination } });
-                }
 
                 const authorIds = comments.map((c) => c.commented_by.id);
                 const commentIds = comments.map((c) => c.id);
@@ -257,7 +254,7 @@ export default factories.createCoreController(
                         populate: { subject: true },
                     }
                 );
-                // FIX: Cast 'rel' to 'any' to access the populated 'subject'
+
                 const iFollowIds = new Set(
                     iFollowRelations.map((rel: any) => rel.subject.id)
                 );
@@ -272,7 +269,7 @@ export default factories.createCoreController(
                         populate: { follower: true },
                     }
                 );
-                // FIX: Cast 'rel' to 'any' to access the populated 'follower'
+
                 const followsMeIds = new Set(
                     followsMeRelations.map((rel: any) => rel.follower.id)
                 );
