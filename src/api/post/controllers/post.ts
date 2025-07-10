@@ -41,16 +41,17 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }
       }
     }
-
-    if (data.category) {
-      const categoryExists = await strapi.entityService.findOne(
-        "api::category.category",
-        data.category
-      );
-      if (!categoryExists)
-        return ctx.badRequest(
-          `The provided category with ID ${data.category} does not exist.`
+    if (data.post_type == "post") {
+      if (data.category) {
+        const categoryExists = await strapi.entityService.findOne(
+          "api::category.category",
+          data.category
         );
+        if (!categoryExists)
+          return ctx.badRequest(
+            `The provided category with ID ${data.category} does not exist.`
+          );
+      }
     }
     if (
       data.tagged_users &&
