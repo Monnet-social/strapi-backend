@@ -19,11 +19,10 @@ module.exports = {
                 "plugin::users-permissions.user",
                 userIdToBlock
             );
-            if (!userToBlock) {
+            if (!userToBlock)
                 return ctx.notFound(
                     "The user you are trying to block does not exist."
                 );
-            }
 
             const existingBlock = await strapi.entityService.findMany(
                 "api::block.block",

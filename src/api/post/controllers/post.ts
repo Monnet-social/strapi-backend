@@ -156,25 +156,67 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                     },
                 }
             );
+            console.log(entity.posted_by, entity.tagged_users);
 
-            if (!entity) return ctx.notFound("Post not found");
+            if (!entity) {
+                return ctx.notFound("Post not found");
+            }
 
-            const followingRelations = await strapi.entityService.findMany(
+            const iFollowRelations = await strapi.entityService.findMany(
                 "api::following.following",
                 {
                     filters: { follower: userId },
-                    populate: { subject: { fields: ["id"] } },
+                    populate: { subject: true },
                 }
             );
-
-            const followingIds = new Set(
-                followingRelations.map((rel) => rel.subject.id)
+            const iFollowIds = new Set(
+                iFollowRelations.map((rel) => rel.subject.id)
             );
 
-            if (entity.tagged_users && entity.tagged_users.length > 0)
-                entity.tagged_users.forEach((taggedUser) => {
-                    taggedUser.is_following = followingIds.has(taggedUser.id);
-                });
+            const followsMeRelations = await strapi.entityService.findMany(
+                "api::following.following",
+                {
+                    filters: { subject: userId },
+                    populate: { follower: true },
+                }
+            );
+            const followsMeIds = new Set(
+                followsMeRelations.map((rel) => rel.follower.id)
+            );
+
+            if (entity.posted_by) {
+                entity.posted_by.is_following = iFollowIds.has(
+                    entity.posted_by.id
+                );
+                entity.posted_by.is_followed = followsMeIds.has(
+                    entity.posted_by.id
+                );
+
+                if (entity.posted_by.profile_picture) {
+                    console.log(entity.posted_by.profile_picture);
+                    let pp = await strapi
+                        .service("api::post.post")
+                        .getOptimisedFileData([
+                            entity.posted_by.profile_picture,
+                        ]);
+                    entity.posted_by.profile_picture = pp[0];
+                }
+            }
+
+            if (entity.tagged_users && entity.tagged_users.length > 0) {
+                for (const taggedUser of entity.tagged_users) {
+                    taggedUser.is_following = iFollowIds.has(taggedUser.id);
+                    taggedUser.is_followed = followsMeIds.has(taggedUser.id);
+
+                    if (taggedUser.profile_picture) {
+                        console.log(taggedUser);
+                        let pp = await strapi
+                            .service("api::post.post")
+                            .getOptimisedFileData([taggedUser.profile_picture]);
+                        taggedUser.profile_picture = pp[0];
+                    }
+                }
+            }
 
             entity.likes_count = await strapi.services[
                 "api::like.like"
@@ -182,15 +224,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             entity.is_liked = await strapi.services[
                 "api::like.like"
             ].verifyPostLikeByUser(entity.id, userId);
-
             entity.dislikes_count = await strapi
                 .service("api::dislike.dislike")
                 .getDislikesCountByPostId(entity.id);
-
             entity.is_disliked = await strapi
                 .service("api::dislike.dislike")
                 .verifyPostDislikedByUser(entity.id, userId);
-
             entity.comments_count = await strapi.services[
                 "api::comment.comment"
             ].getCommentsCount(entity.id);
@@ -207,10 +246,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                     createdAt.getTime() +
                     HelperService.STORY_EXPIRATION_HOURS * 60 * 60 * 1000;
                 entity.expiration_time = expirationTime;
-                if (now.getTime() > expirationTime)
+                if (now.getTime() > expirationTime) {
                     return ctx.notFound(
                         "This story has expired and is no longer available."
                     );
+                }
             }
 
             return ctx.send(entity);
@@ -239,20 +279,49 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 "api::block.block",
                 {
                     filters: { blocked_by: { id: userId } },
-                    fields: ["id"],
                     populate: { blocked_user: { fields: ["id"] } },
                 }
             );
             const blockedUserIds = blockEntries.map(
                 (entry) => entry.blocked_user.id
             );
+
+            const iFollowRelations = await strapi.entityService.findMany(
+                "api::following.following",
+                {
+                    filters: { follower: userId },
+                    populate: { subject: true },
+                }
+            );
+            const iFollowIds = new Set(
+                iFollowRelations.map((rel) => rel.subject.id)
+            );
+
+            const followsMeRelations = await strapi.entityService.findMany(
+                "api::following.following",
+                {
+                    filters: { subject: userId },
+                    populate: { follower: true },
+                }
+            );
+            const followsMeIds = new Set(
+                followsMeRelations.map((rel) => rel.follower.id)
+            );
+
             const results = await strapi.entityService.findMany(
                 "api::post.post",
                 {
                     filters: {
                         post_type: "post",
                         media: { id: { $notNull: true } },
-                        posted_by: { id: { $notIn: blockedUserIds } },
+                        posted_by: {
+                            id: {
+                                $notIn:
+                                    blockedUserIds.length > 0
+                                        ? blockedUserIds
+                                        : [-1],
+                            },
+                        },
                     },
                     sort: { createdAt: "desc" },
                     populate: {
@@ -274,71 +343,82 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                 }
             );
 
-            console.log("Feed results:", results);
-            for (let i = 0; i < results.length; i++) {
-                const followingRelations = await strapi.entityService.findMany(
-                    "api::following.following",
-                    {
-                        filters: { follower: userId },
-                        populate: { subject: { fields: ["id"] } },
+            console.log("Feed results:", results.length);
+
+            for (const post of results) {
+                if (post.posted_by) {
+                    post.posted_by.is_following = iFollowIds.has(
+                        post.posted_by.id
+                    );
+                    post.posted_by.is_followed = followsMeIds.has(
+                        post.posted_by.id
+                    );
+
+                    if (post.posted_by.profile_picture) {
+                        let pp = await strapi
+                            .service("api::post.post")
+                            .getOptimisedFileData([
+                                post.posted_by.profile_picture,
+                            ]);
+                        post.posted_by.profile_picture = pp[0];
                     }
-                );
+                }
 
-                const followingIds = new Set(
-                    followingRelations.map((rel) => rel.subject.id)
-                );
-
-                if (
-                    results[i].tagged_users &&
-                    results[i].tagged_users.length > 0
-                )
-                    results[i].tagged_users.forEach((taggedUser) => {
-                        taggedUser.is_following = followingIds.has(
+                if (post.tagged_users && post.tagged_users.length > 0) {
+                    for (const taggedUser of post.tagged_users) {
+                        taggedUser.is_following = iFollowIds.has(taggedUser.id);
+                        taggedUser.is_followed = followsMeIds.has(
                             taggedUser.id
                         );
-                    });
 
-                results[i].likes_count = await strapi.services[
+                        if (taggedUser.profile_picture) {
+                            let pp = await strapi
+                                .service("api::post.post")
+                                .getOptimisedFileData([
+                                    taggedUser.profile_picture,
+                                ]);
+                            taggedUser.profile_picture = pp[0];
+                        }
+                    }
+                }
+
+                post.likes_count = await strapi.services[
                     "api::like.like"
-                ].getLikesCount(results[i].id);
-
-                results[i].is_liked = await strapi.services[
+                ].getLikesCount(post.id);
+                post.is_liked = await strapi.services[
                     "api::like.like"
-                ].verifyPostLikeByUser(results[i].id, userId);
-
-                results[i].dislikes_count = await strapi
+                ].verifyPostLikeByUser(post.id, userId);
+                post.dislikes_count = await strapi
                     .service("api::dislike.dislike")
-                    .getDislikesCountByPostId(results[i].id);
-
-                results[i].is_disliked = await strapi
+                    .getDislikesCountByPostId(post.id);
+                post.is_disliked = await strapi
                     .service("api::dislike.dislike")
-                    .verifyPostDislikedByUser(results[i].id, userId);
-
-                results[i].comments_count = await strapi.services[
+                    .verifyPostDislikedByUser(post.id, userId);
+                post.comments_count = await strapi.services[
                     "api::comment.comment"
-                ].getCommentsCount(results[i].id);
+                ].getCommentsCount(post.id);
+                post.share_count = await strapi.services[
+                    "api::share.share"
+                ].countShares(post.id);
 
-                results[i].media =
+                post.media =
                     (await strapi
                         .service("api::post.post")
-                        .getOptimisedFileData(results[i].media)) || [];
-
-                results[i].posted_by = {
-                    id: results[i].posted_by?.id,
-                    username: results[i].posted_by?.username,
-                    name: results[i].posted_by?.name,
-                    profile_picture: results[i].posted_by?.profile_picture,
-                };
-
-                results[i].share_count = await strapi.services[
-                    "api::share.share"
-                ].countShares(results[i].id);
+                        .getOptimisedFileData(post.media)) || [];
             }
 
             const count = await strapi.entityService.count("api::post.post", {
                 filters: {
                     post_type: "post",
                     media: { id: { $notNull: true } },
+                    posted_by: {
+                        id: {
+                            $notIn:
+                                blockedUserIds.length > 0
+                                    ? blockedUserIds
+                                    : [-1],
+                        },
+                    },
                 },
             });
 

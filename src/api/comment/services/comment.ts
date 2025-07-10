@@ -65,6 +65,7 @@ export default factories.createCoreService(
             );
             return likesCount;
         },
+
         async getTotalLikesOnCommentsByPostId(postId: number): Promise<number> {
             const commentsOnPost = await strapi.entityService.findMany(
                 "api::comment.comment",

@@ -89,26 +89,86 @@ export default factories.createCoreController(
 
         async getDislikesByPostId(ctx) {
             const { post_id } = ctx.params;
+            const { user: currentUser } = ctx.state;
             if (!post_id || isNaN(post_id))
                 return ctx.badRequest("Please provide a valid post id.");
 
-            const dislikes = await strapi.entityService.findMany(
-                "api::dislike.dislike",
-                {
-                    filters: { post: { id: post_id } },
-                    populate: {
-                        disliked_by: {
-                            fields: ["id", "username", "name"],
-                            populate: { profile_picture: true },
-                        },
-                    },
-                }
-            );
+            if (!currentUser)
+                return ctx.unauthorized(
+                    "You must be logged in to perform this action."
+                );
 
-            const users = dislikes
-                .map((dislike) => (dislike as any).disliked_by)
-                .filter(Boolean);
-            return ctx.send(users);
+            try {
+                const dislikes = await strapi.entityService.findMany(
+                    "api::dislike.dislike",
+                    {
+                        filters: { post: { id: post_id } },
+                        populate: {
+                            disliked_by: {
+                                fields: ["id", "username", "name"],
+                                populate: { profile_picture: true },
+                            },
+                        },
+                    }
+                );
+
+                const users = dislikes
+                    .map((dislike: any) => dislike.disliked_by)
+                    .filter(Boolean);
+
+                if (users.length === 0) return ctx.send([]);
+
+                const userIds = users.map((u) => u.id);
+                const currentUserId = currentUser.id;
+
+                const iFollowRelations = await strapi.entityService.findMany(
+                    "api::following.following",
+                    {
+                        filters: {
+                            follower: currentUserId,
+                            subject: { id: { $in: userIds } },
+                        },
+                    }
+                );
+                const iFollowIds = new Set(
+                    iFollowRelations.map((rel: any) => rel.subject)
+                );
+
+                const followsMeRelations = await strapi.entityService.findMany(
+                    "api::following.following",
+                    {
+                        filters: {
+                            subject: currentUserId,
+                            follower: { id: { $in: userIds } },
+                        },
+                    }
+                );
+                const followsMeIds = new Set(
+                    followsMeRelations.map((rel: any) => rel.follower)
+                );
+
+                for (const user of users) {
+                    const userWithFlags: any = user;
+                    userWithFlags.is_following = iFollowIds.has(user.id);
+                    userWithFlags.is_followed_by = followsMeIds.has(user.id);
+
+                    if (userWithFlags.profile_picture) {
+                        let pp = await strapi
+                            .service("api::post.post")
+                            .getOptimisedFileData(
+                                userWithFlags.profile_picture
+                            );
+                        userWithFlags.profile_picture = pp[0];
+                    }
+                }
+
+                return ctx.send(users);
+            } catch (err) {
+                strapi.log.error("Error in getDislikesByPostId:", err);
+                return ctx.internalServerError(
+                    "An error occurred while fetching dislikes."
+                );
+            }
         },
     })
 );

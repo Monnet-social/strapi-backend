@@ -30,6 +30,7 @@ async function login(ctx) {
                 ],
                 populate: {
                     referred_by: { fields: ["id", "name", "username"] },
+                    profile_picture: true,
                 },
             }
         );
@@ -194,6 +195,7 @@ async function getUser(ctx) {
                     referred_by: {
                         fields: ["id", "name", "username", "email"],
                     },
+                    profile_picture: true,
                 },
             }
         );

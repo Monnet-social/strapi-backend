@@ -14,13 +14,12 @@ export default {
                 if ((sub as any).category) {
                     const parentCategory = (sub as any).category;
 
-                    if (!categoryMap.has(parentCategory.id)) {
+                    if (!categoryMap.has(parentCategory.id))
                         categoryMap.set(parentCategory.id, {
                             id: parentCategory.id,
                             name: parentCategory.name,
                             subcategories: [],
                         });
-                    }
 
                     categoryMap.get(parentCategory.id).subcategories.push({
                         id: sub.id,

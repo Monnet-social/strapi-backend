@@ -192,13 +192,15 @@ export default factories.createCoreController(
             const { user } = ctx.state;
             const { page = 1, pageSize = 10 } = ctx.query;
 
-            if (!user)
+            if (!user) {
                 return ctx.unauthorized(
                     "You must be logged in to view comments."
                 );
+            }
 
-            if (!postId || isNaN(postId))
+            if (!postId || isNaN(postId)) {
                 return ctx.badRequest("A valid Post ID is required.");
+            }
 
             try {
                 const paginatedComments = await strapi.entityService.findPage(
@@ -221,12 +223,14 @@ export default factories.createCoreController(
                 );
 
                 const { results: comments, pagination } = paginatedComments;
-
-                if (comments.length === 0)
-                    return ctx.send({ data: [], meta: { pagination } });
-
-                const commentIds = comments.map((c) => c.id);
                 const userId = user.id;
+
+                if (comments.length === 0) {
+                    return ctx.send({ data: [], meta: { pagination } });
+                }
+
+                const authorIds = comments.map((c) => c.commented_by.id);
+                const commentIds = comments.map((c) => c.id);
 
                 const userLikes = await strapi.entityService.findMany(
                     "api::like.like",
@@ -238,8 +242,39 @@ export default factories.createCoreController(
                         populate: { comment: { fields: ["id"] } },
                     }
                 );
+
                 const likedCommentIds = new Set(
-                    userLikes.map((like) => (like as any).comment.id)
+                    userLikes.map((like: any) => like.comment.id)
+                );
+
+                const iFollowRelations = await strapi.entityService.findMany(
+                    "api::following.following",
+                    {
+                        filters: {
+                            follower: userId,
+                            subject: { id: { $in: authorIds } },
+                        },
+                        populate: { subject: true },
+                    }
+                );
+                // FIX: Cast 'rel' to 'any' to access the populated 'subject'
+                const iFollowIds = new Set(
+                    iFollowRelations.map((rel: any) => rel.subject.id)
+                );
+
+                const followsMeRelations = await strapi.entityService.findMany(
+                    "api::following.following",
+                    {
+                        filters: {
+                            subject: userId,
+                            follower: { id: { $in: authorIds } },
+                        },
+                        populate: { follower: true },
+                    }
+                );
+                // FIX: Cast 'rel' to 'any' to access the populated 'follower'
+                const followsMeIds = new Set(
+                    followsMeRelations.map((rel: any) => rel.follower.id)
                 );
 
                 const finalResponse = await Promise.all(
@@ -253,7 +288,21 @@ export default factories.createCoreController(
                             }),
                         ]);
 
-                        const author = (comment as any).commented_by;
+                        const author: any = comment.commented_by;
+
+                        if (author) {
+                            author.is_following = iFollowIds.has(author.id);
+                            author.is_followed = followsMeIds.has(author.id);
+
+                            if (author.profile_picture) {
+                                let pp = await strapi
+                                    .service("api::post.post")
+                                    .getOptimisedFileData([
+                                        author.profile_picture,
+                                    ]);
+                                author.profile_picture = pp[0];
+                            }
+                        }
 
                         return {
                             id: comment.id,
@@ -434,15 +483,17 @@ export default factories.createCoreController(
             const { user } = ctx.state;
             const { page = 1, pageSize = 10 } = ctx.query;
 
-            if (!user)
+            if (!user) {
                 return ctx.unauthorized(
                     "You must be logged in to view replies."
                 );
+            }
 
-            if (!parentCommentId || isNaN(parentCommentId))
+            if (!parentCommentId || isNaN(parentCommentId)) {
                 return ctx.badRequest(
                     "A valid parent comment ID is required in the URL."
                 );
+            }
 
             try {
                 const paginatedReplies = await strapi.entityService.findPage(
@@ -462,13 +513,18 @@ export default factories.createCoreController(
                 );
 
                 const { results: replies, pagination } = paginatedReplies;
-
-                if (replies.length === 0)
-                    return ctx.send({ data: [], meta: { pagination } });
-
-                const replyIds = replies.map((reply) => reply.id);
                 const userId = user.id;
 
+                if (replies.length === 0) {
+                    return ctx.send({ data: [], meta: { pagination } });
+                }
+
+                // --- START: Optimized Data Fetching ---
+
+                const replyIds = replies.map((reply) => reply.id);
+                const authorIds = replies.map((reply) => reply.commented_by.id);
+
+                // 1. Get all likes and dislikes by the current user for these replies
                 const [userLikes, userDislikes] = await Promise.all([
                     strapi.entityService.findMany("api::like.like", {
                         filters: {
@@ -487,22 +543,70 @@ export default factories.createCoreController(
                 ]);
 
                 const likedReplyIds = new Set(
-                    userLikes.map((like) => (like as any).comment.id)
+                    userLikes.map((like: any) => like.comment.id)
                 );
                 const dislikedReplyIds = new Set(
-                    userDislikes.map((dislike) => (dislike as any).comment.id)
+                    userDislikes.map((dislike: any) => dislike.comment.id)
                 );
+
+                // 2. Get IDs of authors the current user is FOLLOWING
+                const iFollowRelations = await strapi.entityService.findMany(
+                    "api::following.following",
+                    {
+                        filters: {
+                            follower: userId,
+                            subject: { id: { $in: authorIds } },
+                        },
+                        populate: { subject: true },
+                    }
+                );
+                const iFollowIds = new Set(
+                    iFollowRelations.map((rel: any) => rel.subject.id)
+                );
+
+                // 3. Get IDs of authors who FOLLOW the current user
+                const followsMeRelations = await strapi.entityService.findMany(
+                    "api::following.following",
+                    {
+                        filters: {
+                            subject: userId,
+                            follower: { id: { $in: authorIds } },
+                        },
+                        populate: { follower: true },
+                    }
+                );
+                const followsMeIds = new Set(
+                    followsMeRelations.map((rel: any) => rel.follower.id)
+                );
+
+                // --- END: Optimized Data Fetching ---
 
                 const finalResults = await Promise.all(
                     replies.map(async (reply) => {
-                        const like_count = await strapi.entityService.count(
-                            "api::like.like",
-                            { filters: { comment: { id: reply.id } } }
-                        );
-                        const dislike_count = await strapi.entityService.count(
-                            "api::dislike.dislike",
-                            { filters: { comment: { id: reply.id } } }
-                        );
+                        const [like_count, dislike_count] = await Promise.all([
+                            strapi.entityService.count("api::like.like", {
+                                filters: { comment: { id: reply.id } },
+                            }),
+                            strapi.entityService.count("api::dislike.dislike", {
+                                filters: { comment: { id: reply.id } },
+                            }),
+                        ]);
+
+                        // Enrich the author object
+                        const author: any = reply.commented_by;
+                        if (author) {
+                            author.is_following = iFollowIds.has(author.id);
+                            author.is_followed_by = followsMeIds.has(author.id);
+
+                            if (author.profile_picture) {
+                                let pp = await strapi
+                                    .service("api::post.post")
+                                    .getOptimisedFileData([
+                                        author.profile_picture,
+                                    ]);
+                                author.profile_picture = pp[0];
+                            }
+                        }
 
                         return {
                             ...reply,

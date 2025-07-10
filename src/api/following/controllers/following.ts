@@ -10,12 +10,9 @@ export default factories.createCoreController(
         async followUnfollowUser(ctx) {
             const userId = ctx.state.user.id;
             const { subjectId } = ctx.request.body;
-            if (!subjectId) {
-                return ctx.badRequest("Subject ID is required");
-            }
-            if (userId === subjectId) {
+            if (!subjectId) return ctx.badRequest("Subject ID is required");
+            if (userId === subjectId)
                 return ctx.badRequest("You cannot follow/unfollow yourself");
-            }
 
             const existingFollow = await strapi.entityService.findMany(
                 "api::following.following",
@@ -76,9 +73,7 @@ export default factories.createCoreController(
                         populate: {
                             follower: {
                                 fields: ["id", "username", "email", "name"],
-                                populate: {
-                                    profile_picture: true,
-                                },
+                                populate: { profile_picture: true },
                             },
                         },
                     }
@@ -86,24 +81,20 @@ export default factories.createCoreController(
                 console.log("Followers:", followers);
                 for (let i = 0; i < followers.length; i++) {
                     if (followers[i].follower.profile_picture) {
-                        followers[i].follower.profile_picture = await strapi
+                        let pp = await strapi
                             .service("api::post.post")
                             .getOptimisedFileData([
                                 followers[i].follower.profile_picture,
                             ]);
-                    } else {
-                        followers[i].follower.profile_picture = [];
-                    }
+                        followers[i].follower.profile_picture = pp[0];
+                    } else followers[i].follower.profile_picture = [];
                 }
                 const count = await strapi.entityService.count(
                     "api::following.following",
-                    {
-                        filters: { subject: { id: userId } },
-                    }
+                    { filters: { subject: { id: userId } } }
                 );
                 return ctx.send({
                     followers,
-
                     meta: {
                         pagination: {
                             page: Number(default_pagination.pagination.page),
@@ -133,9 +124,7 @@ export default factories.createCoreController(
             if (pagination_size)
                 default_pagination.pagination.pageSize = pagination_size;
             if (page) default_pagination.pagination.page = page;
-            if (!userId) {
-                return ctx.badRequest("User ID is required");
-            }
+            if (!userId) return ctx.badRequest("User ID is required");
             try {
                 const following: any = await strapi.entityService.findMany(
                     "api::following.following",
@@ -144,12 +133,9 @@ export default factories.createCoreController(
                         populate: {
                             subject: {
                                 fields: ["id", "username", "email", "name"],
-                                populate: {
-                                    profile_picture: true,
-                                },
+                                populate: { profile_picture: true },
                             },
                         },
-
                         start:
                             (default_pagination.pagination.page - 1) *
                             default_pagination.pagination.pageSize,
@@ -158,20 +144,17 @@ export default factories.createCoreController(
                 );
                 for (let i = 0; i < following.length; i++) {
                     if (following[i].subject.profile_picture) {
-                        following[i].subject.profile_picture = await strapi
+                        let pp = await strapi
                             .service("api::post.post")
                             .getOptimisedFileData([
                                 following[i].subject.profile_picture,
                             ]);
-                    } else {
-                        following[i].follower.profile_picture = [];
-                    }
+                        following[i].subject.profile_picture = pp[0];
+                    } else following[i].follower.profile_picture = [];
                 }
                 const count = await strapi.entityService.count(
                     "api::following.following",
-                    {
-                        filters: { follower: { id: userId } },
-                    }
+                    { filters: { follower: { id: userId } } }
                 );
                 return ctx.send({
                     following,
@@ -197,9 +180,7 @@ export default factories.createCoreController(
         async addCloseFriends(ctx) {
             const userId = ctx.state.user.id;
             const { subjectId } = ctx.request.body;
-            if (!subjectId) {
-                return ctx.badRequest("Subject ID is required");
-            }
+            if (!subjectId) return ctx.badRequest("Subject ID is required");
             const findRelation = await strapi.entityService.findMany(
                 "api::following.following",
                 {
@@ -209,9 +190,9 @@ export default factories.createCoreController(
                     },
                 }
             );
-            if (findRelation?.length == 0) {
+            if (findRelation?.length == 0)
                 return ctx.badRequest("You are not following this user");
-            }
+
             const existingCloseFriends = await strapi.entityService.findMany(
                 "api::following.following",
                 {
@@ -221,17 +202,13 @@ export default factories.createCoreController(
                     },
                 }
             );
-            if (existingCloseFriends.length == 0) {
+            if (existingCloseFriends.length == 0)
                 return ctx.badRequest("User is not follwing you back");
-            }
+
             const updateCloseFriends = await strapi.entityService.update(
                 "api::following.following",
                 findRelation[0].id,
-                {
-                    data: {
-                        is_close_friend: !findRelation[0].is_close_friend,
-                    },
-                }
+                { data: { is_close_friend: !findRelation[0].is_close_friend } }
             );
             return ctx.send({
                 message: "Close friends updated successfully",
