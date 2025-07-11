@@ -108,6 +108,10 @@ async function updateProfile(ctx): Promise<void> {
             { data: dataToUpdate, populate: { profile_picture: true } }
         );
 
+        await strapi
+            .service("api::post.post")
+            .enrichUsersWithOptimizedProfilePictures([updatedUser]);
+
         delete updatedUser.password;
 
         ctx.send({ user: updatedUser });
@@ -167,6 +171,9 @@ async function updateProfilePicture(ctx): Promise<void> {
         );
 
         delete updatedUser.password;
+        await strapi
+            .service("api::post.post")
+            .enrichUsersWithOptimizedProfilePictures([updatedUser]);
 
         ctx.send({
             user: updatedUser,

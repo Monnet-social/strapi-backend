@@ -242,7 +242,7 @@ export default factories.createCoreController(
             if (existingCloseFriends.length == 0)
                 return ctx.badRequest("User is not follwing you back");
 
-            const updateCloseFriends = await strapi.entityService.update(
+            await strapi.entityService.update(
                 "api::following.following",
                 findRelation[0].id,
                 { data: { is_close_friend: !findRelation[0].is_close_friend } }

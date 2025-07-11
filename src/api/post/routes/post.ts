@@ -44,11 +44,6 @@ module.exports = {
             handler: "post.getTestFile",
         },
         {
-            method: "GET",
-            path: "/friends",
-            handler: "post.getFriendsToTag",
-        },
-        {
             method: "POST",
             path: "/stories/:id/view",
             handler: "post.viewStory",
@@ -57,6 +52,11 @@ module.exports = {
             method: "GET",
             path: "/stories/:id/viewers",
             handler: "post.getStoryViewers",
+        },
+        {
+            method: "GET",
+            path: "/get-friends",
+            handler: "post.getFriendsToTag",
         },
     ],
 };

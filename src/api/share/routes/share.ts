@@ -1,7 +1,12 @@
-/**
- * share router
- */
-
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::share.share');
+export default {
+    routes: [
+        {
+            method: "POST",
+            path: "/share",
+            handler: "share.createShare",
+            config: {
+                prefix: "",
+            },
+        },
+    ],
+};

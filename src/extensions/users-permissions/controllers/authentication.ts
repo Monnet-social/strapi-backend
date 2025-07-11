@@ -39,9 +39,15 @@ async function login(ctx) {
         const user = users[0];
         if (!user.is_email_verified)
             return ctx.unauthorized("Please verify email first.");
+
         const isValidPassword = await bcrypt.compare(password, user.password);
 
         if (!isValidPassword) return ctx.unauthorized("Invalid credentials.");
+
+        await strapi
+            .service("api::post.post")
+            .enrichUsersWithOptimizedProfilePictures([user]);
+
         delete user.password;
         const token = await strapi
             .plugin("users-permissions")
@@ -201,6 +207,10 @@ async function getUser(ctx) {
         );
 
         if (!user) return ctx.badRequest("User not found");
+
+        await strapi
+            .service("api::post.post")
+            .enrichUsersWithOptimizedProfilePictures([user]);
 
         return ctx.send({ user: user });
     } catch (error) {
