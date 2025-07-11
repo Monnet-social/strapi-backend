@@ -1,7 +1,3 @@
-/**
- * following controller
- */
-
 import { factories } from "@strapi/strapi";
 
 export default factories.createCoreController(
@@ -21,27 +17,24 @@ export default factories.createCoreController(
                         follower: { id: userId },
                         subject: { id: subjectId },
                     },
+                    limit: 1,
                 }
             );
             if (existingFollow.length > 0) {
-                const followId = existingFollow[0].id;
                 await strapi.entityService.delete(
                     "api::following.following",
-                    followId
+                    existingFollow[0].id
                 );
                 return ctx.send({ message: "Unfollowed successfully" });
             }
 
             try {
-                const following = await strapi.entityService.create(
-                    "api::following.following",
-                    {
-                        data: {
-                            follower: userId,
-                            subject: subjectId,
-                        },
-                    }
-                );
+                await strapi.entityService.create("api::following.following", {
+                    data: {
+                        follower: userId,
+                        subject: subjectId,
+                    },
+                });
 
                 return ctx.send({
                     message: "Followed successfully",
@@ -52,9 +45,10 @@ export default factories.createCoreController(
                 });
             }
         },
+
         async getUserFollowers(ctx) {
-            const userId = ctx.params.userId;
-            console.log("User ID:", userId);
+            const { userId } = ctx.params;
+            const { user: currentUser } = ctx.state;
             const { pagination_size, page } = ctx.query;
 
             let default_pagination: any = {
@@ -64,9 +58,13 @@ export default factories.createCoreController(
                 default_pagination.pagination.pageSize = pagination_size;
             if (page) default_pagination.pagination.page = page;
             if (!userId) return ctx.badRequest("User ID is required");
+            if (!currentUser)
+                return ctx.unauthorized(
+                    "You must be logged in to perform this action."
+                );
 
             try {
-                const followers: any = await strapi.entityService.findMany(
+                const followersEntries = await strapi.entityService.findMany(
                     "api::following.following",
                     {
                         filters: { subject: { id: userId } },
@@ -76,25 +74,41 @@ export default factories.createCoreController(
                                 populate: { profile_picture: true },
                             },
                         },
+                        start:
+                            (default_pagination.pagination.page - 1) *
+                            default_pagination.pagination.pageSize,
+                        limit: default_pagination.pagination.pageSize,
                     }
                 );
-                console.log("Followers:", followers);
-                for (let i = 0; i < followers.length; i++) {
-                    if (followers[i].follower.profile_picture) {
-                        let pp = await strapi
+
+                const users = followersEntries
+                    .map((entry: any) => entry.follower)
+                    .filter(Boolean);
+
+                if (users.length > 0) {
+                    await Promise.all([
+                        strapi
+                            .service("api::following.following")
+                            .enrichItemsWithFollowStatus({
+                                items: followersEntries,
+                                userPaths: ["follower"],
+                                currentUserId: currentUser.id,
+                            }),
+                        strapi
                             .service("api::post.post")
-                            .getOptimisedFileData([
-                                followers[i].follower.profile_picture,
-                            ]);
-                        followers[i].follower.profile_picture = pp[0];
-                    } else followers[i].follower.profile_picture = [];
+                            .enrichUsersWithOptimizedProfilePictures(users),
+                    ]);
                 }
+
                 const count = await strapi.entityService.count(
                     "api::following.following",
-                    { filters: { subject: { id: userId } } }
+                    {
+                        filters: { subject: { id: userId } },
+                    }
                 );
+
                 return ctx.send({
-                    followers,
+                    data: users,
                     meta: {
                         pagination: {
                             page: Number(default_pagination.pagination.page),
@@ -109,13 +123,16 @@ export default factories.createCoreController(
                     },
                 });
             } catch (error) {
+                strapi.log.error("Error fetching followers:", error);
                 return ctx.internalServerError("Error fetching followers", {
                     error,
                 });
             }
         },
+
         async getUserFollowing(ctx) {
-            const userId = ctx.params.userId;
+            const { userId } = ctx.params;
+            const { user: currentUser } = ctx.state;
             const { pagination_size, page } = ctx.query;
 
             let default_pagination: any = {
@@ -125,8 +142,13 @@ export default factories.createCoreController(
                 default_pagination.pagination.pageSize = pagination_size;
             if (page) default_pagination.pagination.page = page;
             if (!userId) return ctx.badRequest("User ID is required");
+            if (!currentUser)
+                return ctx.unauthorized(
+                    "You must be logged in to perform this action."
+                );
+
             try {
-                const following: any = await strapi.entityService.findMany(
+                const followingEntries = await strapi.entityService.findMany(
                     "api::following.following",
                     {
                         filters: { follower: { id: userId } },
@@ -142,22 +164,35 @@ export default factories.createCoreController(
                         limit: default_pagination.pagination.pageSize,
                     }
                 );
-                for (let i = 0; i < following.length; i++) {
-                    if (following[i].subject.profile_picture) {
-                        let pp = await strapi
+
+                const users = followingEntries
+                    .map((entry: any) => entry.subject)
+                    .filter(Boolean);
+
+                if (users.length > 0) {
+                    await Promise.all([
+                        strapi
+                            .service("api::following.following")
+                            .enrichItemsWithFollowStatus({
+                                items: followingEntries,
+                                userPaths: ["subject"],
+                                currentUserId: currentUser.id,
+                            }),
+                        strapi
                             .service("api::post.post")
-                            .getOptimisedFileData([
-                                following[i].subject.profile_picture,
-                            ]);
-                        following[i].subject.profile_picture = pp[0];
-                    } else following[i].follower.profile_picture = [];
+                            .enrichUsersWithOptimizedProfilePictures(users),
+                    ]);
                 }
+
                 const count = await strapi.entityService.count(
                     "api::following.following",
-                    { filters: { follower: { id: userId } } }
+                    {
+                        filters: { follower: { id: userId } },
+                    }
                 );
+
                 return ctx.send({
-                    following,
+                    data: users,
                     meta: {
                         pagination: {
                             page: Number(default_pagination.pagination.page),
@@ -172,11 +207,13 @@ export default factories.createCoreController(
                     },
                 });
             } catch (error) {
+                strapi.log.error("Error fetching following:", error);
                 return ctx.internalServerError("Error fetching following", {
                     error,
                 });
             }
         },
+
         async addCloseFriends(ctx) {
             const userId = ctx.state.user.id;
             const { subjectId } = ctx.request.body;

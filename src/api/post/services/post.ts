@@ -49,6 +49,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         }
         return finalMedia;
     },
+
     async getStoryViewersCount(postId: number): Promise<number> {
         if (!postId || isNaN(postId)) {
             strapi.log.warn(
@@ -82,6 +83,26 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
                 error
             );
             return 0;
+        }
+    },
+
+    async enrichUsersWithOptimizedProfilePictures(users: any[]) {
+        if (!users || users.length === 0) {
+            return;
+        }
+
+        for (const user of users) {
+            if (user && user.profile_picture && user.profile_picture.id) {
+                // The getOptimisedFileData expects an array, so we wrap the picture in one
+                const optimizedPictures = await this.getOptimisedFileData([
+                    user.profile_picture,
+                ]);
+                // It returns an array, so we take the first element
+                user.profile_picture = optimizedPictures[0] || null;
+            } else if (user) {
+                // Ensure profile_picture is null if it doesn't exist
+                user.profile_picture = null;
+            }
         }
     },
 }));
