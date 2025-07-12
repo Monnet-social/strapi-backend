@@ -507,6 +507,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
                         total: count,
                     },
                 },
+
                 message: "Stories fetched successfully.",
             });
         } catch (err) {
