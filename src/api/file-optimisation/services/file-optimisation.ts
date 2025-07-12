@@ -73,7 +73,6 @@ export default factories.createCoreService(
                         compressed_url: fullRecordFromDB.compressed_url,
                     };
 
-                    // Pass the clean object to your utility service
                     await new FileOptimisationService().handleDeletion(
                         recordForDeletion
                     );
@@ -81,7 +80,6 @@ export default factories.createCoreService(
                         `Deleted optimised files from GCP for media id: ${file_id}`
                     );
 
-                    // Delete the database record using its ID
                     await strapi.entityService.delete(
                         "api::file-optimisation.file-optimisation",
                         fullRecordFromDB.id

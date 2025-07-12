@@ -12,9 +12,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
             const file = media[i];
             const findImage = await strapi.entityService.findMany(
                 "api::file-optimisation.file-optimisation",
-                {
-                    filters: { media: { id: file.id } },
-                }
+                { filters: { media: { id: file.id } } }
             );
             if (findImage.length > 0) {
                 const fileData = findImage[0];
@@ -37,7 +35,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
                     compressed_url: media[i].compressed_url,
                 });
             } else {
-                // If no optimisation data found, trigger it
                 finalMedia.push({
                     id: file.id,
                     url: file.url,
@@ -93,16 +90,11 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
 
         for (const user of users) {
             if (user && user.profile_picture && user.profile_picture.id) {
-                // The getOptimisedFileData expects an array, so we wrap the picture in one
                 const optimizedPictures = await this.getOptimisedFileData([
                     user.profile_picture,
                 ]);
-                // It returns an array, so we take the first element
                 user.profile_picture = optimizedPictures[0] || null;
-            } else if (user) {
-                // Ensure profile_picture is null if it doesn't exist
-                user.profile_picture = null;
-            }
+            } else if (user) user.profile_picture = null;
         }
     },
 }));
