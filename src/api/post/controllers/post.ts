@@ -331,76 +331,94 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   },
 
   async stories(ctx) {
-    const { pagination_size, page, filter = "friends" } = ctx.query;
-    const { id: userId } = ctx.state.user;
-    let default_pagination = {
-      pagination: { page: 1, pageSize: 10 },
-    };
-    if (pagination_size)
-      default_pagination.pagination.pageSize = pagination_size;
-    if (page) default_pagination.pagination.page = page;
+    const { parameter = "friends" } = ctx.query;
+    const { id: currentUserId } = ctx.state.user;
+
+    try {
+      const twentyFourHoursAgo = new Date(
+        new Date().getTime() - 24 * 60 * 60 * 1000
+      );
+      let targetUserIds = [];
+
+      if (parameter === "self") {
+        targetUserIds = [currentUserId];
+      } else if (parameter === "friends" || parameter === "following") {
+        const followingEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { follower: { id: currentUserId } },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+        targetUserIds = followingEntries.map((entry: any) => entry.subject.id);
+        targetUserIds.push(currentUserId);
+      }
+
+      if (targetUserIds.length === 0 && parameter !== "self") {
+        return ctx.send({ data: [] });
+      }
+
+      const stories = await strapi.entityService.findMany("api::post.post", {
+        filters: {
+          posted_by: { id: { $in: targetUserIds } },
+          post_type: "story",
+          createdAt: { $gte: twentyFourHoursAgo },
+        },
+        populate: { posted_by: { populate: { profile_picture: true } } },
+      });
+
+      if (stories.length === 0) {
+        return ctx.send({ data: [] });
+      }
+
+      const storiesByUser = stories.reduce((acc, story) => {
+        const user = story.posted_by;
+        if (!acc[user.id]) {
+          acc[user.id] = {
+            userId: user.id,
+            profile_picture: user.profile_picture || null,
+            stories_count: 0,
+          };
+        }
+        acc[user.id].stories_count += 1;
+        return acc;
+      }, {});
+
+      const usersWithStories = Object.values(storiesByUser);
+      await strapi
+        .service("api::post.post")
+        .enrichUsersWithOptimizedProfilePictures(
+          usersWithStories.map((u: any) => ({
+            profile_picture: u.profile_picture,
+          }))
+        );
+
+      return ctx.send({ data: usersWithStories });
+    } catch (err) {
+      console.error("Get Story Feed Error:", err);
+      return ctx.internalServerError(
+        "An error occurred while fetching the story feed."
+      );
+    }
+  },
+
+  async getUserStories(ctx) {
+    const { id: targetUserId } = ctx.params;
+    const { id: currentUserId } = ctx.state.user;
 
     try {
       const twentyFourHoursAgo = new Date(
         new Date().getTime() - 24 * 60 * 60 * 1000
       );
 
-      const blockEntries = await strapi.entityService.findMany(
-        "api::block.block",
-        {
-          filters: { blocked_by: { id: userId } },
-          populate: { blocked_user: { fields: ["id"] } },
-        }
-      );
-      const blockedUserIds = blockEntries.map(
-        (entry: any) => entry.blocked_user.id
-      );
-
-      const myStories = await strapi.entityService.findMany("api::post.post", {
-        filters: {
-          posted_by: { id: userId },
-          post_type: "story",
-          createdAt: { $gte: twentyFourHoursAgo },
-        },
-        populate: {
-          tagged_users: {
-            fields: ["id", "username", "name"],
-            populate: { profile_picture: true },
-          },
-          media: true,
-        },
-      });
-
-      const storyFilters: any = {
-        post_type: "story",
-        createdAt: { $gte: twentyFourHoursAgo },
-        posted_by: {
-          id: {
-            $ne: userId,
-            $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1],
-          },
-        },
-      };
-
-      if (filter === "friends") {
-        const followingEntries = await strapi.entityService.findMany(
-          "api::following.following",
-          {
-            filters: { follower: { id: userId } },
-            populate: { subject: { fields: ["id"] } },
-          }
-        );
-        const followingIds = followingEntries.map(
-          (entry: any) => entry.subject.id
-        );
-        storyFilters.posted_by.id.$in =
-          followingIds.length > 0 ? followingIds : [-1];
-      }
-
-      const friendsStories = await strapi.entityService.findMany(
+      const userStories = await strapi.entityService.findMany(
         "api::post.post",
         {
-          filters: storyFilters,
+          filters: {
+            posted_by: { id: targetUserId },
+            post_type: "story",
+            createdAt: { $gte: twentyFourHoursAgo },
+          },
           sort: { createdAt: "desc" },
           populate: {
             posted_by: {
@@ -413,33 +431,26 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             },
             media: true,
           },
-          start:
-            (default_pagination.pagination.page - 1) *
-            default_pagination.pagination.pageSize,
-          limit: default_pagination.pagination.pageSize,
         }
       );
 
-      const allStories = [...myStories, ...friendsStories];
-      if (allStories.length > 0) {
-        const usersToProcess = allStories
-          .flatMap((story) => [story.posted_by, ...(story.tagged_users || [])])
-          .filter(Boolean);
-        await Promise.all([
-          strapi
-            .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: allStories,
-              userPaths: ["posted_by", "tagged_users"],
-              currentUserId: userId,
-            }),
-          strapi
-            .service("api::post.post")
-            .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-        ]);
-      }
+      if (userStories.length === 0) return ctx.send({ data: [] });
 
-      for (const story of allStories) {
+      const usersToProcess = userStories
+        .flatMap((story) => [story.posted_by, ...(story.tagged_users || [])])
+        .filter(Boolean);
+      await Promise.all([
+        strapi.service("api::following.following").enrichItemsWithFollowStatus({
+          items: userStories,
+          userPaths: ["posted_by", "tagged_users"],
+          currentUserId,
+        }),
+        strapi
+          .service("api::post.post")
+          .enrichUsersWithOptimizedProfilePictures(usersToProcess),
+      ]);
+
+      for (const story of userStories) {
         story.expiration_time =
           new Date(story.createdAt).getTime() + 24 * 60 * 60 * 1000;
         story.likes_count = await strapi.services[
@@ -447,7 +458,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         ].getLikesCount(story.id);
         story.is_liked = await strapi.services[
           "api::like.like"
-        ].verifyPostLikeByUser(story.id, userId);
+        ].verifyPostLikeByUser(story.id, currentUserId);
         story.media =
           (await strapi
             .service("api::post.post")
@@ -457,35 +468,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         ].getStoryViewersCount(story.id);
       }
 
-      const count = await strapi.entityService.count("api::post.post", {
-        filters: storyFilters,
-      });
-
-      return ctx.send({
-        data: {
-          my_stories: myStories,
-          friends_stories: friendsStories,
-        },
-        meta: {
-          pagination: {
-            page: Number(default_pagination.pagination.page),
-            pageSize: Number(default_pagination.pagination.pageSize),
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
-            total: count,
-          },
-        },
-        message: "Stories fetched successfully.",
-      });
+      return ctx.send({ data: userStories });
     } catch (err) {
-      console.error("Find Stories Error:", err);
+      console.error("Get User Stories Error:", err);
       return ctx.internalServerError(
-        "An error occurred while fetching stories."
+        "An error occurred while fetching user stories."
       );
     }
   },
-
   async getFriendsToTag(ctx) {
     const { id: userId } = ctx.state.user;
     const { pagination_size, page } = ctx.query;
