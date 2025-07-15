@@ -30,11 +30,6 @@ module.exports = {
     },
     {
       method: "GET",
-      path: "/stories/:id",
-      handler: "post.getUserStories",
-    },
-    {
-      method: "GET",
       path: "/feed",
       handler: "post.feed",
     },

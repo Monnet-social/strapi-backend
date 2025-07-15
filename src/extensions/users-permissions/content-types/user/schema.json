@@ -107,6 +107,13 @@
         "images",
         "files"
       ]
+    },
+    "bio": {
+      "type": "text",
+      "maxLength": 125
+    },
+    "website": {
+      "type": "string"
     }
   }
 }
