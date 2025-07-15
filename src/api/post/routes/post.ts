@@ -60,7 +60,7 @@ module.exports = {
     },
     {
       method: "GET",
-      path: "/friends",
+      path: "/get-friends",
       handler: "post.getFriendsToTag",
     },
   ],

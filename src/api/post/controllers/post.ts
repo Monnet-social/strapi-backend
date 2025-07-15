@@ -4,8 +4,6 @@ import FileOptimisationService from "../../../utils/file_optimisation_service";
 
 const { createCoreController } = require("@strapi/strapi").factories;
 
-import HelperService from "../../../utils/helper_service";
-
 module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   async create(ctx) {
     const { id: userId } = ctx.state.user;
@@ -331,7 +329,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   },
 
   async stories(ctx) {
-    const { parameter = "friends" } = ctx.query;
+    const { filter = "friends" } = ctx.query;
     const { id: currentUserId } = ctx.state.user;
 
     try {
@@ -340,9 +338,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
       let targetUserIds = [];
 
-      if (parameter === "self") {
+      if (filter === "self") {
         targetUserIds = [currentUserId];
-      } else if (parameter === "friends" || parameter === "following") {
+      } else if (filter === "friends" || filter === "following") {
         const followingEntries = await strapi.entityService.findMany(
           "api::following.following",
           {
@@ -352,9 +350,31 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         );
         targetUserIds = followingEntries.map((entry: any) => entry.subject.id);
         targetUserIds.push(currentUserId);
+      } else if (filter === "follower") {
+        const followerEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { subject: { id: currentUserId } },
+            populate: { follower: { fields: ["id"] } },
+          }
+        );
+        targetUserIds = followerEntries.map((entry: any) => entry.follower.id);
+        targetUserIds.push(currentUserId);
+      } else if (filter === "close_friends") {
+        const closeFriendsEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { follower: { id: currentUserId }, is_close_friend: true },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+        targetUserIds = closeFriendsEntries.map(
+          (entry: any) => entry.subject.id
+        );
+        targetUserIds.push(currentUserId);
       }
 
-      if (targetUserIds.length === 0 && parameter !== "self") {
+      if (targetUserIds.length === 0) {
         return ctx.send({ data: [] });
       }
 
@@ -373,25 +393,25 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       const storiesByUser = stories.reduce((acc, story) => {
         const user = story.posted_by;
-        if (!acc[user.id]) {
+        if (user && user.id && !acc[user.id]) {
           acc[user.id] = {
             userId: user.id,
+            username: user.username,
+            name: user.name,
             profile_picture: user.profile_picture || null,
             stories_count: 0,
           };
         }
-        acc[user.id].stories_count += 1;
+        if (user && user.id) {
+          acc[user.id].stories_count += 1;
+        }
         return acc;
       }, {});
 
       const usersWithStories = Object.values(storiesByUser);
       await strapi
         .service("api::post.post")
-        .enrichUsersWithOptimizedProfilePictures(
-          usersWithStories.map((u: any) => ({
-            profile_picture: u.profile_picture,
-          }))
-        );
+        .enrichUsersWithOptimizedProfilePictures(usersWithStories);
 
       return ctx.send({ data: usersWithStories });
     } catch (err) {
@@ -476,6 +496,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
+
   async getFriendsToTag(ctx) {
     const { id: userId } = ctx.state.user;
     const { pagination_size, page } = ctx.query;
