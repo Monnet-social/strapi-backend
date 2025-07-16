@@ -114,6 +114,18 @@
     },
     "website": {
       "type": "string"
+    },
+    "professional_info": {
+      "type": "string"
+    },
+    "location": {
+      "type": "component",
+      "component": "location.location",
+      "repeatable": false
+    },
+    "is_public": {
+      "type": "boolean",
+      "default": false
     }
   }
 }

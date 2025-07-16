@@ -1223,12 +1223,14 @@ export interface PluginUsersPermissionsUser
     is_email_verified: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
+    is_public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
       'plugin::users-permissions.user'
     > &
       Schema.Attribute.Private;
+    location: Schema.Attribute.Component<'location.location', false>;
     name: Schema.Attribute.String;
     no_of_referrals: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     password: Schema.Attribute.Password &
@@ -1236,6 +1238,7 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.SetMinMaxLength<{
         minLength: 6;
       }>;
+    professional_info: Schema.Attribute.String;
     profile_picture: Schema.Attribute.Media<'images' | 'files'>;
     provider: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;

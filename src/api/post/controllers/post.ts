@@ -332,7 +332,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     const {
       pagination_size,
       page,
-      filter = "friends",
+      filter = "all",
       user_id: specificUserId,
     } = ctx.query;
     const { id: currentUserId } = ctx.state.user;
@@ -370,13 +370,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           {
             filters: { ...baseStoryFilters, posted_by: { id: specificUserId } },
             sort: { createdAt: "desc" },
-            populate: {
-              tagged_users: {
-                fields: ["id", "username", "name"],
-                populate: { profile_picture: true },
-              },
-              media: true,
-            },
+            populate: populateOptions,
           }
         );
 
