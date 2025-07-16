@@ -1203,6 +1203,7 @@ export interface PluginUsersPermissionsUser
     draftAndPublish: false;
   };
   attributes: {
+    badge: Schema.Attribute.Enumeration<['verified']>;
     bio: Schema.Attribute.Text &
       Schema.Attribute.SetMinMaxLength<{
         maxLength: 125;

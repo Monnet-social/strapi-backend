@@ -105,7 +105,7 @@ module.exports = [
   },
   {
     method: "GET",
-    path: "/profile/:id",
+    path: "/profile/:userId",
     handler: "profile.getProfile",
     config: {
       prefix: "",
