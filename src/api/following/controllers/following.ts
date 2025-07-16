@@ -25,7 +25,10 @@ export default factories.createCoreController(
           "api::following.following",
           existingFollow[0].id
         );
-        return ctx.send({ message: "Unfollowed successfully" });
+        return ctx.send({
+          message: "Unfollowed successfully",
+          is_following: false,
+        });
       }
 
       try {
@@ -38,6 +41,7 @@ export default factories.createCoreController(
 
         return ctx.send({
           message: "Followed successfully",
+          is_follwing: true,
         });
       } catch (error) {
         return ctx.internalServerError("Error following user", {

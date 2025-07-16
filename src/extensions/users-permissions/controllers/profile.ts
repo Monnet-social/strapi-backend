@@ -35,60 +35,75 @@ async function getProfile(ctx) {
       new Date().getTime() - 24 * 60 * 60 * 1000
     );
 
-    const promises = [
-      strapi.entityService.count("api::post.post", {
-        filters: { posted_by: { id: userId }, post_type: "post" },
-      }),
-      strapi.entityService.count("api::following.following", {
-        filters: { subject: { id: userId } },
-      }),
-      strapi.entityService.count("api::following.following", {
-        filters: { follower: { id: userId } },
-      }),
+    const [postsCount, followersCount, followingCount, mutualFollowersCount] =
+      await Promise.all([
+        strapi.entityService.count("api::post.post", {
+          filters: { posted_by: { id: userId }, post_type: "post" },
+        }),
+        strapi.entityService.count("api::following.following", {
+          filters: { subject: { id: userId } },
+        }),
+        strapi.entityService.count("api::following.following", {
+          filters: { follower: { id: userId } },
+        }),
+        strapi
+          .service("api::following.following")
+          .getMutualFollowersCount(currentUserId, userId),
+      ]);
+
+    await Promise.all([
       strapi
-        .service("api::following.following")
-        .getMutualFollowersCount(currentUserId, userId),
-      strapi.entityService.findMany("api::post.post", {
-        filters: { posted_by: { id: userId }, post_type: "post" },
-        sort: { createdAt: "desc" },
-        populate: { media: true },
+        .service("api::post.post")
+        .enrichUsersWithOptimizedProfilePictures([user]),
+      strapi.service("api::following.following").enrichItemsWithFollowStatus({
+        items: [{ user }],
+        userPaths: ["user"],
+        currentUserId: currentUserId,
       }),
-    ];
+    ]);
 
-    if ((user as any).is_public) {
-      promises.push(
+    const canViewContent =
+      (user as any).is_public ||
+      (user as any).is_following ||
+      currentUserId == userId;
+
+    let userPosts = [];
+    let userStories = [];
+
+    if (canViewContent) {
+      const contentPromises = [
         strapi.entityService.findMany("api::post.post", {
-          filters: {
-            posted_by: { id: userId },
-            post_type: "story",
-            createdAt: { $gte: twentyFourHoursAgo },
-          },
+          filters: { posted_by: { id: userId }, post_type: "post" },
+          sort: { createdAt: "desc" },
           populate: { media: true },
-        })
-      );
-    }
+        }),
+      ];
 
-    const [
-      postsCount,
-      followersCount,
-      followingCount,
-      mutualFollowersCount,
-      userPosts,
-      userStories = [],
-    ] = await Promise.all(promises);
+      if ((user as any).is_public)
+        contentPromises.push(
+          strapi.entityService.findMany("api::post.post", {
+            filters: {
+              posted_by: { id: userId },
+              post_type: "story",
+              createdAt: { $gte: twentyFourHoursAgo },
+            },
+            populate: { media: true },
+          })
+        );
+
+      const [posts, stories = []] = await Promise.all(contentPromises);
+      userPosts = posts;
+      userStories = stories;
+    }
 
     const allMedia = [
       ...userPosts.flatMap((p: any) => p.media || []),
       ...userStories.flatMap((s: any) => s.media || []),
     ].filter(Boolean);
 
-    const [_, optimizedMedia] = await Promise.all([
-      strapi
-        .service("api::post.post")
-        .enrichUsersWithOptimizedProfilePictures([user]),
-      strapi.service("api::post.post").getOptimisedFileData(allMedia),
-    ]);
-
+    const optimizedMedia = await strapi
+      .service("api::post.post")
+      .getOptimisedFileData(allMedia);
     const optimizedMediaMap = new Map(
       (optimizedMedia || []).map((m) => [m.id, m])
     );
@@ -120,8 +135,11 @@ async function getProfile(ctx) {
         following: followingCount,
         mutual_followers: mutualFollowersCount,
       },
+      is_following: (user as any).is_following,
+      is_follower: (user as any).is_follower,
       posts: finalPosts,
       stories: finalStories,
+      is_self: currentUserId == userId,
     };
 
     return ctx.send(profileData);
