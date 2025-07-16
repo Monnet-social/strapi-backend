@@ -7,7 +7,7 @@ export interface LocationLocation extends Struct.ComponentSchema {
   };
   attributes: {
     address: Schema.Attribute.String;
-    latitute: Schema.Attribute.Decimal;
+    latitude: Schema.Attribute.Decimal;
     longitude: Schema.Attribute.Decimal;
     zip: Schema.Attribute.String;
   };

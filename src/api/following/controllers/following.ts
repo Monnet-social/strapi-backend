@@ -49,9 +49,11 @@ export default factories.createCoreController(
     async getUserFollowers(ctx) {
       const { user: currentUser } = ctx.state;
       let { userId } = ctx.params;
-      const { pagination_size, page } = ctx.query;
+      const { pagination_size, page, query } = ctx.query;
 
-      if (userId === "me") userId = currentUser.id;
+      if (userId === "me") {
+        userId = currentUser.id;
+      }
 
       let default_pagination: any = {
         pagination: { page: 1, pageSize: 10 },
@@ -66,10 +68,20 @@ export default factories.createCoreController(
         );
 
       try {
+        const filters: any = { subject: { id: userId } };
+        if (query) {
+          filters.follower = {
+            $or: [
+              { username: { $containsi: query } },
+              { name: { $containsi: query } },
+            ],
+          };
+        }
+
         const followersEntries = await strapi.entityService.findMany(
           "api::following.following",
           {
-            filters: { subject: { id: userId } },
+            filters,
             populate: {
               follower: {
                 fields: ["id", "username", "email", "name"],
@@ -104,7 +116,7 @@ export default factories.createCoreController(
 
         const count = await strapi.entityService.count(
           "api::following.following",
-          { filters: { subject: { id: userId } } }
+          { filters }
         );
 
         return ctx.send({
@@ -131,7 +143,7 @@ export default factories.createCoreController(
     async getUserFollowing(ctx) {
       const { user: currentUser } = ctx.state;
       let { userId } = ctx.params;
-      const { pagination_size, page } = ctx.query;
+      const { pagination_size, page, query } = ctx.query;
 
       if (userId === "me") userId = currentUser.id;
 
@@ -148,10 +160,20 @@ export default factories.createCoreController(
         );
 
       try {
+        const filters: any = { follower: { id: userId } };
+        if (query) {
+          filters.subject = {
+            $or: [
+              { username: { $containsi: query } },
+              { name: { $containsi: query } },
+            ],
+          };
+        }
+
         const followingEntries = await strapi.entityService.findMany(
           "api::following.following",
           {
-            filters: { follower: { id: userId } },
+            filters,
             populate: {
               subject: {
                 fields: ["id", "username", "email", "name"],
@@ -169,7 +191,7 @@ export default factories.createCoreController(
           .map((entry: any) => entry.subject)
           .filter(Boolean);
 
-        if (users.length > 0) {
+        if (users.length > 0)
           await Promise.all([
             strapi
               .service("api::following.following")
@@ -182,11 +204,10 @@ export default factories.createCoreController(
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures(users),
           ]);
-        }
 
         const count = await strapi.entityService.count(
           "api::following.following",
-          { filters: { follower: { id: userId } } }
+          { filters }
         );
 
         return ctx.send({
@@ -210,48 +231,10 @@ export default factories.createCoreController(
       }
     },
 
-    async addCloseFriends(ctx) {
-      const userId = ctx.state.user.id;
-      const { subjectId } = ctx.request.body;
-      if (!subjectId) return ctx.badRequest("Subject ID is required");
-      const findRelation = await strapi.entityService.findMany(
-        "api::following.following",
-        {
-          filters: {
-            follower: { id: userId },
-            subject: { id: subjectId },
-          },
-        }
-      );
-      if (findRelation?.length == 0)
-        return ctx.badRequest("You are not following this user");
-
-      const existingCloseFriends = await strapi.entityService.findMany(
-        "api::following.following",
-        {
-          filters: {
-            follower: { id: subjectId },
-            subject: { id: userId },
-          },
-        }
-      );
-      if (existingCloseFriends.length == 0)
-        return ctx.badRequest("User is not follwing you back");
-
-      await strapi.entityService.update(
-        "api::following.following",
-        findRelation[0].id,
-        { data: { is_close_friend: !findRelation[0].is_close_friend } }
-      );
-      return ctx.send({
-        message: "Close friends updated successfully",
-      });
-    },
-
     async getMutualFollowers(ctx) {
       const { userId: targetUserId } = ctx.params;
       const { id: currentUserId } = ctx.state.user;
-      const { pagination_size, page } = ctx.query;
+      const { pagination_size, page, query } = ctx.query;
 
       let default_pagination: any = {
         pagination: { page: 1, pageSize: 10 },
@@ -302,10 +285,18 @@ export default factories.createCoreController(
           });
         }
 
+        const userFilters: any = { id: { $in: mutualFollowerIds } };
+        if (query) {
+          userFilters.$or = [
+            { username: { $containsi: query } },
+            { name: { $containsi: query } },
+          ];
+        }
+
         const users = await strapi.entityService.findMany(
           "plugin::users-permissions.user",
           {
-            filters: { id: { $in: mutualFollowerIds } },
+            filters: userFilters,
             populate: { profile_picture: true },
             start:
               (default_pagination.pagination.page - 1) *
@@ -329,6 +320,11 @@ export default factories.createCoreController(
           ]);
         }
 
+        const count = await strapi.entityService.count(
+          "plugin::users-permissions.user",
+          { filters: userFilters }
+        );
+
         return ctx.send({
           data: users,
           meta: {
@@ -336,10 +332,9 @@ export default factories.createCoreController(
               page: Number(default_pagination.pagination.page),
               pageSize: Number(default_pagination.pagination.pageSize),
               pageCount: Math.ceil(
-                mutualFollowerIds.length /
-                  default_pagination.pagination.pageSize
+                count / default_pagination.pagination.pageSize
               ),
-              total: mutualFollowerIds.length,
+              total: count,
             },
           },
         });
@@ -349,6 +344,44 @@ export default factories.createCoreController(
           error,
         });
       }
+    },
+
+    async addCloseFriends(ctx) {
+      const userId = ctx.state.user.id;
+      const { subjectId } = ctx.request.body;
+      if (!subjectId) return ctx.badRequest("Subject ID is required");
+      const findRelation = await strapi.entityService.findMany(
+        "api::following.following",
+        {
+          filters: {
+            follower: { id: userId },
+            subject: { id: subjectId },
+          },
+        }
+      );
+      if (findRelation?.length == 0)
+        return ctx.badRequest("You are not following this user");
+
+      const existingCloseFriends = await strapi.entityService.findMany(
+        "api::following.following",
+        {
+          filters: {
+            follower: { id: subjectId },
+            subject: { id: userId },
+          },
+        }
+      );
+      if (existingCloseFriends.length == 0)
+        return ctx.badRequest("User is not follwing you back");
+
+      await strapi.entityService.update(
+        "api::following.following",
+        findRelation[0].id,
+        { data: { is_close_friend: !findRelation[0].is_close_friend } }
+      );
+      return ctx.send({
+        message: "Close friends updated successfully",
+      });
     },
   })
 );

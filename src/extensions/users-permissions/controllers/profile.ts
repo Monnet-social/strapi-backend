@@ -9,8 +9,10 @@ async function getProfile(ctx) {
   }
 
   try {
-    const [user, postsCount, userPosts] = await Promise.all([
-      strapi.entityService.findOne("plugin::users-permissions.user", userId, {
+    const user = await strapi.entityService.findOne(
+      "plugin::users-permissions.user",
+      userId,
+      {
         fields: [
           "id",
           "username",
@@ -22,39 +24,83 @@ async function getProfile(ctx) {
           "badge",
         ] as any,
         populate: { profile_picture: true, location: true },
-      }),
-      strapi.entityService.count("api::post.post", {
-        filters: { posted_by: { id: userId }, post_type: "post" },
-      }),
-      strapi.entityService.findMany("api::post.post", {
-        filters: { posted_by: { id: userId }, post_type: "post" },
-        sort: { createdAt: "desc" },
-        populate: { media: true },
-      }),
-    ]);
+      }
+    );
 
     if (!user) {
       return ctx.notFound("User not found.");
     }
 
-    const allPostMedia = userPosts
-      .flatMap((post: any) => post.media || [])
-      .filter(Boolean);
+    const twentyFourHoursAgo = new Date(
+      new Date().getTime() - 24 * 60 * 60 * 1000
+    );
 
-    const [_, optimizedPostMedia] = await Promise.all([
+    const promises = [
+      strapi.entityService.count("api::post.post", {
+        filters: { posted_by: { id: userId }, post_type: "post" },
+      }),
+      strapi.entityService.count("api::following.following", {
+        filters: { subject: { id: userId } },
+      }),
+      strapi.entityService.count("api::following.following", {
+        filters: { follower: { id: userId } },
+      }),
+      strapi
+        .service("api::following.following")
+        .getMutualFollowersCount(currentUserId, userId),
+      strapi.entityService.findMany("api::post.post", {
+        filters: { posted_by: { id: userId }, post_type: "post" },
+        sort: { createdAt: "desc" },
+        populate: { media: true },
+      }),
+    ];
+
+    if ((user as any).is_public) {
+      promises.push(
+        strapi.entityService.findMany("api::post.post", {
+          filters: {
+            posted_by: { id: userId },
+            post_type: "story",
+            createdAt: { $gte: twentyFourHoursAgo },
+          },
+          populate: { media: true },
+        })
+      );
+    }
+
+    const [
+      postsCount,
+      followersCount,
+      followingCount,
+      mutualFollowersCount,
+      userPosts,
+      userStories = [],
+    ] = await Promise.all(promises);
+
+    const allMedia = [
+      ...userPosts.flatMap((p: any) => p.media || []),
+      ...userStories.flatMap((s: any) => s.media || []),
+    ].filter(Boolean);
+
+    const [_, optimizedMedia] = await Promise.all([
       strapi
         .service("api::post.post")
         .enrichUsersWithOptimizedProfilePictures([user]),
-      strapi.service("api::post.post").getOptimisedFileData(allPostMedia),
+      strapi.service("api::post.post").getOptimisedFileData(allMedia),
     ]);
 
     const optimizedMediaMap = new Map(
-      optimizedPostMedia.map((media) => [media.id, media])
+      (optimizedMedia || []).map((m) => [m.id, m])
     );
 
-    const finalPosts = userPosts.map((post: any) => ({
-      id: post.id,
-      media: (post.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
+    const finalPosts = userPosts.map((p: any) => ({
+      ...p,
+      media: (p.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
+    }));
+
+    const finalStories = userStories.map((s: any) => ({
+      ...s,
+      media: (s.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
     }));
 
     const profileData = {
@@ -70,8 +116,12 @@ async function getProfile(ctx) {
       profile_picture: (user as any).profile_picture,
       stats: {
         posts: postsCount,
+        followers: followersCount,
+        following: followingCount,
+        mutual_followers: mutualFollowersCount,
       },
       posts: finalPosts,
+      stories: finalStories,
     };
 
     return ctx.send(profileData);
@@ -82,7 +132,6 @@ async function getProfile(ctx) {
     );
   }
 }
-
 async function updateProfile(ctx) {
   const { user } = ctx.state;
   if (!user)
@@ -153,8 +202,8 @@ async function updateProfile(ctx) {
     if (typeof body.location !== "object" || body.location === null) {
       return ctx.badRequest("Location must be a valid object.");
     }
-    const { latitute, longitude, address, zip } = body.location;
-    if (typeof latitute !== "number" || typeof longitude !== "number") {
+    const { latitude, longitude, address, zip } = body.location;
+    if (typeof latitude !== "number" || typeof longitude !== "number") {
       return ctx.badRequest("Latitude and longitude must be numbers.");
     }
     if (typeof address !== "string" || typeof zip !== "string") {
@@ -215,7 +264,28 @@ async function updateProfile(ctx) {
 
     delete updatedUser.password;
 
-    return ctx.send({ user: updatedUser });
+    let userStories = [];
+    if ((updatedUser as any).is_public) {
+      const twentyFourHoursAgo = new Date(
+        new Date().getTime() - 24 * 60 * 60 * 1000
+      );
+      userStories = await strapi.entityService.findMany("api::post.post", {
+        filters: {
+          posted_by: { id: user.id },
+          post_type: "story",
+          createdAt: { $gte: twentyFourHoursAgo },
+        },
+        populate: { media: true },
+      });
+
+      for (const story of userStories) {
+        (story as any).media = await strapi
+          .service("api::post.post")
+          .getOptimisedFileData((story as any).media);
+      }
+    }
+
+    return ctx.send({ user: updatedUser, stories: userStories });
   } catch (error) {
     strapi.log.error("Error in updateProfile controller:", error);
     return ctx.internalServerError(
