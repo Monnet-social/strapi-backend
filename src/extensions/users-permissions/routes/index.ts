@@ -34,6 +34,15 @@ module.exports = [
     },
   },
   {
+    method: "GET",
+    path: "/share/image",
+    handler: "authentication.getShareImage",
+    config: {
+      prefix: "",
+      auth: false,
+    },
+  },
+  {
     method: "POST",
     path: "/send-otp",
     handler: "authentication.sendOTP",
