@@ -4,9 +4,7 @@ async function getProfile(ctx) {
   const { userId } = ctx.params;
   const { id: currentUserId } = ctx.state.user;
 
-  if (!userId) {
-    return ctx.badRequest("User ID is required.");
-  }
+  if (!userId) return ctx.badRequest("User ID is required.");
 
   try {
     const user = await strapi.entityService.findOne(
@@ -19,6 +17,7 @@ async function getProfile(ctx) {
           "name",
           "bio",
           "website",
+          "gender",
           "professional_info",
           "is_public",
           "badge",
@@ -27,9 +26,7 @@ async function getProfile(ctx) {
       }
     );
 
-    if (!user) {
-      return ctx.notFound("User not found.");
-    }
+    if (!user) return ctx.notFound("User not found.");
 
     const twentyFourHoursAgo = new Date(
       new Date().getTime() - 24 * 60 * 60 * 1000
@@ -157,34 +154,34 @@ async function updateProfile(ctx) {
 
   const body: any = ctx.request.body;
   const dataToUpdate: any = {};
-
-  if (body.name !== undefined) {
-    if (typeof body.name !== "string" || body.name.trim().length === 0)
+  console.log(body, typeof body.name, body.name);
+  if (body.name !== undefined && body.name !== "") {
+    if (typeof body.name !== "string")
       return ctx.badRequest("Name must be a non-empty string.");
     dataToUpdate.name = body.name.trim();
   }
-  if (body.bio !== undefined) {
-    if (typeof body.bio !== "string" || body.bio.trim().length === 0)
-      return ctx.badRequest("Bio must be a non-empty string.");
+  if (body.bio !== undefined && body.bio !== "") {
+    if (typeof body.bio !== "string")
+      return ctx.badRequest("Bio must be a string.");
     dataToUpdate.bio = body.bio.trim();
   }
-  if (body.website !== undefined) {
+  if (body.website !== undefined && body.website !== "") {
     if (
       typeof body.website !== "string" ||
-      body.website.trim().length === 0 ||
+      // body.website.trim().length === 0 ||
       !HelperService.WEBSITE_REGEX.test(body.website)
     )
       return ctx.badRequest("Website must be a non-empty string.");
     dataToUpdate.website = body.website.trim();
   }
-  if (body.date_of_birth !== undefined) {
+  if (body.date_of_birth !== undefined && body.date_of_birth !== "") {
     if (!HelperService.DATE_REGEX.test(body.date_of_birth))
       return ctx.badRequest("Invalid date format. Please use YYYY-MM-DD.");
     if (new Date(body.date_of_birth) > new Date())
       return ctx.badRequest("Date of birth cannot be in the future.");
     dataToUpdate.date_of_birth = body.date_of_birth;
   }
-  if (body.username !== undefined) {
+  if (body.username !== undefined && body.username !== "") {
     if (!HelperService.USERNAME_REGEX.test(body.username))
       return ctx.badRequest(
         "Username must be 3-20 characters long and can only contain letters, numbers, and underscores."
@@ -199,7 +196,7 @@ async function updateProfile(ctx) {
       return ctx.conflict("Username is already taken.");
     dataToUpdate.username = body.username;
   }
-  if (body.profile_picture_id !== undefined) {
+  if (body.profile_picture_id !== undefined && body.profile_picture_id !== "") {
     if (
       typeof body.profile_picture_id !== "number" ||
       isNaN(body.profile_picture_id)
@@ -213,24 +210,30 @@ async function updateProfile(ctx) {
       return ctx.notFound("The specified profile picture could not be found.");
     dataToUpdate.profile_picture = body.profile_picture_id;
   }
-  if (body.professional_info !== undefined)
+  if (body.professional_info !== undefined || body.professional_info !== "")
     dataToUpdate.professional_info = body.professional_info;
 
-  if (body.location !== undefined) {
-    if (typeof body.location !== "object" || body.location === null) {
+  if (
+    body.location !== undefined &&
+    body.latitude !== "" &&
+    body.longitude !== "" &&
+    body.address !== "" &&
+    body.zip !== ""
+  ) {
+    if (typeof body.location !== "object" || body.location === null)
       return ctx.badRequest("Location must be a valid object.");
-    }
+
     const { latitude, longitude, address, zip } = body.location;
-    if (typeof latitude !== "number" || typeof longitude !== "number") {
+    if (typeof latitude !== "number" || typeof longitude !== "number")
       return ctx.badRequest("Latitude and longitude must be numbers.");
-    }
-    if (typeof address !== "string" || typeof zip !== "string") {
+
+    if (typeof address !== "string" || typeof zip !== "string")
       return ctx.badRequest("Address and zip must be strings.");
-    }
+
     dataToUpdate.location = body.location;
   }
 
-  if (body.is_public !== undefined) {
+  if (body.is_public !== undefined && body.is_public !== "") {
     if (typeof body.is_public !== "boolean") {
       return ctx.badRequest(
         "is_public must be a boolean value (true or false)."
@@ -239,7 +242,7 @@ async function updateProfile(ctx) {
     dataToUpdate.is_public = body.is_public;
   }
 
-  if (body.badge !== undefined) {
+  if (body.badge !== undefined && body.badge !== "") {
     const allowedBadges = ["verified"];
     if (typeof body.badge !== "string" || !allowedBadges.includes(body.badge)) {
       return ctx.badRequest(
@@ -248,7 +251,9 @@ async function updateProfile(ctx) {
     }
     dataToUpdate.badge = body.badge;
   }
-
+  if (body.gender !== undefined && body.gender !== "") {
+    dataToUpdate.gender = body.gennder;
+  }
   if (Object.keys(dataToUpdate).length === 0)
     return ctx.badRequest("No valid fields were provided for update.");
 
@@ -272,6 +277,7 @@ async function updateProfile(ctx) {
           "professional_info",
           "is_public",
           "badge",
+          "gender",
         ] as any,
       }
     );

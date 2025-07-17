@@ -1221,6 +1221,7 @@ export interface PluginUsersPermissionsUser
         minLength: 6;
       }>;
     email_otp: Schema.Attribute.String;
+    gender: Schema.Attribute.String;
     is_email_verified: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;

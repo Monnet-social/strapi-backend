@@ -132,6 +132,9 @@
       "enum": [
         "verified"
       ]
+    },
+    "gender": {
+      "type": "string"
     }
   }
 }
