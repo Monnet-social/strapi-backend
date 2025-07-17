@@ -161,7 +161,7 @@ async function register(ctx: any) {
         username: email,
         password,
         name,
-        gender, // Added gender field
+        gender,
         referral_code,
         referred_by: referredById,
         provider: "local",
