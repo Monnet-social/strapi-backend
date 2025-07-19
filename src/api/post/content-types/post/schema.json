@@ -1,58 +1,76 @@
 {
-    "kind": "collectionType",
-    "collectionName": "posts",
-    "info": {
-        "singularName": "post",
-        "pluralName": "posts",
-        "displayName": "Post"
+  "kind": "collectionType",
+  "collectionName": "posts",
+  "info": {
+    "singularName": "post",
+    "pluralName": "posts",
+    "displayName": "Post"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "title": {
+      "type": "string"
     },
-    "options": {
-        "draftAndPublish": false
+    "description": {
+      "type": "text"
     },
-    "pluginOptions": {},
-    "attributes": {
-        "title": {
-            "type": "string"
-        },
-        "description": {
-            "type": "text"
-        },
-        "posted_by": {
-            "type": "relation",
-            "relation": "oneToOne",
-            "target": "plugin::users-permissions.user"
-        },
-        "tagged_users": {
-            "type": "relation",
-            "relation": "oneToMany",
-            "target": "plugin::users-permissions.user"
-        },
-        "location": {
-            "type": "component",
-            "component": "location.location",
-            "repeatable": false
-        },
-        "link": {
-            "type": "string"
-        },
-        "post_type": {
-            "type": "enumeration",
-            "enum": ["story", "post"]
-        },
-        "category": {
-            "type": "relation",
-            "relation": "oneToOne",
-            "target": "api::category.category"
-        },
-        "media": {
-            "type": "media",
-            "multiple": true,
-            "allowedTypes": ["images", "files", "videos", "audios"]
-        },
-        "viewers": {
-            "type": "relation",
-            "relation": "oneToMany",
-            "target": "plugin::users-permissions.user"
-        }
+    "posted_by": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "tagged_users": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::users-permissions.user"
+    },
+    "location": {
+      "type": "component",
+      "component": "location.location",
+      "repeatable": false
+    },
+    "link": {
+      "type": "string"
+    },
+    "post_type": {
+      "type": "enumeration",
+      "enum": [
+        "story",
+        "post"
+      ]
+    },
+    "category": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::category.category"
+    },
+    "media": {
+      "type": "media",
+      "multiple": true,
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
+    },
+    "viewers": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::users-permissions.user"
+    },
+    "share_with": {
+      "type": "enumeration",
+      "enum": [
+        "all",
+        "friends",
+        "followers",
+        "following",
+        "close freinds"
+      ]
     }
+  }
 }

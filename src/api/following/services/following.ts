@@ -94,11 +94,18 @@ export default ({ strapi }: { strapi }) => ({
       }),
     ]);
 
+    // FIX: Add a .filter() before .map() to remove entries with null relations
     const currentUserFollowingIds = new Set(
-      currentUserFollowing.map((rel: any) => rel.subject.id)
+      currentUserFollowing
+        .filter((rel) => rel.subject) // Yahan check karein ki subject null toh nahi hai
+        .map((rel) => rel.subject.id)
     );
+
+    // FIX: Add a .filter() here as well
     const targetUserFollowerIds = new Set(
-      targetUserFollowers.map((rel: any) => rel.follower.id)
+      targetUserFollowers
+        .filter((rel) => rel.follower) // Yahan check karein ki follower null toh nahi hai
+        .map((rel) => rel.follower.id)
     );
 
     const mutuals = [...currentUserFollowingIds].filter((id) =>

@@ -31,7 +31,7 @@ async function getProfile(ctx) {
     const twentyFourHoursAgo = new Date(
       new Date().getTime() - 24 * 60 * 60 * 1000
     );
-
+    console.log(currentUserId, userId);
     const [postsCount, followersCount, followingCount, mutualFollowersCount] =
       await Promise.all([
         strapi.entityService.count("api::post.post", {
@@ -147,6 +147,7 @@ async function getProfile(ctx) {
     );
   }
 }
+
 async function updateProfile(ctx) {
   const { user } = ctx.state;
   if (!user)

@@ -17,13 +17,28 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       !data.title ||
       !data.post_type ||
       (data.post_type === "post" && !data.category) ||
-      data?.media?.length === 0
+      !data.media ||
+      data.media.length === 0
     )
       return ctx.badRequest(
-        "Missing required fields.(title,post_type,category,media)"
+        "Missing required fields.(title, post_type, category, media)"
       );
 
-    if (data?.media?.length > 0) {
+    if (data.share_with) {
+      const allowedShareWithOptions = [
+        "all",
+        "friends",
+        "followers",
+        "following",
+        "close freinds",
+      ];
+      if (!allowedShareWithOptions.includes(data.share_with))
+        return ctx.badRequest(
+          `Invalid share_with value. Allowed values are: ${allowedShareWithOptions.join(", ")}`
+        );
+    }
+
+    if (data.media.length > 0) {
       for (let i = 0; i < data.media.length; i++) {
         const file_id = data.media[i];
         try {
@@ -55,7 +70,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       Array.isArray(data.tagged_users) &&
       data.tagged_users.length > 0
     ) {
-      if (data?.tagged_users?.includes(userId)) {
+      if (data.tagged_users.includes(userId)) {
         return ctx.badRequest("You cannot tag yourself in a post.");
       }
       const foundUsers = await strapi.entityService.findMany(
@@ -78,9 +93,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
     }
     if (data.location) {
-      const { latitute, longitude, address, zip } = data.location;
+      const { latitude, longitude, address, zip } = data.location;
       if (
-        (latitute !== undefined && typeof latitute !== "number") ||
+        (latitude !== undefined && typeof latitude !== "number") ||
         (longitude !== undefined && typeof longitude !== "number")
       )
         return ctx.badRequest(
@@ -99,19 +114,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           category: { fields: ["id", "name"] },
         },
       });
-      const find_user = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-          filters: { id: userId },
-          fields: ["id", "username", "name"],
-        }
-      );
 
       const message =
         data.post_type === "post" ? "Post created" : "Story added";
       return ctx.send({
         post: newPost,
-
         message: `${message} successfully.`,
       });
     } catch (err) {
@@ -349,7 +356,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
       const baseStoryFilters = {
         post_type: "story",
-        // createdAt: { $gte: twentyFourHoursAgo },
+        createdAt: { $gte: twentyFourHoursAgo },
       };
 
       const populateOptions = {
@@ -419,7 +426,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const storyFeedFilters: any = { ...baseStoryFilters };
 
       if (filter === "all" || filter === "temporary") {
-        console.log(filter, "insdie tmepo");
         storyFeedFilters.posted_by = {
           id: {
             $ne: currentUserId,

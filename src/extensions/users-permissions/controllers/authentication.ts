@@ -228,7 +228,6 @@ async function getUser(ctx) {
     );
   }
 }
-
 async function sendOTP(ctx: any) {
   try {
     const { email, type } = ctx.request.body;
@@ -245,21 +244,32 @@ async function sendOTP(ctx: any) {
 
     const users = await strapi.entityService.findMany(
       "plugin::users-permissions.user",
-      { filters, fields: ["id", "email"] }
+      { filters, fields: ["id", "email", "username"] } // Added 'name' to fields
     );
 
     if (users.length === 0) return ctx.badRequest("User not found");
 
     const user = users[0];
     const emailToSend = user.email;
+    const userName = user.username; // Get the user's name
     const otp = HelperService.generateOtp();
 
     switch (type) {
       case "reset-password":
-        await new EmailService().sendResetPasswordEmail(emailToSend, otp);
+        // Pass the name to the email service
+        await new EmailService().sendResetPasswordEmail(
+          emailToSend,
+          otp,
+          userName
+        );
         break;
       case "register":
-        await new EmailService().sendEmailVerificationEmail(emailToSend, otp);
+        // Pass the name to the email service
+        await new EmailService().sendEmailVerificationEmail(
+          emailToSend,
+          otp,
+          userName
+        );
         break;
       default:
         return ctx.badRequest("Invalid request type");
@@ -358,7 +368,8 @@ async function sendTestEmail(ctx) {
   try {
     const resp: any = await new EmailService().sendEmailVerificationEmail(
       email,
-      HelperService.generateOtp()
+      HelperService.generateOtp(),
+      "DEMO"
     );
     console.log("Email sent successfully:", resp);
     console.log("Email sent to:", resp?.body);
