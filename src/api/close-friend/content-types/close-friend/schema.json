@@ -1,0 +1,18 @@
+{
+  "kind": "collectionType",
+  "collectionName": "close_friends",
+  "info": {
+    "singularName": "close-friend",
+    "pluralName": "close-friends",
+    "displayName": "Close Friend"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "t": {
+      "type": "string"
+    }
+  }
+}

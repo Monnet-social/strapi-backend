@@ -433,6 +433,34 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiCloseFriendCloseFriend extends Struct.CollectionTypeSchema {
+  collectionName: 'close_friends';
+  info: {
+    displayName: 'Close Friend';
+    pluralName: 'close-friends';
+    singularName: 'close-friend';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::close-friend.close-friend'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    t: Schema.Attribute.String;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiCommentComment extends Struct.CollectionTypeSchema {
   collectionName: 'comments';
   info: {
@@ -636,8 +664,9 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
     >;
     publishedAt: Schema.Attribute.DateTime;
     share_with: Schema.Attribute.Enumeration<
-      ['all', 'friends', 'followers', 'following', 'close freinds']
-    >;
+      ['PUBLIC', 'FOLLOWERS', 'CLOSE-FRIENDS']
+    > &
+      Schema.Attribute.DefaultTo<'PUBLIC'>;
     tagged_users: Schema.Attribute.Relation<
       'oneToMany',
       'plugin::users-permissions.user'
@@ -1287,6 +1316,7 @@ declare module '@strapi/strapi' {
       'admin::user': AdminUser;
       'api::block.block': ApiBlockBlock;
       'api::category.category': ApiCategoryCategory;
+      'api::close-friend.close-friend': ApiCloseFriendCloseFriend;
       'api::comment.comment': ApiCommentComment;
       'api::dislike.dislike': ApiDislikeDislike;
       'api::file-optimisation.file-optimisation': ApiFileOptimisationFileOptimisation;

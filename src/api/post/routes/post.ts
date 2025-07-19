@@ -58,5 +58,13 @@ module.exports = {
       path: "/get-friends",
       handler: "post.getFriendsToTag",
     },
+    {
+      method: "GET",
+      path: "/users/:id/posts",
+      handler: "post.findUserPosts",
+      config: {
+        policies: [],
+      },
+    },
   ],
 };

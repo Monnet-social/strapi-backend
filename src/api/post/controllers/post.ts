@@ -25,13 +25,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
 
     if (data.share_with) {
-      const allowedShareWithOptions = [
-        "all",
-        "friends",
-        "followers",
-        "following",
-        "close freinds",
-      ];
+      const allowedShareWithOptions = ["PUBLIC", "FOLLOWERS", "CLOSE-FRIENDS"];
       if (!allowedShareWithOptions.includes(data.share_with))
         return ctx.badRequest(
           `Invalid share_with value. Allowed values are: ${allowedShareWithOptions.join(", ")}`
@@ -46,9 +40,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             "plugin::upload.file",
             file_id
           );
-          if (!file_data) {
+          if (!file_data)
             return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
-          }
         } catch (error) {
           return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
         }
@@ -70,9 +63,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       Array.isArray(data.tagged_users) &&
       data.tagged_users.length > 0
     ) {
-      if (data.tagged_users.includes(userId)) {
+      if (data.tagged_users.includes(userId))
         return ctx.badRequest("You cannot tag yourself in a post.");
-      }
       const foundUsers = await strapi.entityService.findMany(
         "plugin::users-permissions.user",
         {
@@ -956,6 +948,95 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       strapi.log.error("Error fetching story viewers:", error);
       return ctx.internalServerError(
         "An error occurred while fetching the viewers."
+      );
+    }
+  },
+
+  async findUserPosts(ctx) {
+    const { id: targetUserId } = ctx.params;
+    const { id: currentUserId } = ctx.state.user;
+
+    if (!targetUserId) return ctx.badRequest("User ID is required.");
+
+    try {
+      const targetUser = await strapi.entityService.findOne(
+        "plugin::users-permissions.user",
+        targetUserId,
+        { fields: ["id", "is_public"] }
+      );
+
+      if (!targetUser) return ctx.notFound("Target user not found.");
+
+      let canViewContent =
+        targetUser.is_public ||
+        (currentUserId && currentUserId.toString() === targetUserId.toString());
+      if (!canViewContent && currentUserId) {
+        const followRelation = await strapi.entityService.count(
+          "api::following.following",
+          {
+            filters: { follower: currentUserId, subject: targetUserId },
+          }
+        );
+        if (followRelation > 0) canViewContent = true;
+      }
+
+      if (!canViewContent) return ctx.send([]);
+
+      const userPosts = await strapi.entityService.findMany("api::post.post", {
+        filters: {
+          posted_by: { id: targetUserId },
+          post_type: "post",
+        },
+        sort: { createdAt: "desc" },
+        populate: {
+          media: true,
+          posted_by: {
+            fields: ["id", "username", "name"],
+            populate: { profile_picture: true },
+          },
+          tagged_users: {
+            fields: ["id", "username", "name"],
+            populate: { profile_picture: true },
+          },
+        },
+      });
+
+      if (!userPosts || userPosts.length === 0) return ctx.send([]);
+
+      await strapi
+        .service("api::following.following")
+        .enrichItemsWithFollowStatus({
+          items: userPosts,
+          userPaths: ["posted_by", "tagged_users"],
+          currentUserId: currentUserId,
+        });
+
+      const allUsers = userPosts
+        .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
+        .filter(Boolean);
+      const uniqueUsers = [...new Map(allUsers.map((u) => [u.id, u])).values()];
+      await strapi
+        .service("api::post.post")
+        .enrichUsersWithOptimizedProfilePictures(uniqueUsers);
+
+      const allMedia = userPosts.flatMap((p) => p.media || []).filter(Boolean);
+      const optimizedMediaArray = await strapi
+        .service("api::post.post")
+        .getOptimisedFileData(allMedia);
+      const optimizedMediaMap = new Map(
+        (optimizedMediaArray || []).map((m) => [m.id, m])
+      );
+
+      const finalPosts = userPosts.map((post) => ({
+        ...post,
+        media: (post.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
+      }));
+
+      return ctx.send(finalPosts);
+    } catch (err) {
+      console.error("Error in findUserPosts:", err);
+      return ctx.internalServerError(
+        "An error occurred while fetching user posts."
       );
     }
   },

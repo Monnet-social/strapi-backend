@@ -64,12 +64,11 @@
     },
     "share_with": {
       "type": "enumeration",
+      "default": "PUBLIC",
       "enum": [
-        "all",
-        "friends",
-        "followers",
-        "following",
-        "close freinds"
+        "PUBLIC",
+        "FOLLOWERS",
+        "CLOSE-FRIENDS"
       ]
     }
   }
