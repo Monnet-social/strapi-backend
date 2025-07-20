@@ -342,64 +342,65 @@ export default factories.createCoreController(
 
     async addCloseFriends(ctx) {
       try {
-        const userId = ctx.state.user.id;
+        const { id: userId } = ctx.state.user;
         const { subjectId } = ctx.request.body;
-        if (!subjectId) return ctx.badRequest("Subject ID is required");
-        const findRelation = await strapi.entityService.findMany(
-          "api::following.following",
-          {
-            filters: {
-              follower: { id: userId },
-              subject: { id: subjectId },
-            },
-          }
-        );
 
-        if (findRelation?.length == 0)
+        if (!subjectId) return ctx.badRequest("Subject ID is required");
+
+        if (userId === subjectId)
+          return ctx.badRequest("You cannot add yourself as a close friend.");
+
+        const [userFollowsSubject, subjectFollowsUser] = await Promise.all([
+          strapi.entityService.findMany("api::following.following", {
+            filters: { follower: { id: userId }, subject: { id: subjectId } },
+          }),
+          strapi.entityService.findMany("api::following.following", {
+            filters: { follower: { id: subjectId }, subject: { id: userId } },
+          }),
+        ]);
+
+        if (userFollowsSubject.length === 0)
           return ctx.badRequest("You are not following this user");
 
-        const existingCloseFriends = await strapi.entityService.findMany(
-          "api::following.following",
-          {
-            filters: {
-              follower: { id: subjectId },
-              subject: { id: userId },
-            },
-          }
-        );
-        if (existingCloseFriends.length == 0)
-          return ctx.badRequest("User is not follwing you back");
+        if (subjectFollowsUser.length === 0)
+          return ctx.badRequest("User is not following you back");
+
         const findCloseRelation = await strapi.entityService.findMany(
           "api::close-friend.close-friend",
           {
-            filters: {
-              user: { id: userId },
-              subject: { id: subjectId },
-            },
+            filters: { subject: subjectId, friend: userId },
             limit: 1,
           }
         );
-        if (findCloseRelation.length > 0)
-          await strapi.entityService.create("api::close-friend.close-friend", {
-            data: { subject: subjectId, user: userId },
-          });
-        else
-          await strapi.entityService.delete(
-            "api::following.following",
-            findCloseRelation[0].id
-          );
 
+        const newIsCloseFriend = !userFollowsSubject[0].is_close_friend;
         await strapi.entityService.update(
           "api::following.following",
-          findRelation[0].id,
-          { data: { is_close_friend: !findRelation[0].is_close_friend } }
+          userFollowsSubject[0].id,
+          { data: { is_close_friend: newIsCloseFriend } }
         );
+
+        const isNowMutual = newIsCloseFriend && subjectFollowsUser.length > 0;
+
+        if (isNowMutual)
+          if (findCloseRelation.length === 0)
+            await strapi.entityService.create(
+              "api::close-friend.close-friend",
+              { data: { subject: userId, friend: subjectId } }
+            );
+          else if (findCloseRelation.length > 0)
+            await strapi.entityService.delete(
+              "api::close-friend.close-friend",
+              findCloseRelation[0].id
+            );
+
         return ctx.send({
-          message: `Close friend ${(findRelation[0] as any).is_close_freind ? "removed" : "added"} successfully`,
+          message: `Successfully ${newIsCloseFriend ? "added user to" : "removed user from"} your close friends.`,
+          is_close_friend: newIsCloseFriend,
         });
       } catch (error) {
-        console.log("Error while addign close friends", error);
-        return ctx.internalServerError("Error adding close freinds", {
+        console.log("Error while adding close friends", error);
+        return ctx.internalServerError("Error adding close friends", {
           error,
         });
       }
