@@ -369,8 +369,8 @@ export default factories.createCoreController(
           {
             filters: {
               $or: [
-                { subject: { id: userId }, friend: { id: subjectId } },
                 { subject: { id: subjectId }, friend: { id: userId } },
+                { subject: { id: userId }, friend: { id: subjectId } },
               ],
             },
             limit: 1,
