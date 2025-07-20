@@ -339,7 +339,6 @@ export default factories.createCoreController(
         });
       }
     },
-
     async addCloseFriends(ctx) {
       try {
         const { id: userId } = ctx.state.user;
@@ -368,7 +367,12 @@ export default factories.createCoreController(
         const findCloseRelation = await strapi.entityService.findMany(
           "api::close-friend.close-friend",
           {
-            filters: { subject: subjectId, friend: userId },
+            filters: {
+              $or: [
+                { subject: { id: userId }, friend: { id: subjectId } },
+                { subject: { id: subjectId }, friend: { id: userId } },
+              ],
+            },
             limit: 1,
           }
         );
@@ -381,18 +385,19 @@ export default factories.createCoreController(
         );
 
         const isNowMutual = newIsCloseFriend && subjectFollowsUser.length > 0;
-
         if (isNowMutual)
           if (findCloseRelation.length === 0)
             await strapi.entityService.create(
               "api::close-friend.close-friend",
               { data: { subject: userId, friend: subjectId } }
             );
-          else if (findCloseRelation.length > 0)
-            await strapi.entityService.delete(
-              "api::close-friend.close-friend",
-              findCloseRelation[0].id
-            );
+          else {
+            if (findCloseRelation.length > 0)
+              await strapi.entityService.delete(
+                "api::close-friend.close-friend",
+                findCloseRelation[0].id
+              );
+          }
 
         return ctx.send({
           message: `Successfully ${newIsCloseFriend ? "added user to" : "removed user from"} your close friends.`,
