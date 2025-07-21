@@ -742,6 +742,7 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
       'plugin::users-permissions.user'
     >;
     publishedAt: Schema.Attribute.DateTime;
+    repost_of: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
     share_with: Schema.Attribute.Enumeration<
       ['PUBLIC', 'FOLLOWERS', 'CLOSE-FRIENDS']
     > &

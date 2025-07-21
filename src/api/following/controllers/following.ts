@@ -139,6 +139,130 @@ export default factories.createCoreController(
         });
       }
     },
+    async getFriends(ctx) {
+      const { user: currentUser } = ctx.state;
+      let { userId } = ctx.params;
+      const { pagination_size, page, query } = ctx.query;
+
+      if (userId === "me") {
+        userId = currentUser.id;
+      }
+
+      let default_pagination: any = {
+        pagination: { page: 1, pageSize: 10 },
+      };
+      if (pagination_size)
+        default_pagination.pagination.pageSize = pagination_size;
+      if (page) default_pagination.pagination.page = page;
+      if (!userId) return ctx.badRequest("User ID is required");
+      if (!currentUser)
+        return ctx.unauthorized(
+          "You must be logged in to perform this action."
+        );
+
+      try {
+        // 1. Fetch IDs of users the target user is FOLLOWING
+        const followingEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { follower: { id: userId } },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+        const followingIds = new Set(
+          followingEntries.map((entry: any) => entry.subject.id)
+        );
+
+        // 2. Fetch IDs of users who are FOLLOWING the target user
+        const followerEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { subject: { id: userId } },
+            populate: { follower: { fields: ["id"] } },
+          }
+        );
+        const followerIds = new Set(
+          followerEntries.map((entry: any) => entry.follower.id)
+        );
+
+        // 3. Find the intersection to get mutual friends
+        const friendIds = [...followingIds].filter((id) => followerIds.has(id));
+
+        if (friendIds.length === 0) {
+          return ctx.send({
+            data: [],
+            meta: {
+              pagination: {
+                page: 1,
+                pageSize: default_pagination.pagination.pageSize,
+                pageCount: 0,
+                total: 0,
+              },
+            },
+          });
+        }
+
+        // 4. Apply search query if provided
+        const userFilters: any = { id: { $in: friendIds } };
+        if (query) {
+          userFilters.$or = [
+            { username: { $containsi: query } },
+            { name: { $containsi: query } },
+          ];
+        }
+
+        // 5. Fetch and paginate the final user objects
+        const users = await strapi.entityService.findMany(
+          "plugin::users-permissions.user",
+          {
+            filters: userFilters,
+            populate: { profile_picture: true },
+            start:
+              (default_pagination.pagination.page - 1) *
+              default_pagination.pagination.pageSize,
+            limit: default_pagination.pagination.pageSize,
+          }
+        );
+
+        // 6. Enrich user data with follow status and optimized profile pictures
+        if (users.length > 0) {
+          await Promise.all([
+            strapi
+              .service("api::following.following")
+              .enrichItemsWithFollowStatus({
+                items: users.map((user) => ({ user })), // Wrap for service compatibility
+                userPaths: ["user"],
+                currentUserId: currentUser.id,
+              }),
+            strapi
+              .service("api::post.post")
+              .enrichUsersWithOptimizedProfilePictures(users),
+          ]);
+        }
+
+        const count = await strapi.entityService.count(
+          "plugin::users-permissions.user",
+          { filters: userFilters }
+        );
+
+        return ctx.send({
+          data: users,
+          meta: {
+            pagination: {
+              page: Number(default_pagination.pagination.page),
+              pageSize: Number(default_pagination.pagination.pageSize),
+              pageCount: Math.ceil(
+                count / default_pagination.pagination.pageSize
+              ),
+              total: count,
+            },
+          },
+        });
+      } catch (error) {
+        strapi.log.error("Error fetching friends:", error);
+        return ctx.internalServerError("Error fetching friends", { error });
+      }
+    },
 
     async getUserFollowing(ctx) {
       try {

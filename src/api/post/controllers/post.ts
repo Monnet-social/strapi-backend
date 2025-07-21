@@ -94,7 +94,34 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           "If provided, location latitude and longitude must be numbers."
         );
     }
+    if (data.repost_of) {
+      const originalPostId = data.repost_of;
 
+      const originalPost = await strapi.entityService.findOne(
+        "api::post.post",
+        originalPostId,
+        {
+          populate: { posted_by: true },
+        }
+      );
+
+      if (!originalPost) {
+        return ctx.badRequest(
+          `The post you are trying to repost (ID: ${originalPostId}) does not exist.`
+        );
+      }
+
+      if (originalPost.repost_of) {
+        return ctx.badRequest(
+          "You cannot repost a post that is already a repost."
+        );
+      }
+
+      if (originalPost.posted_by.id === userId) {
+        return ctx.badRequest("You cannot repost your own post.");
+      }
+      data.repost_of;
+    }
     try {
       data.posted_by = userId;
 
