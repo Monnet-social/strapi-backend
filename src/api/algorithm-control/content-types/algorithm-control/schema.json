@@ -1,0 +1,49 @@
+{
+  "kind": "collectionType",
+  "collectionName": "algorithm_controls",
+  "info": {
+    "singularName": "algorithm-control",
+    "pluralName": "algorithm-controls",
+    "displayName": "Algorithm Control"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "friends": {
+      "type": "integer",
+      "default": 100,
+      "min": 0,
+      "max": 100
+    },
+    "followings": {
+      "type": "integer",
+      "default": 50,
+      "min": 0,
+      "max": 100
+    },
+    "recommendations": {
+      "type": "integer",
+      "default": 50,
+      "min": 0,
+      "max": 100
+    },
+    "distance": {
+      "type": "integer",
+      "default": 50,
+      "min": 0,
+      "max": 100
+    },
+    "categories_entry": {
+      "type": "component",
+      "component": "global.algo-category-entry",
+      "repeatable": true
+    }
+  }
+}

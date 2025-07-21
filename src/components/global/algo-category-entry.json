@@ -1,0 +1,22 @@
+{
+  "collectionName": "components_global_algo_category_entries",
+  "info": {
+    "displayName": "AlgoCategoryEntry",
+    "icon": "archive"
+  },
+  "options": {},
+  "attributes": {
+    "category": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::category.category"
+    },
+    "weightage": {
+      "type": "integer",
+      "default": 50,
+      "min": 0,
+      "max": 100
+    }
+  },
+  "config": {}
+}
