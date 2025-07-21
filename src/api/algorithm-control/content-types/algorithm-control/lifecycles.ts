@@ -22,6 +22,6 @@ export default {
         };
         delete finalData.user;
 
-       await new AlgorithmControlService().setAlgorithmControlDetails(algorithmControlDetails.user.documentId, finalData);
+       await new AlgorithmControlService().setAlgorithmControlDetails(algorithmControlDetails.user.documentId, finalData as any);
     }
 }
