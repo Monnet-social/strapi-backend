@@ -1,3 +1,4 @@
+import { IAlgoControl } from "../../types/algo_control";
 import RedisService from "./redis_service";
 
 export default class AlgorithmControlService {
@@ -66,11 +67,11 @@ export default class AlgorithmControlService {
         return posts;
     }
 
-    async setAlgorithmControlDetails(userId: string, details: any) {
+    async setAlgorithmControlDetails(userId: string, details: IAlgoControl) {
         await RedisService.client.hSet("algorithm_control", userId, JSON.stringify(details));
     }
 
-    async getAlgorithmControlDetails(userId: string): Promise<any> {
+    async getAlgorithmControlDetails(userId: string): Promise<IAlgoControl | null> {
         const details = await RedisService.client.hGet("algorithm_control", userId);
         return details ? JSON.parse(details as string) : null;
     }
