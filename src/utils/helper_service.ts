@@ -41,4 +41,13 @@ export default class HelperService {
     }
     return referral_code;
   }
+
+  static handleError(error: any, title: string | null = null) {
+    if (title) {
+      console.error(title);
+    }
+
+    console.error(error);
+    // Sentry.captureException(error, { extra: { title } });
+  }
 }

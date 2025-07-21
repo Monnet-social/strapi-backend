@@ -1,4 +1,5 @@
 import type { Core } from "@strapi/strapi";
+import RedisService from "./utils/redis_service";
 
 export default {
   /**
@@ -16,7 +17,7 @@ export default {
    * This gives you an opportunity to set up your data model,
    * run jobs, or perform some special logic.
    */
-  bootstrap({ strapi }: { strapi: Core.Strapi }) {
+  async bootstrap({ strapi }: { strapi: Core.Strapi }) {
     strapi.db.lifecycles.subscribe({
       models: ["plugin::upload.file"],
       async afterCreate(event) {
@@ -26,5 +27,7 @@ export default {
           .optimiseFile(event.result.id);
       },
     });
+
+    await RedisService.connect();
   },
 };
