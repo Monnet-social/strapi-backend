@@ -26,13 +26,13 @@ export default factories.createCoreService('api::algorithm-control.algorithm-con
         const newControl = await strapi.documents("api::algorithm-control.algorithm-control").create({
             data: {
                 user: { documentId: userId },
-                friends: 50,
-                followings: 50,
-                recommendations: 50,
-                distance: 50,
+                friends: 100,
+                followings: 100,
+                recommendations: 100,
+                distance: 100,
                 categories_entry: categories.map(category => ({
                     category: { documentId: category.documentId },
-                    weight: 50,
+                    weight: 100,
                 })),
             },
             populate: {

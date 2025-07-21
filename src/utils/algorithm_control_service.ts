@@ -39,7 +39,15 @@ export default class AlgorithmControlService {
     async storePostInUserFeed(postId: string, userId: string) {
         const key = `user_feed:${userId}`;
         await RedisService.client.zAdd(key, {
-            score: Date.now(),
+            score: Date.now(), // TODO: Use a more appropriate score based on your requirements
+            value: postId,
+        });
+    }
+
+    async storePostInUserDiscovery(postId: string, userId: string) {
+        const key = `user_discovery:${userId}`;
+        await RedisService.client.zAdd(key, {
+            score: Date.now(), // TODO: Use a more appropriate score based on your requirements
             value: postId,
         });
     }

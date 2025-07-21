@@ -22,6 +22,30 @@ export default {
         };
         delete finalData.user;
 
-       await new AlgorithmControlService().setAlgorithmControlDetails(algorithmControlDetails.user.documentId, finalData as any);
+        await new AlgorithmControlService().setAlgorithmControlDetails(algorithmControlDetails.user.documentId, finalData as any);
+    },
+
+    async afterUpdate(event) {
+        const { result } = event;
+
+        const algorithmControlDetails = await strapi.documents("api::algorithm-control.algorithm-control").findOne({
+            documentId: result.documentId,
+            populate: {
+                categories_entry: {
+                    populate: {
+                        category: true,
+                    }
+                },
+                user: {
+                    fields: ['username', 'email']
+                }
+            }
+        });
+        let finalData = {
+            ...algorithmControlDetails,
+        };
+        delete finalData.user;
+
+        await new AlgorithmControlService().setAlgorithmControlDetails(algorithmControlDetails.user.documentId, finalData as any);
     }
 }

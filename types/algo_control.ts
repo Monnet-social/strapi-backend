@@ -1,12 +1,12 @@
 export interface IAlgoControl {
-    friends: number;
-    followings: number;
-    recommendations: number;
-    distance: number;
+    friends: number; // 0 to 100
+    followers: number; // 0 to 100
+    recommendations: number; // 0 to 100
+    distance: number; // 0 to 100
     categories_entry: {
         category: {
             name: string;
         };
-        weightage: number;
+        weightage: number; // 0 to 100
     }[];
 }
