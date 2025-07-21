@@ -28,6 +28,13 @@ export default {
       },
     });
 
+    strapi.db.lifecycles.subscribe({
+      models: ["plugin::users-permissions.user"],
+      async afterCreate(event) {
+        await strapi.service("api::algorithm-control.algorithm-control").generateDefaultControl(event.result.documentId);
+      },
+    });
+
     await RedisService.connect();
   },
 };

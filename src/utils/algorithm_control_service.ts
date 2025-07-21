@@ -65,4 +65,13 @@ export default class AlgorithmControlService {
         const posts = await RedisService.client.zRange(key, 0, -1);
         return posts;
     }
+
+    async setAlgorithmControlDetails(userId: string, details: any) {
+        await RedisService.client.hSet("algorithm_control", userId, JSON.stringify(details));
+    }
+
+    async getAlgorithmControlDetails(userId: string): Promise<any> {
+        const details = await RedisService.client.hGet("algorithm_control", userId);
+        return details ? JSON.parse(details as string) : null;
+    }
 }

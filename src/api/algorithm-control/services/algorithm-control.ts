@@ -1,7 +1,3 @@
-/**
- * algorithm-control service
- */
-
 import { factories } from '@strapi/strapi';
 
 export default factories.createCoreService('api::algorithm-control.algorithm-control', ({ strapi }) => ({
@@ -20,6 +16,11 @@ export default factories.createCoreService('api::algorithm-control.algorithm-con
             return existingControl;
         }
 
+        const newControl = await this.generateDefaultControl(userId);
+        return newControl;
+    },
+
+    async generateDefaultControl(userId: string) {
         const categories = await strapi.documents("api::category.category").findMany();
 
         const newControl = await strapi.documents("api::algorithm-control.algorithm-control").create({
@@ -44,5 +45,5 @@ export default factories.createCoreService('api::algorithm-control.algorithm-con
         });
 
         return newControl;
-    }
+    },
 }));
