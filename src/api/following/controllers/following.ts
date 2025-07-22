@@ -391,7 +391,7 @@ export default factories.createCoreController(
           );
         console.log("Fetching close friends for user:", userId);
 
-        const closeFriends = await strapi.entityService.findMany(
+        const closeFriends: any = await strapi.entityService.findMany(
           "api::following.following",
           {
             filters: { follower: { id: userId }, is_close_friend: true },
@@ -404,9 +404,13 @@ export default factories.createCoreController(
           }
         );
         console.log("Close friends found:", closeFriends.length, closeFriends);
-        await strapi
-          .service("api::post.post")
-          .enrichUsersWithOptimizedProfilePictures(closeFriends);
+        for (const friend of closeFriends) {
+          if (!friend?.subject?.id) {
+            await strapi
+              .service("api::post.post")
+              .enrichUsersWithOptimizedProfilePictures([friend.subject]);
+          }
+        }
 
         return ctx.send({ data: closeFriends });
       } catch (error) {
