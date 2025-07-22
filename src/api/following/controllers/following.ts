@@ -384,11 +384,12 @@ export default factories.createCoreController(
     },
     async getUserCloseFriends(ctx) {
       try {
-        const { id: userId } = ctx.state.user;
+        const { id: userId } = ctx.params;
         if (!userId)
           return ctx.unauthorized(
             "You must be logged in to view close friends"
           );
+        console.log("Fetching close friends for user:", userId);
 
         const closeFriends = await strapi.entityService.findMany(
           "api::following.following",
@@ -402,6 +403,7 @@ export default factories.createCoreController(
             },
           }
         );
+        console.log("Close friends found:", closeFriends.length, closeFriends);
         await strapi
           .service("api::post.post")
           .enrichUsersWithOptimizedProfilePictures(closeFriends);
