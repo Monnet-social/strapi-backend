@@ -1017,6 +1017,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         sort: { createdAt: "desc" },
         populate: {
           media: true,
+          repost_of: true,
           posted_by: {
             fields: ["id", "username", "name"],
             populate: { profile_picture: true },
@@ -1056,6 +1057,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       const finalPosts = userPosts.map((post) => ({
         ...post,
+        is_repost: post.repost_of !== null,
         media: (post.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
       }));
 

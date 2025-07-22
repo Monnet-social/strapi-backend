@@ -139,14 +139,11 @@ export default factories.createCoreController(
         });
       }
     },
+
     async getFriends(ctx) {
       const { user: currentUser } = ctx.state;
       let { userId } = ctx.params;
       const { pagination_size, page, query } = ctx.query;
-
-      if (userId === "me") {
-        userId = currentUser.id;
-      }
 
       let default_pagination: any = {
         pagination: { page: 1, pageSize: 10 },
@@ -161,7 +158,6 @@ export default factories.createCoreController(
         );
 
       try {
-        // 1. Fetch IDs of users the target user is FOLLOWING
         const followingEntries = await strapi.entityService.findMany(
           "api::following.following",
           {
@@ -172,8 +168,6 @@ export default factories.createCoreController(
         const followingIds = new Set(
           followingEntries.map((entry: any) => entry.subject.id)
         );
-
-        // 2. Fetch IDs of users who are FOLLOWING the target user
         const followerEntries = await strapi.entityService.findMany(
           "api::following.following",
           {
@@ -185,8 +179,7 @@ export default factories.createCoreController(
           followerEntries.map((entry: any) => entry.follower.id)
         );
 
-        // 3. Find the intersection to get mutual friends
-        const friendIds = [...followingIds].filter((id) => followerIds.has(id));
+        let friendIds = [...followingIds].filter((id) => followerIds.has(id));
 
         if (friendIds.length === 0) {
           return ctx.send({
@@ -202,8 +195,40 @@ export default factories.createCoreController(
           });
         }
 
-        // 4. Apply search query if provided
-        const userFilters: any = { id: { $in: friendIds } };
+        const closeFriendEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: { id: userId },
+              subject: { id: { $in: friendIds } },
+              is_close_friend: true,
+            },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+        const closeFriendIds = new Set(
+          closeFriendEntries.map((entry: any) => entry.subject.id)
+        );
+
+        const finalFriendIds = friendIds.filter(
+          (id) => !closeFriendIds.has(id)
+        );
+
+        if (finalFriendIds.length === 0) {
+          return ctx.send({
+            data: [],
+            meta: {
+              pagination: {
+                page: 1,
+                pageSize: default_pagination.pagination.pageSize,
+                pageCount: 0,
+                total: 0,
+              },
+            },
+          });
+        }
+
+        const userFilters: any = { id: { $in: finalFriendIds } };
         if (query) {
           userFilters.$or = [
             { username: { $containsi: query } },
@@ -211,7 +236,6 @@ export default factories.createCoreController(
           ];
         }
 
-        // 5. Fetch and paginate the final user objects
         const users = await strapi.entityService.findMany(
           "plugin::users-permissions.user",
           {
@@ -224,13 +248,12 @@ export default factories.createCoreController(
           }
         );
 
-        // 6. Enrich user data with follow status and optimized profile pictures
         if (users.length > 0) {
           await Promise.all([
             strapi
               .service("api::following.following")
               .enrichItemsWithFollowStatus({
-                items: users.map((user) => ({ user })), // Wrap for service compatibility
+                items: users.map((user) => ({ user })),
                 userPaths: ["user"],
                 currentUserId: currentUser.id,
               }),
@@ -463,6 +486,7 @@ export default factories.createCoreController(
         });
       }
     },
+
     async addCloseFriends(ctx) {
       try {
         const { id: userId } = ctx.state.user;
@@ -470,28 +494,40 @@ export default factories.createCoreController(
 
         if (!subjectId) return ctx.badRequest("Subject ID is required");
 
-        if (userId === subjectId)
+        if (userId.toString() === subjectId.toString())
           return ctx.badRequest("You cannot add yourself as a close friend.");
 
-        const [userFollowsSubject, subjectFollowsUser] = await Promise.all([
-          strapi.entityService.findMany("api::following.following", {
+        const [userFollowsSubject] = await strapi.entityService.findMany(
+          "api::following.following",
+          {
             filters: { follower: { id: userId }, subject: { id: subjectId } },
-          }),
-          strapi.entityService.findMany("api::following.following", {
+            limit: 1,
+          }
+        );
+
+        if (!userFollowsSubject)
+          return ctx.badRequest(
+            "You must be following this user to add them as a close friend."
+          );
+
+        const [subjectFollowsUser] = await strapi.entityService.findMany(
+          "api::following.following",
+          {
             filters: { follower: { id: subjectId }, subject: { id: userId } },
-          }),
-        ]);
+            limit: 1,
+          }
+        );
 
-        if (userFollowsSubject.length === 0)
-          return ctx.badRequest("You are not following this user");
+        if (!subjectFollowsUser)
+          return ctx.badRequest(
+            "This user is not following you back. Mutual friendship is required."
+          );
 
-        if (subjectFollowsUser.length === 0)
-          return ctx.badRequest("User is not following you back");
+        const newIsCloseFriend = !userFollowsSubject.is_close_friend;
 
-        const newIsCloseFriend = !userFollowsSubject[0].is_close_friend;
         await strapi.entityService.update(
           "api::following.following",
-          userFollowsSubject[0].id,
+          userFollowsSubject.id,
           { data: { is_close_friend: newIsCloseFriend } }
         );
 
@@ -500,12 +536,13 @@ export default factories.createCoreController(
           is_close_friend: newIsCloseFriend,
         });
       } catch (error) {
-        console.log("Error while adding close friends", error);
-        return ctx.internalServerError("Error adding close friends", {
+        console.log("Error while updating close friends status", error);
+        return ctx.internalServerError("Error updating close friends status", {
           error,
         });
       }
     },
+
     async getUserCloseFriends(ctx) {
       try {
         const { id: userId } = ctx.params;
