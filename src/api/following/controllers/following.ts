@@ -404,11 +404,13 @@ export default factories.createCoreController(
           }
         );
         console.log("Close friends found:", closeFriends.length, closeFriends);
-        for (const friend of closeFriends) {
+        for (let friend of closeFriends) {
           if (!friend?.subject?.id) {
             await strapi
               .service("api::post.post")
-              .enrichUsersWithOptimizedProfilePictures([friend.subject]);
+              .enrichUsersWithOptimizedProfilePictures([
+                friend?.subject?.profile_picture,
+              ]);
           }
         }
 
