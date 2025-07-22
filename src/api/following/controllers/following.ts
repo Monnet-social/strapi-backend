@@ -488,40 +488,12 @@ export default factories.createCoreController(
         if (subjectFollowsUser.length === 0)
           return ctx.badRequest("User is not following you back");
 
-        const findCloseRelation = await strapi.entityService.findMany(
-          "api::close-friend.close-friend",
-          {
-            filters: {
-              $or: [
-                { subject: { id: subjectId }, friend: { id: userId } },
-                { subject: { id: userId }, friend: { id: subjectId } },
-              ],
-            },
-            limit: 1,
-          }
-        );
-
         const newIsCloseFriend = !userFollowsSubject[0].is_close_friend;
         await strapi.entityService.update(
           "api::following.following",
           userFollowsSubject[0].id,
           { data: { is_close_friend: newIsCloseFriend } }
         );
-
-        const isNowMutual = newIsCloseFriend && subjectFollowsUser.length > 0;
-        if (isNowMutual)
-          if (findCloseRelation.length === 0)
-            await strapi.entityService.create(
-              "api::close-friend.close-friend",
-              { data: { subject: userId, friend: subjectId } }
-            );
-          else {
-            if (findCloseRelation.length > 0)
-              await strapi.entityService.delete(
-                "api::close-friend.close-friend",
-                findCloseRelation[0].id
-              );
-          }
 
         return ctx.send({
           message: `Successfully ${newIsCloseFriend ? "added user to" : "removed user from"} your close friends.`,
@@ -530,6 +502,46 @@ export default factories.createCoreController(
       } catch (error) {
         console.log("Error while adding close friends", error);
         return ctx.internalServerError("Error adding close friends", {
+          error,
+        });
+      }
+    },
+    async getUserCloseFriends(ctx) {
+      try {
+        const { id: userId } = ctx.params;
+        if (!userId)
+          return ctx.unauthorized(
+            "You must be logged in to view close friends"
+          );
+        console.log("Fetching close friends for user:", userId);
+
+        const closeFriends: any = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { follower: { id: userId }, is_close_friend: true },
+            populate: {
+              subject: {
+                fields: ["id", "username", "email", "name"],
+                populate: { profile_picture: true },
+              },
+            },
+          }
+        );
+        console.log("Close friends found:", closeFriends.length, closeFriends);
+        for (let friend of closeFriends) {
+          if (!friend?.subject?.id) {
+            await strapi
+              .service("api::post.post")
+              .enrichUsersWithOptimizedProfilePictures([
+                friend?.subject?.profile_picture,
+              ]);
+          }
+        }
+
+        return ctx.send({ data: closeFriends });
+      } catch (error) {
+        console.log("Error fetching close friends:", error);
+        return ctx.internalServerError("Error fetching close friends", {
           error,
         });
       }

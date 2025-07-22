@@ -505,41 +505,6 @@ export interface ApiCategoryCategory extends Struct.CollectionTypeSchema {
   };
 }
 
-export interface ApiCloseFriendCloseFriend extends Struct.CollectionTypeSchema {
-  collectionName: 'close_friends';
-  info: {
-    displayName: 'Close Friend';
-    pluralName: 'close-friends';
-    singularName: 'close-friend';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    friend: Schema.Attribute.Relation<
-      'oneToOne',
-      'plugin::users-permissions.user'
-    >;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::close-friend.close-friend'
-    > &
-      Schema.Attribute.Private;
-    publishedAt: Schema.Attribute.DateTime;
-    subject: Schema.Attribute.Relation<
-      'oneToOne',
-      'plugin::users-permissions.user'
-    >;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
 export interface ApiCommentComment extends Struct.CollectionTypeSchema {
   collectionName: 'comments';
   info: {
@@ -1397,7 +1362,6 @@ declare module '@strapi/strapi' {
       'api::algorithm-control.algorithm-control': ApiAlgorithmControlAlgorithmControl;
       'api::block.block': ApiBlockBlock;
       'api::category.category': ApiCategoryCategory;
-      'api::close-friend.close-friend': ApiCloseFriendCloseFriend;
       'api::comment.comment': ApiCommentComment;
       'api::dislike.dislike': ApiDislikeDislike;
       'api::file-optimisation.file-optimisation': ApiFileOptimisationFileOptimisation;

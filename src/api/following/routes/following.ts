@@ -30,5 +30,10 @@ module.exports = {
       path: "/close-friends",
       handler: "following.addCloseFriends",
     },
+    {
+      method: "GET",
+      path: "/user/:id/close-friends",
+      handler: "following.getUserCloseFriends",
+    },
   ],
 };
