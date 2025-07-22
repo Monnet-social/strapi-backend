@@ -544,40 +544,93 @@ export default factories.createCoreController(
     },
 
     async getUserCloseFriends(ctx) {
-      try {
-        const { id: userId } = ctx.params;
-        if (!userId)
-          return ctx.unauthorized(
-            "You must be logged in to view close friends"
-          );
-        console.log("Fetching close friends for user:", userId);
+      const { user: currentUser } = ctx.state;
+      let { userId } = ctx.params;
+      const { pagination_size, page, query } = ctx.query;
 
-        const closeFriends: any = await strapi.entityService.findMany(
+      let default_pagination: any = {
+        pagination: { page: 1, pageSize: 10 },
+      };
+      if (pagination_size)
+        default_pagination.pagination.pageSize = pagination_size;
+      if (page) default_pagination.pagination.page = page;
+      if (!userId) return ctx.badRequest("User ID is required");
+      if (!currentUser)
+        return ctx.unauthorized(
+          "You must be logged in to perform this action."
+        );
+
+      try {
+        const filters: any = {
+          follower: { id: userId },
+          is_close_friend: true,
+        };
+
+        if (query) {
+          filters.subject = {
+            $or: [
+              { username: { $containsi: query } },
+              { name: { $containsi: query } },
+            ],
+          };
+        }
+
+        const closeFriendEntries = await strapi.entityService.findMany(
           "api::following.following",
           {
-            filters: { follower: { id: userId }, is_close_friend: true },
+            filters,
             populate: {
               subject: {
                 fields: ["id", "username", "email", "name"],
                 populate: { profile_picture: true },
               },
             },
+            start:
+              (default_pagination.pagination.page - 1) *
+              default_pagination.pagination.pageSize,
+            limit: default_pagination.pagination.pageSize,
           }
         );
-        console.log("Close friends found:", closeFriends.length, closeFriends);
-        for (let friend of closeFriends) {
-          if (!friend?.subject?.id) {
-            await strapi
+
+        const users = closeFriendEntries
+          .map((entry: any) => entry.subject)
+          .filter(Boolean);
+
+        if (users.length > 0) {
+          await Promise.all([
+            strapi
+              .service("api::following.following")
+              .enrichItemsWithFollowStatus({
+                items: closeFriendEntries,
+                userPaths: ["subject"],
+                currentUserId: currentUser.id,
+              }),
+            strapi
               .service("api::post.post")
-              .enrichUsersWithOptimizedProfilePictures([
-                friend?.subject?.profile_picture,
-              ]);
-          }
+              .enrichUsersWithOptimizedProfilePictures(users),
+          ]);
         }
 
-        return ctx.send({ data: closeFriends });
+        const count = await strapi.entityService.count(
+          "api::following.following",
+          { filters }
+        );
+
+        return ctx.send({
+          data: users,
+          meta: {
+            pagination: {
+              page: Number(default_pagination.pagination.page),
+              pageSize: Number(default_pagination.pagination.pageSize),
+              pageCount: Math.ceil(
+                count / default_pagination.pagination.pageSize
+              ),
+              total: count,
+            },
+          },
+        });
       } catch (error) {
-        console.log("Error fetching close friends:", error);
+        strapi.log.error("Error fetching close friends:", error);
         return ctx.internalServerError("Error fetching close friends", {
           error,
         });

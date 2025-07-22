@@ -94,33 +94,37 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           "If provided, location latitude and longitude must be numbers."
         );
     }
-    if (data.repost_of) {
-      const originalPostId = data.repost_of;
 
-      const originalPost = await strapi.entityService.findOne(
+    if (data.repost_of) {
+      const initialRepostTargetId = data.repost_of;
+
+      let postToRepost = await strapi.entityService.findOne(
         "api::post.post",
-        originalPostId,
-        {
-          populate: { posted_by: true },
-        }
+        initialRepostTargetId,
+        { populate: { posted_by: true, repost_of: true } }
       );
 
-      if (!originalPost) {
+      if (!postToRepost)
         return ctx.badRequest(
-          `The post you are trying to repost (ID: ${originalPostId}) does not exist.`
+          `The post you are trying to repost (ID: ${initialRepostTargetId}) does not exist.`
         );
+
+      if (postToRepost.repost_of) {
+        data.repost_of = postToRepost.repost_of.id;
+
+        postToRepost = await strapi.entityService.findOne(
+          "api::post.post",
+          postToRepost.repost_of.id,
+          { populate: { posted_by: true } }
+        );
+        if (!postToRepost)
+          return ctx.badRequest(
+            `The original post you are trying to repost does not exist.`
+          );
       }
 
-      if (originalPost.repost_of) {
-        return ctx.badRequest(
-          "You cannot repost a post that is already a repost."
-        );
-      }
-
-      if (originalPost.posted_by.id === userId) {
+      if (postToRepost.posted_by.id === userId)
         return ctx.badRequest("You cannot repost your own post.");
-      }
-      data.repost_of;
     }
     try {
       data.posted_by = userId;
