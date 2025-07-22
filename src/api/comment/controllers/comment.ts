@@ -229,6 +229,10 @@ export default factories.createCoreController(
                 fields: ["id", "username", "name"],
                 populate: { profile_picture: true },
               },
+              post: {
+                fields: ["id", "title"],
+                populate: { posted_by: true },
+              },
             },
             page: Number(page),
             pageSize: Number(pageSize),
@@ -248,6 +252,10 @@ export default factories.createCoreController(
                 fields: ["id", "username", "name"],
                 populate: { profile_picture: true },
               },
+              post: {
+                fields: ["id", "title"],
+                populate: { posted_by: true },
+              },
             },
           }
         );
@@ -261,14 +269,27 @@ export default factories.createCoreController(
               currentUserId: userId,
             });
 
-          let [replies, likes] = await Promise.all([
+          let [replies, likes, liked_by_post_author] = await Promise.all([
             strapi.entityService.count("api::comment.comment", {
               filters: { parent_comment: { id: findPinnedComment[0].id } },
             }),
             strapi.entityService.count("api::like.like", {
               filters: { comment: { id: findPinnedComment[0].id } },
             }),
+            strapi.entityService.findMany("api::like.like", {
+              filters: {
+                comment: { id: findPinnedComment[0].id },
+                liked_by: { id: findPinnedComment[0]?.post?.posted_by?.id },
+              },
+              limit: 1,
+            }),
           ]);
+          console.log(
+            "Replies, Likes, Liked by Post Author:",
+            replies,
+            likes,
+            liked_by_post_author
+          );
           let is_liked_by_user = await strapi.entityService.findMany(
             "api::like.like",
             {
@@ -279,10 +300,12 @@ export default factories.createCoreController(
               limit: 1,
             }
           );
+          console.log("Is liked by user:", is_liked_by_user);
           findPinnedComment[0].stats = {
             likes: likes,
             replies: replies,
             is_liked_by_user: is_liked_by_user.length > 0,
+            liked_by_post_author: liked_by_post_author.length > 0,
           };
           if (
             findPinnedComment?.commented_by &&
@@ -325,12 +348,18 @@ export default factories.createCoreController(
 
         const finalResponse = await Promise.all(
           comments.map(async (comment: any) => {
-            const [replies, likes] = await Promise.all([
+            const [replies, likes, liked_by_post_author] = await Promise.all([
               strapi.entityService.count("api::comment.comment", {
                 filters: { parent_comment: { id: comment.id } },
               }),
               strapi.entityService.count("api::like.like", {
                 filters: { comment: { id: comment.id } },
+              }),
+              strapi.entityService.findMany("api::like.like", {
+                filters: {
+                  comment: { id: comment.id },
+                  liked_by: { id: comment?.post?.posted_by?.id },
+                },
               }),
             ]);
 
@@ -347,23 +376,21 @@ export default factories.createCoreController(
               id: comment.id,
               comment: comment.comment,
               createdAt: comment.createdAt,
-
+              pinned: false,
               author: author,
               stats: {
                 likes: likes,
                 replies: replies,
                 is_liked_by_user: likedCommentIds.has(comment.id),
+                liked_by_post_author: liked_by_post_author.length > 0,
               },
             };
           })
         );
 
         return ctx.send({
-          data: {
-            comments: finalResponse,
-            pinned_comment:
-              findPinnedComment?.length > 0 ? findPinnedComment[0] : {},
-          },
+          data: [...findPinnedComment, ...finalResponse],
+
           meta: { pagination },
         });
       } catch (error) {
