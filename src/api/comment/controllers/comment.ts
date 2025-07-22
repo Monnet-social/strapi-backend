@@ -389,7 +389,10 @@ export default factories.createCoreController(
         );
 
         return ctx.send({
-          data: [...findPinnedComment, ...finalResponse],
+          data:
+            pagination?.page == 1
+              ? [...findPinnedComment, ...finalResponse]
+              : finalResponse,
 
           meta: { pagination },
         });
