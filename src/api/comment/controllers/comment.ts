@@ -207,7 +207,7 @@ export default factories.createCoreController(
       const { post_id: postId } = ctx.params;
       const { user } = ctx.state;
       const { page = 1, pageSize = 10 } = ctx.query;
-
+      const userId = user.id;
       if (!user)
         return ctx.unauthorized("You must be logged in to view comments.");
 
@@ -221,8 +221,9 @@ export default factories.createCoreController(
             filters: {
               post: { id: postId },
               parent_comment: { id: { $null: true } },
+              pinned: false,
             },
-            sort: { createdAt: "desc" },
+            sort: { createdAt: "desc", pinned: "desc" },
             populate: {
               commented_by: {
                 fields: ["id", "username", "name"],
@@ -233,9 +234,68 @@ export default factories.createCoreController(
             pageSize: Number(pageSize),
           }
         );
+        console.log("Paginated Comments:", paginatedComments);
+        const findPinnedComment: any = await strapi.entityService.findMany(
+          "api::comment.comment",
+          {
+            filters: {
+              post: { id: postId },
+              parent_comment: { id: { $null: true } },
+              pinned: true,
+            },
+            populate: {
+              commented_by: {
+                fields: ["id", "username", "name"],
+                populate: { profile_picture: true },
+              },
+            },
+          }
+        );
+        console.log("Pinned Comment:", findPinnedComment);
+        if (findPinnedComment.length > 0) {
+          await strapi
+            .service("api::following.following")
+            .enrichItemsWithFollowStatus({
+              items: findPinnedComment,
+              userPaths: ["commented_by"],
+              currentUserId: userId,
+            });
+
+          let [replies, likes] = await Promise.all([
+            strapi.entityService.count("api::comment.comment", {
+              filters: { parent_comment: { id: findPinnedComment[0].id } },
+            }),
+            strapi.entityService.count("api::like.like", {
+              filters: { comment: { id: findPinnedComment[0].id } },
+            }),
+          ]);
+          let is_liked_by_user = await strapi.entityService.findMany(
+            "api::like.like",
+            {
+              filters: {
+                liked_by: { id: userId },
+                comment: { id: findPinnedComment[0].id },
+              },
+              limit: 1,
+            }
+          );
+          findPinnedComment[0].stats = {
+            likes: likes,
+            replies: replies,
+            is_liked_by_user: is_liked_by_user.length > 0,
+          };
+          if (
+            findPinnedComment?.commented_by &&
+            findPinnedComment[0].commented_by.profile_picture
+          )
+            await strapi
+              .service("api::post.post")
+              .enrichUsersWithOptimizedProfilePictures([
+                findPinnedComment[0].commented_by.profile_picture,
+              ]);
+        }
 
         const { results: comments, pagination } = paginatedComments;
-        const userId = user.id;
 
         if (comments.length === 0)
           return ctx.send({ data: [], meta: { pagination } });
@@ -287,6 +347,7 @@ export default factories.createCoreController(
               id: comment.id,
               comment: comment.comment,
               createdAt: comment.createdAt,
+
               author: author,
               stats: {
                 likes: likes,
@@ -297,7 +358,14 @@ export default factories.createCoreController(
           })
         );
 
-        return ctx.send({ data: finalResponse, meta: { pagination } });
+        return ctx.send({
+          data: {
+            comments: finalResponse,
+            pinned_comment:
+              findPinnedComment?.length > 0 ? findPinnedComment[0] : {},
+          },
+          meta: { pagination },
+        });
       } catch (error) {
         strapi.log.error("Error fetching post comments:", error);
         return ctx.internalServerError(
