@@ -316,6 +316,7 @@ export default factories.createCoreController(
               .enrichUsersWithOptimizedProfilePictures([
                 findPinnedComment[0].commented_by.profile_picture,
               ]);
+          findPinnedComment[0].is_pinned = true;
         }
 
         const { results: comments, pagination } = paginatedComments;
@@ -376,7 +377,7 @@ export default factories.createCoreController(
               id: comment.id,
               comment: comment.comment,
               createdAt: comment.createdAt,
-              pinned: false,
+              is_pinned: false,
               author: author,
               stats: {
                 likes: likes,
