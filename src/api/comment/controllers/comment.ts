@@ -123,6 +123,7 @@ export default factories.createCoreController(
     async pinComment(ctx: Context) {
       const { comment_id } = ctx.params;
       const userId = ctx.state.user.id;
+
       const comment: any = await strapi.entityService.findMany(
         "api::comment.comment",
         {
@@ -136,6 +137,24 @@ export default factories.createCoreController(
       }
       if (comment[0].post.posted_by.id !== userId)
         return ctx.badRequest("You cannot pin this comment");
+
+      const checkIfAnotherCommentIsPinned = await strapi.entityService.findMany(
+        "api::comment.comment",
+        {
+          filters: {
+            post: { id: comment[0].post.id },
+            pinned: true,
+            id: { $ne: comment_id },
+          },
+        }
+      );
+      if (checkIfAnotherCommentIsPinned.length > 0) {
+        const unpinComment = await strapi.entityService.update(
+          "api::comment.comment",
+          checkIfAnotherCommentIsPinned[0].id,
+          { data: { pinned: false } }
+        );
+      }
 
       const updatedComment = await strapi.entityService.update(
         "api::comment.comment",
