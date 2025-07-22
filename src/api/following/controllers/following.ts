@@ -382,5 +382,37 @@ export default factories.createCoreController(
         });
       }
     },
+    async getUserCloseFriends(ctx) {
+      try {
+        const { id: userId } = ctx.state.user;
+        if (!userId)
+          return ctx.unauthorized(
+            "You must be logged in to view close friends"
+          );
+
+        const closeFriends = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { follower: { id: userId }, is_close_friend: true },
+            populate: {
+              subject: {
+                fields: ["id", "username", "email", "name"],
+                populate: { profile_picture: true },
+              },
+            },
+          }
+        );
+        await strapi
+          .service("api::post.post")
+          .enrichUsersWithOptimizedProfilePictures(closeFriends);
+
+        return ctx.send({ data: closeFriends });
+      } catch (error) {
+        console.log("Error fetching close friends:", error);
+        return ctx.internalServerError("Error fetching close friends", {
+          error,
+        });
+      }
+    },
   })
 );

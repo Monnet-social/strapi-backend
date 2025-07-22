@@ -25,5 +25,10 @@ module.exports = {
       path: "/close-friends",
       handler: "following.addCloseFriends",
     },
+    {
+      method: "PUT",
+      path: "/user/:id/close-friends",
+      handler: "following.getUserCloseFriends",
+    },
   ],
 };
