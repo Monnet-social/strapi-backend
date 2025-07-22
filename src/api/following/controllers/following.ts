@@ -364,40 +364,12 @@ export default factories.createCoreController(
         if (subjectFollowsUser.length === 0)
           return ctx.badRequest("User is not following you back");
 
-        const findCloseRelation = await strapi.entityService.findMany(
-          "api::close-friend.close-friend",
-          {
-            filters: {
-              $or: [
-                { subject: { id: subjectId }, friend: { id: userId } },
-                { subject: { id: userId }, friend: { id: subjectId } },
-              ],
-            },
-            limit: 1,
-          }
-        );
-
         const newIsCloseFriend = !userFollowsSubject[0].is_close_friend;
         await strapi.entityService.update(
           "api::following.following",
           userFollowsSubject[0].id,
           { data: { is_close_friend: newIsCloseFriend } }
         );
-
-        const isNowMutual = newIsCloseFriend && subjectFollowsUser.length > 0;
-        if (isNowMutual)
-          if (findCloseRelation.length === 0)
-            await strapi.entityService.create(
-              "api::close-friend.close-friend",
-              { data: { subject: userId, friend: subjectId } }
-            );
-          else {
-            if (findCloseRelation.length > 0)
-              await strapi.entityService.delete(
-                "api::close-friend.close-friend",
-                findCloseRelation[0].id
-              );
-          }
 
         return ctx.send({
           message: `Successfully ${newIsCloseFriend ? "added user to" : "removed user from"} your close friends.`,
