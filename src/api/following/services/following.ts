@@ -24,10 +24,14 @@ export default ({ strapi }: { strapi }) => ({
     ]);
 
     const iFollowIds = new Set(
-      iFollowRelations.map((rel: any) => rel.subject.id)
+      iFollowRelations
+        .filter((rel: any) => rel.subject)
+        .map((rel: any) => rel.subject.id)
     );
     const followsMeIds = new Set(
-      followsMeRelations.map((rel: any) => rel.follower.id)
+      followsMeRelations
+        .filter((rel: any) => rel.follower)
+        .map((rel: any) => rel.follower.id)
     );
 
     return { iFollowIds, followsMeIds };
@@ -93,18 +97,15 @@ export default ({ strapi }: { strapi }) => ({
         populate: { follower: { fields: ["id"] } },
       }),
     ]);
-
-    // FIX: Add a .filter() before .map() to remove entries with null relations
     const currentUserFollowingIds = new Set(
       currentUserFollowing
-        .filter((rel) => rel.subject) // Yahan check karein ki subject null toh nahi hai
+        .filter((rel) => rel.subject)
         .map((rel) => rel.subject.id)
     );
 
-    // FIX: Add a .filter() here as well
     const targetUserFollowerIds = new Set(
       targetUserFollowers
-        .filter((rel) => rel.follower) // Yahan check karein ki follower null toh nahi hai
+        .filter((rel) => rel.follower)
         .map((rel) => rel.follower.id)
     );
 
