@@ -1306,7 +1306,7 @@ export interface PluginUsersPermissionsUser
     is_email_verified: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
-    is_public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
+    is_public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',

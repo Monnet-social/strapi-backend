@@ -2,17 +2,14 @@ const controllers = require("./controllers");
 const routes = require("./routes");
 
 module.exports = (plugin) => {
-  for (let key in controllers) {
+  Object.entries(controllers).forEach(([key, controller]) => {
     plugin.controllers[key] = {
       ...plugin.controllers[key],
-      ...controllers[key],
+      ...(controller as any),
     };
-  }
+  });
 
-  plugin.routes["content-api"].routes = [
-    ...routes,
-    ...plugin.routes["content-api"].routes,
-  ];
+  plugin.routes["content-api"].routes.unshift(...routes);
 
   return plugin;
 };
