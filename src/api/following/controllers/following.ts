@@ -166,7 +166,9 @@ export default factories.createCoreController(
           }
         );
         const followingIds = new Set(
-          followingEntries.map((entry: any) => entry.subject.id)
+          followingEntries
+            .filter((entry: any) => entry.subject)
+            .map((entry: any) => entry.subject.id)
         );
         const followerEntries = await strapi.entityService.findMany(
           "api::following.following",
@@ -175,8 +177,11 @@ export default factories.createCoreController(
             populate: { follower: { fields: ["id"] } },
           }
         );
+
         const followerIds = new Set(
-          followerEntries.map((entry: any) => entry.follower.id)
+          followerEntries
+            .filter((entry: any) => entry.follower)
+            .map((entry: any) => entry.follower.id)
         );
 
         let friendIds = [...followingIds].filter((id) => followerIds.has(id));
@@ -207,7 +212,9 @@ export default factories.createCoreController(
           }
         );
         const closeFriendIds = new Set(
-          closeFriendEntries.map((entry: any) => entry.subject.id)
+          closeFriendEntries
+            .filter((entry: any) => entry.subject)
+            .map((entry: any) => entry.subject.id)
         );
 
         const finalFriendIds = friendIds.filter(
@@ -405,10 +412,14 @@ export default factories.createCoreController(
         ]);
 
         const currentUserFollowingIds = new Set(
-          currentUserFollowing.map((rel: any) => rel.subject.id)
+          currentUserFollowing
+            .filter((rel: any) => rel.subject)
+            .map((rel: any) => rel.subject.id)
         );
         const targetUserFollowerIds = new Set(
-          targetUserFollowers.map((rel: any) => rel.follower.id)
+          targetUserFollowers
+            .filter((rel: any) => rel.follower)
+            .map((rel: any) => rel.follower.id)
         );
 
         const mutualFollowerIds = [...currentUserFollowingIds].filter((id) =>
