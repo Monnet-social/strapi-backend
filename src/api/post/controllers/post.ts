@@ -6,127 +6,178 @@ const { createCoreController } = require("@strapi/strapi").factories;
 
 module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   async create(ctx) {
-    const { id: userId } = ctx.state.user;
-    if (!userId)
+    const user = ctx.state.user;
+    if (!user)
       return ctx.unauthorized("You must be logged in to create a post.");
+    const userId = user.id;
+    try {
+      const data = ctx.request.body;
+      if (!data)
+        return ctx.badRequest("Request body must contain a data object.");
 
-    const data: any = ctx.request.body;
-    data.posted_by = userId;
-    if (
-      !data ||
-      !data.title ||
-      !data.post_type ||
-      (data.post_type === "post" && !data.category) ||
-      !data.media ||
-      data.media.length === 0
-    )
-      return ctx.badRequest(
-        "Missing required fields.(title, post_type, category, media)"
-      );
-
-    if (data.share_with) {
-      const allowedShareWithOptions = ["PUBLIC", "FOLLOWERS", "CLOSE-FRIENDS"];
-      if (!allowedShareWithOptions.includes(data.share_with))
-        return ctx.badRequest(
-          `Invalid share_with value. Allowed values are: ${allowedShareWithOptions.join(", ")}`
-        );
-    }
-
-    if (data.media.length > 0) {
-      for (let i = 0; i < data.media.length; i++) {
-        const file_id = data.media[i];
-        try {
-          const file_data = await strapi.entityService.findOne(
-            "plugin::upload.file",
-            file_id
-          );
-          if (!file_data)
-            return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
-        } catch (error) {
-          return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
-        }
-      }
-    }
-
-    if (data.category) {
-      const categoryExists = await strapi.entityService.findOne(
-        "api::category.category",
-        data.category
-      );
-      if (!categoryExists)
-        return ctx.badRequest(
-          `The provided category with ID ${data.category} does not exist.`
-        );
-    }
-    if (
-      data.tagged_users &&
-      Array.isArray(data.tagged_users) &&
-      data.tagged_users.length > 0
-    ) {
-      if (data.tagged_users.includes(userId))
-        return ctx.badRequest("You cannot tag yourself in a post.");
-      const foundUsers = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-          filters: { id: { $in: data.tagged_users } },
-          fields: ["id"],
-        }
-      );
-      if (foundUsers.length !== data.tagged_users.length) {
-        const foundUserIds = foundUsers.map((user) => user.id);
-        const invalidUserIds = data.tagged_users.filter(
-          (id) => !foundUserIds.includes(id)
-        );
-        return ctx.badRequest(
-          `The following tagged user IDs do not exist: ${invalidUserIds.join(
-            ", "
-          )}`
-        );
-      }
-    }
-    if (data.location) {
-      const { latitude, longitude, address, zip } = data.location;
       if (
-        (latitude !== undefined && typeof latitude !== "number") ||
-        (longitude !== undefined && typeof longitude !== "number")
+        !data.title ||
+        !data.post_type ||
+        (data.post_type === "post" && !data.category) ||
+        !data.media ||
+        data.media.length === 0
       )
         return ctx.badRequest(
-          "If provided, location latitude and longitude must be numbers."
-        );
-    }
-
-    if (data.repost_of) {
-      const initialRepostTargetId = data.repost_of;
-
-      let postToRepost = await strapi.entityService.findOne(
-        "api::post.post",
-        initialRepostTargetId,
-        { populate: { posted_by: true, repost_of: true } }
-      );
-
-      if (!postToRepost)
-        return ctx.badRequest(
-          `The post you are trying to repost (ID: ${initialRepostTargetId}) does not exist.`
+          "Missing required fields.(title, post_type, category, media)"
         );
 
-      if (postToRepost.repost_of) {
-        data.repost_of = postToRepost.repost_of.id;
-
-        postToRepost = await strapi.entityService.findOne(
-          "api::post.post",
-          postToRepost.repost_of.id,
-          { populate: { posted_by: true } }
-        );
-        if (!postToRepost)
+      if (data.share_with) {
+        const allowedShareWithOptions = [
+          "PUBLIC",
+          "FOLLOWERS",
+          "CLOSE-FRIENDS",
+        ];
+        if (!allowedShareWithOptions.includes(data.share_with))
           return ctx.badRequest(
-            `The original post you are trying to repost does not exist.`
+            `Invalid share_with value. Allowed values are: ${allowedShareWithOptions.join(", ")}`
+          );
+      } else data.share_with = "PUBLIC";
+
+      if (data.share_with === "CLOSE-FRIENDS") {
+        if (
+          !data.share_with_close_friends ||
+          !Array.isArray(data.share_with_close_friends) ||
+          data.share_with_close_friends.length === 0
+        )
+          return ctx.badRequest(
+            "For 'CLOSE-FRIENDS' sharing, 'share_with_close_friends' must be a non-empty array of user IDs."
+          );
+
+        const foundCloseFriends = await strapi.entityService.findMany(
+          "plugin::users-permissions.user",
+          {
+            filters: { id: { $in: data.share_with_close_friends } },
+            fields: ["id"],
+          }
+        );
+
+        if (foundCloseFriends.length !== data.share_with_close_friends.length) {
+          const foundCloseFriendIds = foundCloseFriends.map((u) => u.id);
+          const invalidCloseFriendIds = data.share_with_close_friends.filter(
+            (id) => !foundCloseFriendIds.includes(id)
+          );
+          return ctx.badRequest(
+            `The following 'share_with_close_friends' user IDs do not exist: ${invalidCloseFriendIds.join(", ")}`
+          );
+        }
+
+        if (data.share_with_close_friends.includes(userId))
+          return ctx.badRequest(
+            "You cannot include yourself in the 'share_with_close_friends' list."
+          );
+      } else {
+        if (
+          data.share_with_close_friends &&
+          data.share_with_close_friends.length > 0
+        )
+          return ctx.badRequest(
+            "'share_with_close_friends' should only be provided when 'share_with' is 'CLOSE-FRIENDS'."
+          );
+        delete data.share_with_close_friends;
+      }
+
+      if (data.media && data.media.length > 0) {
+        for (let i = 0; i < data.media.length; i++) {
+          const file_id = data.media[i];
+          try {
+            const file_data = await strapi.entityService.findOne(
+              "plugin::upload.file",
+              file_id
+            );
+            if (!file_data)
+              return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
+          } catch (error) {
+            return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
+          }
+        }
+      }
+
+      if (data.category) {
+        const categoryExists = await strapi.entityService.findOne(
+          "api::category.category",
+          data.category
+        );
+        if (!categoryExists)
+          return ctx.badRequest(
+            `The provided category with ID ${data.category} does not exist.`
           );
       }
 
-      if (postToRepost.posted_by.id === userId)
-        return ctx.badRequest("You cannot repost your own post.");
-    }
-    try {
+      if (
+        data.tagged_users &&
+        Array.isArray(data.tagged_users) &&
+        data.tagged_users.length > 0
+      ) {
+        if (data.tagged_users.includes(userId))
+          return ctx.badRequest("You cannot tag yourself in a post.");
+        const foundUsers = await strapi.entityService.findMany(
+          "plugin::users-permissions.user",
+          {
+            filters: { id: { $in: data.tagged_users } },
+            fields: ["id"],
+          }
+        );
+        if (foundUsers.length !== data.tagged_users.length) {
+          const foundUserIds = foundUsers.map((u) => u.id);
+          const invalidUserIds = data.tagged_users.filter(
+            (id) => !foundUserIds.includes(id)
+          );
+          return ctx.badRequest(
+            `The following tagged user IDs do not exist: ${invalidUserIds.join(
+              ", "
+            )}`
+          );
+        }
+      }
+
+      if (data.location) {
+        const { latitude, longitude } = data.location;
+        if (
+          (latitude !== undefined && typeof latitude !== "number") ||
+          (longitude !== undefined && typeof longitude !== "number")
+        )
+          return ctx.badRequest(
+            "If provided, location latitude and longitude must be numbers."
+          );
+      }
+
+      if (data.repost_of) {
+        const initialRepostTargetId = data.repost_of;
+
+        let postToRepost = await strapi.entityService.findOne(
+          "api::post.post",
+          initialRepostTargetId,
+          { populate: { posted_by: true, repost_of: true } }
+        );
+
+        if (!postToRepost)
+          return ctx.badRequest(
+            `The post you are trying to repost (ID: ${initialRepostTargetId}) does not exist.`
+          );
+
+        if (postToRepost.repost_of) {
+          data.repost_of = postToRepost.repost_of.id;
+
+          postToRepost = await strapi.entityService.findOne(
+            "api::post.post",
+            postToRepost.repost_of.id,
+            { populate: { posted_by: true } }
+          );
+          if (!postToRepost)
+            return ctx.badRequest(
+              `The original post you are trying to repost does not exist.`
+            );
+        }
+
+        if (postToRepost.posted_by.id === userId)
+          return ctx.badRequest("You cannot repost your own post.");
+      }
+
       data.posted_by = userId;
 
       const newPost = await strapi.entityService.create("api::post.post", {
@@ -135,6 +186,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           posted_by: { fields: ["id", "username", "name"] },
           tagged_users: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
+          ...(data.share_with === "CLOSE-FRIENDS" &&
+          data.share_with_close_friends
+            ? {
+                share_with_close_friends: {
+                  fields: ["id", "username", "name"],
+                },
+              }
+            : {}),
         },
       });
 
@@ -147,7 +206,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     } catch (err) {
       console.error("Create Post Error:", err);
       return ctx.internalServerError(
-        "An unexpected error occurred while creating the post."
+        "An unexpected error occurred while creating the post.",
+        { details: err.message }
       );
     }
   },
@@ -366,6 +426,61 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       user_id: specificUserId,
     } = ctx.query;
     const { id: currentUserId } = ctx.state.user;
+
+    let followingUserIds = [];
+    let followerUserIds = [];
+    let closeFriendUserIds = [];
+    let blockedUserIds = [];
+
+    if (currentUserId) {
+      const followingEntries = await strapi.entityService.findMany(
+        "api::following.following",
+        {
+          filters: { follower: { id: currentUserId } },
+          populate: { subject: { fields: ["id"] } },
+        }
+      );
+      followingUserIds = followingEntries
+        .filter((entry) => entry.subject)
+        .map((entry) => entry.subject.id);
+
+      const followerEntries = await strapi.entityService.findMany(
+        "api::following.following",
+        {
+          filters: { subject: { id: currentUserId } },
+          populate: { follower: { fields: ["id"] } },
+        }
+      );
+      followerUserIds = followerEntries
+        .filter((entry) => entry.follower)
+        .map((entry) => entry.follower.id);
+
+      const closeFriendsFollowingEntries = await strapi.entityService.findMany(
+        "api::following.following",
+        {
+          filters: {
+            follower: { id: currentUserId },
+            is_close_friend: true,
+          },
+          populate: { subject: { fields: ["id"] } },
+        }
+      );
+      closeFriendUserIds = closeFriendsFollowingEntries
+        .filter((entry) => entry.subject)
+        .map((entry) => entry.subject.id);
+
+      const blockEntries = await strapi.entityService.findMany(
+        "api::block.block",
+        {
+          filters: { blocked_by: { id: currentUserId } },
+          populate: { blocked_user: { fields: ["id"] } },
+        }
+      );
+      blockedUserIds = blockEntries
+        .filter((entry) => entry.blocked_user)
+        .map((entry) => entry.blocked_user.id);
+    }
+
     let default_pagination = {
       pagination: { page: 1, pageSize: 10 },
     };
@@ -392,10 +507,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           populate: { profile_picture: true },
         },
         media: true,
+        share_with_close_friends: { fields: ["id"] },
       };
 
       if (specificUserId) {
-        const userStories = await strapi.entityService.findMany(
+        let userStories = await strapi.entityService.findMany(
           "api::post.post",
           {
             filters: { ...baseStoryFilters, posted_by: { id: specificUserId } },
@@ -403,6 +519,24 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             populate: populateOptions,
           }
         );
+
+        userStories = userStories.filter((story) => {
+          if (story.posted_by.id === currentUserId) return true;
+
+          if (blockedUserIds.includes(story.posted_by.id)) return false;
+
+          if (story.share_with === "PUBLIC") return true;
+          else if (story.share_with === "FOLLOWERS")
+            return followingUserIds.includes(specificUserId);
+          else if (story.share_with === "CLOSE-FRIENDS")
+            return (
+              Array.isArray(story.share_with_close_friends) &&
+              story.share_with_close_friends.some(
+                (cf) => cf.id === currentUserId
+              )
+            );
+          return false;
+        });
 
         if (userStories.length > 0) {
           const usersToProcess = userStories
@@ -430,85 +564,75 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         });
       }
 
-      const blockEntries = await strapi.entityService.findMany(
-        "api::block.block",
-        {
-          filters: { blocked_by: { id: currentUserId } },
-          populate: { blocked_user: { fields: ["id"] } },
-        }
-      );
-      const blockedUserIds = blockEntries.map(
-        (entry: any) => entry.blocked_user.id
-      );
-
       const myStories = await strapi.entityService.findMany("api::post.post", {
         filters: { ...baseStoryFilters, posted_by: { id: currentUserId } },
         populate: populateOptions,
       });
 
-      const storyFeedFilters: any = { ...baseStoryFilters };
-
-      if (filter === "all" || filter === "temporary") {
-        storyFeedFilters.posted_by = {
+      const baseOtherStoriesFilter = {
+        ...baseStoryFilters,
+        posted_by: {
           id: {
             $ne: currentUserId,
             $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1],
           },
-        };
-      } else {
-        let userIdsToFilter = [];
-        if (filter === "friends" || filter === "following") {
-          const followingEntries = await strapi.entityService.findMany(
-            "api::following.following",
-            {
-              filters: { follower: { id: currentUserId } },
-              populate: { subject: { fields: ["id"] } },
-            }
-          );
-          userIdsToFilter = followingEntries.map(
-            (entry: any) => entry.subject.id
-          );
-        } else if (filter === "follower") {
-          const followerEntries = await strapi.entityService.findMany(
-            "api::following.following",
-            {
-              filters: { subject: { id: currentUserId } },
-              populate: { follower: { fields: ["id"] } },
-            }
-          );
-          userIdsToFilter = followerEntries.map(
-            (entry: any) => entry.follower.id
-          );
-        } else if (filter === "close_friends") {
-          const closeFriendsEntries = await strapi.entityService.findMany(
-            "api::following.following",
-            {
-              filters: {
-                follower: { id: currentUserId },
-                is_close_friend: true,
+        },
+        $or: [
+          { share_with: "PUBLIC" },
+          {
+            $and: [
+              { share_with: "FOLLOWERS" },
+              {
+                posted_by: {
+                  id: {
+                    $in: followingUserIds.length > 0 ? followingUserIds : [-1],
+                  },
+                },
               },
-              populate: { subject: { fields: ["id"] } },
-            }
-          );
-          userIdsToFilter = closeFriendsEntries.map(
-            (entry: any) => entry.subject.id
-          );
-        }
-
-        const finalUserIds = userIdsToFilter.filter(
-          (id) => !blockedUserIds.includes(id)
-        );
-        storyFeedFilters.posted_by = {
-          id: {
-            $in: finalUserIds.length > 0 ? finalUserIds : [-1],
+            ],
           },
-        };
+          {
+            $and: [
+              { share_with: "CLOSE-FRIENDS" },
+              { share_with_close_friends: { id: currentUserId } },
+            ],
+          },
+        ],
+      };
+
+      let finalStoryFeedFilters = { ...baseOtherStoriesFilter };
+      if (filter === "friends" || filter === "following") {
+        (finalStoryFeedFilters as any).$and =
+          (finalStoryFeedFilters as any).$and || [];
+        (finalStoryFeedFilters as any).$and.push({
+          posted_by: {
+            id: { $in: followingUserIds.length > 0 ? followingUserIds : [-1] },
+          },
+        });
+      } else if (filter === "follower") {
+        (finalStoryFeedFilters as any).$and =
+          (finalStoryFeedFilters as any).$and || [];
+        (finalStoryFeedFilters as any).$and.push({
+          posted_by: {
+            id: { $in: followerUserIds.length > 0 ? followerUserIds : [-1] },
+          },
+        });
+      } else if (filter === "close_friends") {
+        (finalStoryFeedFilters as any).$and =
+          (finalStoryFeedFilters as any).$and || [];
+        (finalStoryFeedFilters as any).$and.push({
+          posted_by: {
+            id: {
+              $in: closeFriendUserIds.length > 0 ? closeFriendUserIds : [-1],
+            },
+          },
+        });
       }
 
       const otherStories = await strapi.entityService.findMany(
         "api::post.post",
         {
-          filters: storyFeedFilters,
+          filters: finalStoryFeedFilters,
           sort: { createdAt: "desc" },
           populate: populateOptions,
           start:
@@ -557,7 +681,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
 
       const count = await strapi.entityService.count("api::post.post", {
-        filters: storyFeedFilters,
+        filters: finalStoryFeedFilters,
       });
 
       return ctx.send({

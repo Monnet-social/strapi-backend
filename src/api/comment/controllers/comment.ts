@@ -659,5 +659,57 @@ export default factories.createCoreController(
         );
       }
     },
+
+    async delete(ctx) {
+      const user = ctx.state.user;
+
+      if (!user)
+        return ctx.unauthorized("You must be logged in to delete a comment.");
+
+      const { id: commentIdToDelete } = ctx.params;
+
+      try {
+        const commentToDelete = await strapi.entityService.findOne(
+          "api::comment.comment",
+          commentIdToDelete,
+          { populate: ["commented_by"] }
+        );
+
+        if (!commentToDelete) return ctx.notFound("Comment not found.");
+
+        if ((commentToDelete as any).commented_by?.id !== user.id)
+          return ctx.forbidden(
+            "You are not authorized to delete this comment."
+          );
+
+        const deleteCommentAndReplies = async (currentCommentId) => {
+          const replies = await strapi.entityService.findMany(
+            "api::comment.comment",
+            {
+              filters: { parent_comment: currentCommentId },
+              fields: ["id"],
+            }
+          );
+
+          for (const reply of replies) await deleteCommentAndReplies(reply.id);
+
+          await strapi.entityService.delete(
+            "api::comment.comment",
+            currentCommentId
+          );
+          console.log(`Deleted comment with ID: ${currentCommentId}`);
+        };
+
+        await deleteCommentAndReplies(commentIdToDelete);
+
+        return ctx.send({
+          message: "Comment and all its replies deleted successfully.",
+          is_deleted: true,
+        });
+      } catch (err) {
+        console.error("Error deleting comment:", err);
+        ctx.badRequest("Could not delete comment.", { details: err.message });
+      }
+    },
   })
 );

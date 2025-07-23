@@ -32,7 +32,7 @@ module.exports = {
     },
     {
       method: "GET",
-      path: "/user/:id/close-friends",
+      path: "/close-friends/:userId",
       handler: "following.getUserCloseFriends",
     },
   ],
