@@ -10,6 +10,5 @@ module.exports = (plugin) => {
   });
 
   plugin.routes["content-api"].routes.unshift(...routes);
-
   return plugin;
 };
