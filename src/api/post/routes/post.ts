@@ -14,6 +14,11 @@ module.exports = {
       handler: "post.findOne",
     },
     {
+      method: "GET",
+      path: "/posts/:id/admin",
+      handler: "post.findOne",
+    },
+    {
       method: "PUT",
       path: "/posts/:id",
       handler: "post.update",
