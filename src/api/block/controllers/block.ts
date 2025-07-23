@@ -7,7 +7,7 @@ module.exports = {
 
     if (!blocker)
       return ctx.unauthorized("You must be logged in to block a user.");
-    //test
+
     if (!userIdToBlock || isNaN(userIdToBlock))
       return ctx.badRequest('A valid "userIdToBlock" is required.');
 
