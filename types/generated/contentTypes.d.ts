@@ -712,6 +712,10 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
       ['PUBLIC', 'FOLLOWERS', 'CLOSE-FRIENDS']
     > &
       Schema.Attribute.DefaultTo<'PUBLIC'>;
+    share_with_close_friends: Schema.Attribute.Relation<
+      'oneToMany',
+      'plugin::users-permissions.user'
+    >;
     tagged_users: Schema.Attribute.Relation<
       'oneToMany',
       'plugin::users-permissions.user'

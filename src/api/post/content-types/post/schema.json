@@ -63,6 +63,11 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "api::post.post"
+    },
+    "share_with_close_friends": {
+      "type": "relation",
+      "relation": "oneToMany",
+      "target": "plugin::users-permissions.user"
     }
   }
 }
