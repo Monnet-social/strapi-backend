@@ -290,7 +290,7 @@ async function updateProfile(ctx) {
           "is_public",
           "badge",
           "gender",
-          "avatar_color", // Added avatar_color
+          "avatar_color",
         ] as any,
       }
     );
