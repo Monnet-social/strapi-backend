@@ -211,6 +211,31 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
+  async findOneAdmin(ctx) {
+    const { id } = ctx.params;
+
+    try {
+      const entity = await strapi.entityService.findOne("api::post.post", id, {
+        populate: {
+          media: true,
+        },
+      });
+
+      if (!entity) return ctx.notFound("Post not found");
+
+      entity.media =
+        (await strapi
+          .service("api::post.post")
+          .getOptimisedFileData(entity.media)) || [];
+
+      return ctx.send(entity);
+    } catch (err) {
+      console.error("Find One Post Error:", err);
+      return ctx.internalServerError(
+        "An error occurred while fetching the post."
+      );
+    }
+  },
 
   async findOne(ctx) {
     const { id } = ctx.params;
