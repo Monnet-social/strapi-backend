@@ -21,7 +21,7 @@ async function getProfile(ctx) {
           "professional_info",
           "is_public",
           "badge",
-          "avatar_color", // Added avatar_color
+          "avatar_color",
         ] as any,
         populate: { profile_picture: true, location: true },
       }
@@ -126,7 +126,7 @@ async function getProfile(ctx) {
       location: (user as any).location,
       is_public: (user as any).is_public,
       badge: (user as any).badge,
-      avatar_color: (user as any).avatar_color, // Added avatar_color
+      avatar_color: (user as any).avatar_color,
       profile_picture: (user as any).profile_picture,
       stats: {
         posts: postsCount,
