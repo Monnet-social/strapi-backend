@@ -373,7 +373,6 @@ async function updateProfilePicture(ctx): Promise<void> {
         populate: { profile_picture: true },
       }
     );
-
     delete updatedUser.password;
     await strapi
       .service("api::post.post")
