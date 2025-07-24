@@ -84,7 +84,13 @@ export default factories.createCoreController(
             filters,
             populate: {
               follower: {
-                fields: ["id", "username", "email", "name"],
+                fields: [
+                  "id",
+                  "username",
+                  "email",
+                  "name",
+                  "avatar_ring_color",
+                ],
                 populate: { profile_picture: true },
               },
             },
@@ -328,7 +334,13 @@ export default factories.createCoreController(
             filters,
             populate: {
               subject: {
-                fields: ["id", "username", "email", "name"],
+                fields: [
+                  "id",
+                  "username",
+                  "email",
+                  "name",
+                  "avatar_ring_color",
+                ],
                 populate: { profile_picture: true },
               },
             },
@@ -592,7 +604,13 @@ export default factories.createCoreController(
             filters,
             populate: {
               subject: {
-                fields: ["id", "username", "email", "name"],
+                fields: [
+                  "id",
+                  "username",
+                  "email",
+                  "name",
+                  "avatar_ring_color",
+                ],
                 populate: { profile_picture: true },
               },
             },

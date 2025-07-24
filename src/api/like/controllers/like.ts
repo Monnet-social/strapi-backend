@@ -50,7 +50,7 @@ export default factories.createCoreController(
           filters: { post: { id: post_id } },
           populate: {
             liked_by: {
-              fields: ["id", "username", "email", "name"],
+              fields: ["id", "username", "email", "name", "avatar_ring_color"],
               populate: { profile_picture: true },
             },
           },

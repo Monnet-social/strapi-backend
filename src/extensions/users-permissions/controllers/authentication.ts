@@ -34,7 +34,9 @@ async function login(ctx) {
           "date_of_birth",
         ],
         populate: {
-          referred_by: { fields: ["id", "name", "username"] },
+          referred_by: {
+            fields: ["id", "name", "username", "avatar_ring_color"],
+          },
           profile_picture: true,
         },
       }
@@ -207,7 +209,7 @@ async function getUser(ctx) {
         ],
         populate: {
           referred_by: {
-            fields: ["id", "name", "username", "email"],
+            fields: ["id", "name", "username", "email", "avatar_ring_color"],
           },
           profile_picture: true,
         },
