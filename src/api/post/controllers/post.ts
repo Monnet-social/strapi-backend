@@ -211,6 +211,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
+
   async findOneAdmin(ctx) {
     const { id } = ctx.params;
 
@@ -245,11 +246,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const entity = await strapi.entityService.findOne("api::post.post", id, {
         populate: {
           posted_by: {
-            fields: ["id", "username", "name"],
+            fields: ["id", "username", "name", "avatar_ring_color"],
             populate: { profile_picture: true },
           },
           tagged_users: {
-            fields: ["id", "username", "name"],
+            fields: ["id", "username", "name", "avatar_ring_color"],
             populate: { profile_picture: true },
           },
           category: { fields: ["id", "name"] },
@@ -351,12 +352,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         sort: { createdAt: "desc" },
         populate: {
           posted_by: {
-            fields: ["id", "username", "name"],
+            fields: ["id", "username", "name", "avatar_ring_color"],
             populate: { profile_picture: true },
           },
           category: { fields: ["id", "name"] },
           tagged_users: {
-            fields: ["id", "username", "name"],
+            fields: ["id", "username", "name", "avatar_ring_color"],
             populate: { profile_picture: true },
           },
           media: true,
@@ -524,11 +525,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       const populateOptions = {
         posted_by: {
-          fields: ["id", "username", "name"],
+          fields: ["id", "username", "name", "avatar_ring_color"],
           populate: { profile_picture: true },
         },
         tagged_users: {
-          fields: ["id", "username", "name"],
+          fields: ["id", "username", "name", "avatar_ring_color"],
           populate: { profile_picture: true },
         },
         media: true,
@@ -757,7 +758,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           "plugin::users-permissions.user",
           {
             filters: { id: { $ne: userId } },
-            fields: ["id", "username", "name"],
+            fields: ["id", "username", "name", "avatar_ring_color"],
             populate: { profile_picture: true },
             start:
               (default_pagination.pagination.page - 1) *
@@ -794,7 +795,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             filters: { subject: { id: userId } },
             populate: {
               follower: {
-                fields: ["id", "username", "name"],
+                fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
             },
@@ -946,11 +947,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           data,
           populate: {
             posted_by: {
-              fields: ["id", "username", "name"],
+              fields: ["id", "username", "name", "avatar_ring_color"],
               populate: { profile_picture: true },
             },
             tagged_users: {
-              fields: ["id", "username", "name"],
+              fields: ["id", "username", "name", "avatar_ring_color"],
               populate: { profile_picture: true },
             },
             category: { fields: ["id", "name"] },
@@ -1082,7 +1083,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         {
           populate: {
             viewers: {
-              fields: ["id", "username", "email", "name"],
+              fields: ["id", "username", "email", "name", "avatar_ring_color"],
               populate: { profile_picture: true },
             },
           },
@@ -1172,11 +1173,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           media: true,
           repost_of: true,
           posted_by: {
-            fields: ["id", "username", "name"],
+            fields: ["id", "username", "name", "avatar_ring_color"],
             populate: { profile_picture: true },
           },
           tagged_users: {
-            fields: ["id", "username", "name"],
+            fields: ["id", "username", "name", "avatar_ring_color"],
             populate: { profile_picture: true },
           },
         },

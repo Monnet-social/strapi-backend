@@ -21,7 +21,7 @@ async function getProfile(ctx) {
           "professional_info",
           "is_public",
           "badge",
-          "avatar_color",
+          "avatar_ring_color",
         ] as any,
         populate: { profile_picture: true, location: true },
       }
@@ -126,7 +126,7 @@ async function getProfile(ctx) {
       location: (user as any).location,
       is_public: (user as any).is_public,
       badge: (user as any).badge,
-      avatar_color: (user as any).avatar_color,
+      avatar_ring_color: (user as any).avatar_ring_color,
       profile_picture: (user as any).profile_picture,
       stats: {
         posts: postsCount,
@@ -257,13 +257,13 @@ async function updateProfile(ctx) {
     dataToUpdate.gender = body.gender;
   }
 
-  if (body.avatar_color !== undefined && body.avatar_color !== "") {
+  if (body.avatar_ring_color !== undefined && body.avatar_ring_color !== "") {
     if (
-      typeof body.avatar_color !== "string" ||
-      !HelperService.HEX_COLOR_REGEX.test(body.avatar_color)
+      typeof body.avatar_ring_color !== "string" ||
+      !HelperService.HEX_COLOR_REGEX.test(body.avatar_ring_color)
     )
-      return ctx.badRequest("Invalid hex color format for avatar_color.");
-    dataToUpdate.avatar_color = body.avatar_color;
+      return ctx.badRequest("Invalid hex color format for avatar_ring_color.");
+    dataToUpdate.avatar_ring_color = body.avatar_ring_color;
   }
 
   if (Object.keys(dataToUpdate).length === 0)
@@ -290,7 +290,7 @@ async function updateProfile(ctx) {
           "is_public",
           "badge",
           "gender",
-          "avatar_color",
+          "avatar_ring_color",
         ] as any,
       }
     );
@@ -390,9 +390,16 @@ async function updateProfilePicture(ctx): Promise<void> {
     );
   }
 }
+async function getAvatarRingColors(ctx) {
+  return ctx.send({
+    message: "Fetched colors succesfully",
+    avatarRingColors: HelperService.avatarRingColors,
+  });
+}
 
 module.exports = {
   updateProfile,
   updateProfilePicture,
   getProfile,
+  getAvatarRingColors,
 };

@@ -103,10 +103,7 @@
     "profile_picture": {
       "type": "media",
       "multiple": false,
-      "allowedTypes": [
-        "images",
-        "files"
-      ]
+      "allowedTypes": ["images", "files"]
     },
     "bio": {
       "type": "text",
@@ -129,14 +126,12 @@
     },
     "badge": {
       "type": "enumeration",
-      "enum": [
-        "verified"
-      ]
+      "enum": ["verified"]
     },
     "gender": {
       "type": "string"
     },
-    "avatar_color": {
+    "avatar_ring_color": {
       "type": "string"
     }
   }

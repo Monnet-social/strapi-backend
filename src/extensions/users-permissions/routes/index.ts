@@ -136,4 +136,12 @@ module.exports = [
       prefix: "",
     },
   },
+  {
+    method: "GET",
+    path: "/get-avatar-ring-colors",
+    handler: "profile.getAvatarRingColors",
+    config: {
+      prefix: "",
+    },
+  },
 ];

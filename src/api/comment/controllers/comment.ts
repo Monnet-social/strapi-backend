@@ -97,7 +97,7 @@ export default factories.createCoreController(
             data: dataToCreate,
             populate: {
               commented_by: {
-                fields: ["id", "username", "name"],
+                fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
               repost_of: {
@@ -229,7 +229,7 @@ export default factories.createCoreController(
             sort: { createdAt: "desc" },
             populate: {
               commented_by: {
-                fields: ["id", "username", "name"],
+                fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
             },
@@ -248,7 +248,7 @@ export default factories.createCoreController(
             },
             populate: {
               commented_by: {
-                fields: ["id", "username", "name"],
+                fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
             },
@@ -561,7 +561,7 @@ export default factories.createCoreController(
             sort: { createdAt: "asc" },
             populate: {
               commented_by: {
-                fields: ["id", "username", "name"],
+                fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
             },

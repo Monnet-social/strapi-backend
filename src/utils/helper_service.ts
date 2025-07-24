@@ -13,6 +13,15 @@ export default class HelperService {
   static EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   static HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+  static avatarRingColors = [
+    { id: 1, name: "Vibe Green", hexCode: "#58BCBA" },
+    { id: 2, name: "Vibe Red", hexCode: "#FF3857" },
+    { id: 3, name: "Vibe Purple", hexCode: "#A670ED" },
+    { id: 4, name: "Vibe Blue", hexCode: "#576FFF" },
+    { id: 5, name: "Vibe Orange", hexCode: "#F29500" },
+    { id: 6, name: "Vibe Pink", hexCode: "#F46EB5" },
+  ];
+
   static generateOtp(length: number = 4): string {
     let otp = "";
     for (let i = 0; i < length; i++) otp += Math.floor(Math.random() * 10);
