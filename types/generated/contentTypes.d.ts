@@ -1284,6 +1284,7 @@ export interface PluginUsersPermissionsUser
     draftAndPublish: false;
   };
   attributes: {
+    avatar_color: Schema.Attribute.String;
     badge: Schema.Attribute.Enumeration<['verified']>;
     bio: Schema.Attribute.Text &
       Schema.Attribute.SetMinMaxLength<{

@@ -21,6 +21,7 @@ async function getProfile(ctx) {
           "professional_info",
           "is_public",
           "badge",
+          "avatar_color", // Added avatar_color
         ] as any,
         populate: { profile_picture: true, location: true },
       }
@@ -125,6 +126,7 @@ async function getProfile(ctx) {
       location: (user as any).location,
       is_public: (user as any).is_public,
       badge: (user as any).badge,
+      avatar_color: (user as any).avatar_color, // Added avatar_color
       profile_picture: (user as any).profile_picture,
       stats: {
         posts: postsCount,
@@ -169,7 +171,6 @@ async function updateProfile(ctx) {
   if (body.website !== undefined && body.website !== "") {
     if (
       typeof body.website !== "string" ||
-      // body.website.trim().length === 0 ||
       !HelperService.WEBSITE_REGEX.test(body.website)
     )
       return ctx.badRequest("Website must be a non-empty string.");
@@ -253,8 +254,18 @@ async function updateProfile(ctx) {
     dataToUpdate.badge = body.badge;
   }
   if (body.gender !== undefined && body.gender !== "") {
-    dataToUpdate.gender = body.gennder;
+    dataToUpdate.gender = body.gender;
   }
+
+  if (body.avatar_color !== undefined && body.avatar_color !== "") {
+    if (
+      typeof body.avatar_color !== "string" ||
+      !HelperService.HEX_COLOR_REGEX.test(body.avatar_color)
+    )
+      return ctx.badRequest("Invalid hex color format for avatar_color.");
+    dataToUpdate.avatar_color = body.avatar_color;
+  }
+
   if (Object.keys(dataToUpdate).length === 0)
     return ctx.badRequest("No valid fields were provided for update.");
 
@@ -279,6 +290,7 @@ async function updateProfile(ctx) {
           "is_public",
           "badge",
           "gender",
+          "avatar_color", // Added avatar_color
         ] as any,
       }
     );

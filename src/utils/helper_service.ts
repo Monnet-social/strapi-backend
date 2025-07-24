@@ -11,6 +11,7 @@ export default class HelperService {
   static WEBSITE_REGEX = /^(https?:\/\/)?([\w\d-]+\.)+[\w\d-]{2,}(\/.*)?$/i;
   static USERNAME_REGEX: RegExp = /^[a-zA-Z0-9_]{3,20}$/;
   static EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  static HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
   static generateOtp(length: number = 4): string {
     let otp = "";
