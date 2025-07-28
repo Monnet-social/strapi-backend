@@ -54,7 +54,7 @@ export default class EmailService {
     const template = fs.readFileSync(mjml_template_path, "utf8");
     const compiledTemplate = Handlebars.compile(template);
     const mjml = compiledTemplate(data);
-
+    console.log(data);
     const html = mjml2html(mjml).html;
 
     try {

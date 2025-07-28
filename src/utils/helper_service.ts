@@ -5,6 +5,8 @@ interface Strapi {
   query: (uid: string) => any;
 }
 
+//1st row frinds & close_friends
+// 2nd row following (only)
 export default class HelperService {
   static STORY_EXPIRATION_HOURS = 24;
   static DATE_REGEX: RegExp = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;

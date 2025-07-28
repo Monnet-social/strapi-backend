@@ -7,9 +7,14 @@ export default factories.createCoreController(
       try {
         const userId = ctx.state.user.id;
         const { subjectId } = ctx.request.body;
-        if (!subjectId) return ctx.badRequest("Subject ID is required");
+
+        if (!subjectId)
+          return ctx.badRequest(
+            "The 'subjectId' is required in the request body."
+          );
+
         if (userId === subjectId)
-          return ctx.badRequest("You cannot follow/unfollow yourself");
+          return ctx.badRequest("You cannot follow or unfollow yourself.");
 
         const existingFollow = await strapi.entityService.findMany(
           "api::following.following",
@@ -21,31 +26,95 @@ export default factories.createCoreController(
             limit: 1,
           }
         );
+
         if (existingFollow.length > 0) {
           await strapi.entityService.delete(
             "api::following.following",
             existingFollow[0].id
           );
+
+          const existingRequest = await strapi.entityService.findMany(
+            "api::follow-request.follow-request",
+            {
+              filters: { requested_by: userId, requested_for: subjectId },
+              limit: 1,
+            }
+          );
+          if (existingRequest.length > 0)
+            await strapi.entityService.delete(
+              "api::follow-request.follow-request",
+              existingRequest[0].id
+            );
+
           return ctx.send({
-            message: "Unfollowed successfully",
+            message: "Unfollowed successfully.",
             is_following: false,
           });
         }
 
-        await strapi.entityService.create("api::following.following", {
-          data: {
-            follower: userId,
-            subject: subjectId,
-          },
-        });
+        const subjectUser = await strapi.entityService.findOne(
+          "plugin::users-permissions.user",
+          subjectId,
+          { populate: ["role"] }
+        );
 
-        return ctx.send({
-          message: "Followed successfully",
-          is_follwing: true,
-        });
+        if (!subjectUser)
+          return ctx.notFound(
+            "The user you are trying to follow does not exist."
+          );
+
+        const isPublicProfile = subjectUser.is_public !== false;
+
+        if (isPublicProfile) {
+          await strapi.entityService.create("api::following.following", {
+            data: {
+              follower: userId,
+              subject: subjectId,
+            },
+          });
+
+          return ctx.send({
+            message: "Followed successfully.",
+            is_following: true,
+          });
+        } else {
+          const existingRequest = await strapi.entityService.findMany(
+            "api::follow-request.follow-request",
+            {
+              filters: {
+                requested_by: userId,
+                requested_for: subjectId,
+              },
+              limit: 1,
+            }
+          );
+
+          if (existingRequest.length > 0)
+            return ctx.badRequest("A follow request has already been sent.", {
+              request_status: existingRequest[0].request_status,
+            });
+
+          await strapi.entityService.create(
+            "api::follow-request.follow-request",
+            {
+              data: {
+                requested_by: userId,
+                requested_for: subjectId,
+                request_status: "PENDING",
+              },
+            }
+          );
+
+          return ctx.send({
+            message: "Follow request sent successfully.",
+            is_following: false,
+            request_status: "PENDING",
+          });
+        }
       } catch (error) {
-        return ctx.internalServerError("Error following user", {
-          error,
+        console.error("Error in followUnfollowUser:", error);
+        return ctx.internalServerError("An unexpected error occurred.", {
+          error: error.message,
         });
       }
     },

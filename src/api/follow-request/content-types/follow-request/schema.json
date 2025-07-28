@@ -1,0 +1,29 @@
+{
+  "kind": "collectionType",
+  "collectionName": "follow_requests",
+  "info": {
+    "singularName": "follow-request",
+    "pluralName": "follow-requests",
+    "displayName": "Follow Request"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "requested_by": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "requested_for": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "request_status": {
+      "type": "enumeration",
+      "enum": ["REJECTED", "PENDING", "ACCEPTED"]
+    }
+  }
+}

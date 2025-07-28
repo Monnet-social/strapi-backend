@@ -609,6 +609,45 @@ export interface ApiFileOptimisationFileOptimisation
   };
 }
 
+export interface ApiFollowRequestFollowRequest
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'follow_requests';
+  info: {
+    displayName: 'Follow Request';
+    pluralName: 'follow-requests';
+    singularName: 'follow-request';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::follow-request.follow-request'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    request_status: Schema.Attribute.Enumeration<
+      ['REJECTED', 'PENDING', 'ACCEPTED']
+    >;
+    requested_by: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    requested_for: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiFollowingFollowing extends Struct.CollectionTypeSchema {
   collectionName: 'followings';
   info: {
@@ -1370,6 +1409,7 @@ declare module '@strapi/strapi' {
       'api::comment.comment': ApiCommentComment;
       'api::dislike.dislike': ApiDislikeDislike;
       'api::file-optimisation.file-optimisation': ApiFileOptimisationFileOptimisation;
+      'api::follow-request.follow-request': ApiFollowRequestFollowRequest;
       'api::following.following': ApiFollowingFollowing;
       'api::like.like': ApiLikeLike;
       'api::post.post': ApiPostPost;
