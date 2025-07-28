@@ -219,6 +219,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const entity = await strapi.entityService.findOne("api::post.post", id, {
         populate: {
           media: true,
+          posted_by: {
+            fields: ["id", "username", "name", "avatar_ring_color"],
+            populate: { profile_picture: true },
+          },
         },
       });
 
@@ -228,6 +232,16 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         (await strapi
           .service("api::post.post")
           .getOptimisedFileData(entity.media)) || [];
+      entity.likes_count = await strapi.services[
+        "api::like.like"
+      ].getLikesCount(entity.id);
+      entity.comments_count = await strapi.services[
+        "api::comment.comment"
+      ].getCommentsCount(entity.id);
+      const usersToProcess = [entity.posted_by];
+      await strapi
+        .service("api::post.post")
+        .enrichUsersWithOptimizedProfilePictures(usersToProcess);
 
       return ctx.send(entity);
     } catch (err) {
