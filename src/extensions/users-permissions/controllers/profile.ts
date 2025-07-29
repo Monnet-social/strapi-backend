@@ -116,6 +116,14 @@ async function getProfile(ctx) {
       media: (s.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
     }));
 
+    await strapi.entityService.update(
+      "plugin::users-permissions.user",
+      userId,
+      {
+        data: { lastActiveAt: new Date() },
+      }
+    );
+
     const profileData = {
       id: user.id,
       username: user.username,

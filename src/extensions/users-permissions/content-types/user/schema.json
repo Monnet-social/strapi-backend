@@ -141,6 +141,9 @@
     },
     "age": {
       "type": "integer"
+    },
+    "lastActiveAt": {
+      "type": "datetime"
     }
   }
 }
