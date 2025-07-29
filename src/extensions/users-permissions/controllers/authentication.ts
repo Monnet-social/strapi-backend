@@ -110,6 +110,7 @@ async function register(ctx: any) {
 
   if (birthDate > today)
     return ctx.badRequest("Date of birth cannot be in the future.");
+  const age = HelperService.calculateAge(birthDate);
 
   try {
     const existingUsers = await strapi.entityService.findMany(
@@ -173,6 +174,7 @@ async function register(ctx: any) {
         role: 1,
         date_of_birth,
         tos_accepted,
+        age,
       });
     delete newUser.password;
     const token = await strapi
@@ -230,6 +232,7 @@ async function getUser(ctx) {
     );
   }
 }
+
 async function sendOTP(ctx: any) {
   try {
     const { email, type } = ctx.request.body;
@@ -246,7 +249,7 @@ async function sendOTP(ctx: any) {
 
     const users = await strapi.entityService.findMany(
       "plugin::users-permissions.user",
-      { filters, fields: ["id", "email", "username"] } // Added 'name' to fields
+      { filters, fields: ["id", "email", "username"] }
     );
 
     if (users.length === 0) return ctx.badRequest("User not found");
@@ -602,6 +605,7 @@ async function getShareImage(ctx) {
     status: 200,
   });
 }
+
 module.exports = {
   login,
   register,

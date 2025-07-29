@@ -92,6 +92,7 @@ export default factories.createCoreController(
           if (existingRequest.length > 0)
             return ctx.badRequest("A follow request has already been sent.", {
               request_status: existingRequest[0].request_status,
+              is_request_sent: true,
             });
 
           await strapi.entityService.create(
@@ -108,6 +109,7 @@ export default factories.createCoreController(
           return ctx.send({
             message: "Follow request sent successfully.",
             is_following: false,
+            is_request_sent: true,
             request_status: "PENDING",
           });
         }
@@ -632,6 +634,100 @@ export default factories.createCoreController(
         return ctx.internalServerError("Error updating close friends status", {
           error,
         });
+      }
+    },
+
+    async addMultipleCloseFriends(ctx) {
+      try {
+        const userId = ctx.state.user.id;
+        const { subjectIds } = ctx.request.body;
+
+        if (
+          !subjectIds ||
+          !Array.isArray(subjectIds) ||
+          subjectIds.length === 0
+        )
+          return ctx.badRequest("An array of 'subjectIds' is required.");
+
+        const uniqueSubjectIds = [
+          ...new Set(subjectIds.filter((id) => id !== userId)),
+        ];
+        if (uniqueSubjectIds.length === 0)
+          return ctx.badRequest("No valid subject IDs provided.");
+
+        const userFollowsSubjects = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: { id: userId },
+              subject: { id: { $in: uniqueSubjectIds } },
+            },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+
+        const subjectsFollowUser = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: { id: { $in: uniqueSubjectIds } },
+              subject: { id: userId },
+            },
+            populate: { follower: { fields: ["id"] } },
+          }
+        );
+
+        const userFollowsSubjectsMap = new Map(
+          userFollowsSubjects.map((f: any) => [f.subject?.id, f])
+        );
+        const subjectsWhoFollowBackIds = new Set(
+          subjectsFollowUser.map((f: any) => f.follower?.id)
+        );
+
+        const updatePromises = [];
+        const results = { updated: [], failed: [] };
+
+        for (const subjectId of uniqueSubjectIds) {
+          const followingEntry = userFollowsSubjectsMap.get(subjectId);
+          const isFollowedBack = subjectsWhoFollowBackIds.has(subjectId);
+
+          if (followingEntry && isFollowedBack) {
+            const newIsCloseFriend = !followingEntry.is_close_friend;
+            updatePromises.push(
+              strapi.entityService.update(
+                "api::following.following",
+                followingEntry.id,
+                { data: { is_close_friend: newIsCloseFriend } }
+              )
+            );
+            results.updated.push({
+              subjectId,
+              is_close_friend: newIsCloseFriend,
+            });
+          } else {
+            let reason = "An unknown error occurred.";
+            if (!followingEntry) reason = "You are not following this user.";
+            else if (!isFollowedBack)
+              reason = "This user is not following you back.";
+            results.failed.push({ subjectId, reason });
+          }
+        }
+
+        await Promise.all(updatePromises);
+
+        return ctx.send({
+          message:
+            "Close friends status updated for all valid mutual followers.",
+          results,
+        });
+      } catch (error: unknown) {
+        console.error("Error in manageCloseFriends:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : "An unknown error occurred.";
+        return ctx.internalServerError(
+          "An unexpected error occurred while managing close friends.",
+          { error: errorMessage }
+        );
       }
     },
 

@@ -10,10 +10,12 @@ interface Strapi {
 export default class HelperService {
   static STORY_EXPIRATION_HOURS = 24;
   static DATE_REGEX: RegExp = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-  static WEBSITE_REGEX = /^(https?:\/\/)?([\w\d-]+\.)+[\w\d-]{2,}(\/.*)?$/i;
+  static WEBSITE_REGEX: RegExp =
+    /^(https?:\/\/)?([\w\d-]+\.)+[\w\d-]{2,}(\/.*)?$/i;
   static USERNAME_REGEX: RegExp = /^[a-zA-Z0-9_]{3,20}$/;
-  static EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-  static HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+  static EMAIL_REGEX: RegExp =
+    /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  static HEX_COLOR_REGEX: RegExp = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
   static avatarRingColors = [
     { id: 1, name: "Vibe Green", hexCode: "#58BCBA" },
@@ -61,5 +63,14 @@ export default class HelperService {
 
     console.error(error);
     // Sentry.captureException(error, { extra: { title } });
+  }
+
+  static calculateAge(dob) {
+    const today = new Date();
+    const birthDate = new Date(dob);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age;
   }
 }

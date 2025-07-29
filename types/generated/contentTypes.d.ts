@@ -1323,6 +1323,7 @@ export interface PluginUsersPermissionsUser
     draftAndPublish: false;
   };
   attributes: {
+    age: Schema.Attribute.Integer;
     avatar_ring_color: Schema.Attribute.String;
     badge: Schema.Attribute.Enumeration<['verified']>;
     bio: Schema.Attribute.Text &

@@ -6,6 +6,7 @@ export default factories.createCoreController(
     async getFollowRequests(ctx) {
       try {
         const userId = ctx.state.user.id;
+
         const requests = await strapi.entityService.findMany(
           "api::follow-request.follow-request",
           {
@@ -13,9 +14,24 @@ export default factories.createCoreController(
               requested_for: { id: userId },
               request_status: "PENDING",
             },
-            populate: { requested_by: { fields: ["id", "username"] } },
+            populate: {
+              requested_by: {
+                fields: ["id", "username"],
+                populate: { profile_picture: true },
+              },
+            },
           }
         );
+
+        if (!requests || requests.length === 0) return ctx.send([]);
+
+        const usersToEnrich = requests.map(
+          (request: any) => request.requested_by
+        );
+
+        await strapi
+          .service("api::post.post")
+          .enrichUsersWithOptimizedProfilePictures(usersToEnrich);
 
         return ctx.send(requests);
       } catch (error: unknown) {
