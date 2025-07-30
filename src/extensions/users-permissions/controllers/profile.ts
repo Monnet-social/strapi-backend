@@ -266,6 +266,17 @@ async function updateProfile(ctx) {
     dataToUpdate.avatar_ring_color = body.avatar_ring_color;
   }
 
+  if (
+    body.play_mature_content !== undefined &&
+    body.play_mature_content !== ""
+  ) {
+    if (typeof body.play_mature_content !== "boolean") {
+      return ctx.badRequest(
+        "play_mature_content must be a boolean value (true or false)."
+      );
+    }
+    dataToUpdate.play_mature_content = body.play_mature_content;
+  }
   if (Object.keys(dataToUpdate).length === 0)
     return ctx.badRequest("No valid fields were provided for update.");
 

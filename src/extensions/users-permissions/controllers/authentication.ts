@@ -110,7 +110,6 @@ async function register(ctx: any) {
 
   if (birthDate > today)
     return ctx.badRequest("Date of birth cannot be in the future.");
-  const age = HelperService.calculateAge(birthDate);
 
   try {
     const existingUsers = await strapi.entityService.findMany(
@@ -174,7 +173,6 @@ async function register(ctx: any) {
         role: 1,
         date_of_birth,
         tos_accepted,
-        age,
       });
     delete newUser.password;
     const token = await strapi

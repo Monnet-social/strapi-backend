@@ -139,8 +139,9 @@
     "avatar_ring_color": {
       "type": "string"
     },
-    "age": {
-      "type": "integer"
+    "play_mature_content": {
+      "type": "boolean",
+      "default": true
     }
   }
 }
