@@ -659,6 +659,7 @@ export interface ApiFollowingFollowing extends Struct.CollectionTypeSchema {
     draftAndPublish: false;
   };
   attributes: {
+    analytics: Schema.Attribute.JSON;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1347,6 +1348,7 @@ export interface PluginUsersPermissionsUser
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
     is_public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    last_active_at: Schema.Attribute.DateTime;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',

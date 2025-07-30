@@ -103,10 +103,7 @@
     "profile_picture": {
       "type": "media",
       "multiple": false,
-      "allowedTypes": [
-        "images",
-        "files"
-      ]
+      "allowedTypes": ["images", "files"]
     },
     "bio": {
       "type": "text",
@@ -129,9 +126,7 @@
     },
     "badge": {
       "type": "enumeration",
-      "enum": [
-        "verified"
-      ]
+      "enum": ["verified"]
     },
     "gender": {
       "type": "string"
@@ -142,6 +137,9 @@
     "play_mature_content": {
       "type": "boolean",
       "default": true
+    },
+    "last_active_at": {
+      "type": "datetime"
     }
   }
 }

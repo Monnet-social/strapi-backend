@@ -22,6 +22,7 @@ async function getProfile(ctx) {
           "is_public",
           "badge",
           "avatar_ring_color",
+          "play_mature_content",
         ] as any,
         populate: { profile_picture: true, location: true },
       }
@@ -115,6 +116,12 @@ async function getProfile(ctx) {
       ...s,
       media: (s.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
     }));
+
+    await strapi.entityService.update(
+      "plugin::users-permissions.user",
+      userId,
+      { data: { last_active_at: new Date() } }
+    );
 
     const profileData = {
       id: user.id,

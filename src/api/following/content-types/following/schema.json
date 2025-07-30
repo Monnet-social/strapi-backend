@@ -24,6 +24,9 @@
     "is_close_friend": {
       "type": "boolean",
       "default": false
+    },
+    "analytics": {
+      "type": "json"
     }
   }
 }

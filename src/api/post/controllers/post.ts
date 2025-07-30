@@ -1,6 +1,7 @@
 "use strict";
 
 import FileOptimisationService from "../../../utils/file_optimisation_service";
+import HelperService from "../../../utils/helper_service";
 
 const { createCoreController } = require("@strapi/strapi").factories;
 
@@ -11,7 +12,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       return ctx.unauthorized("You must be logged in to create a post.");
     const userId = user.id;
     try {
-      const data = ctx.request.body;
+      let data = ctx.request.body;
       if (!data)
         return ctx.badRequest("Request body must contain a data object.");
 
@@ -136,7 +137,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
 
       if (data.location) {
-        const { latitude, longitude } = data.location;
+        const { latitude, longitude, address = "" } = data.location;
         if (
           (latitude !== undefined && typeof latitude !== "number") ||
           (longitude !== undefined && typeof longitude !== "number")
@@ -144,6 +145,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           return ctx.badRequest(
             "If provided, location latitude and longitude must be numbers."
           );
+
+        if (address) {
+          const geocodedLocation = await HelperService.geocodeAddress(address);
+          if (geocodedLocation) {
+            data.location.latitude = geocodedLocation.latitude;
+            data.location.longitude = geocodedLocation.longitude;
+          }
+        }
       }
 
       if (data.repost_of) {
@@ -187,12 +196,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           tagged_users: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
           ...(data.share_with === "CLOSE-FRIENDS" &&
-          data.share_with_close_friends
+            data.share_with_close_friends
             ? {
-                share_with_close_friends: {
-                  fields: ["id", "username", "name"],
-                },
-              }
+              share_with_close_friends: {
+                fields: ["id", "username", "name"],
+              },
+            }
             : {}),
         },
       });

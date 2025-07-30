@@ -1,4 +1,5 @@
 const shortid = require("shortid");
+import axios from "axios";
 
 interface Strapi {
   entityService: any;
@@ -63,5 +64,32 @@ export default class HelperService {
 
     console.error(error);
     // Sentry.captureException(error, { extra: { title } });
+  }
+
+  static async geocodeAddress(
+    address: string
+  ): Promise<{ latitude: number; longitude: number } | null> {
+    try {
+      const response = await axios.post(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.GOOGLE_MAP_API_KEY}`
+      );
+      if (response.data.status !== "OK") {
+        console.error(
+          `Geocoding failed for address "${address}": ${response.data.status}`
+        );
+        return null;
+      }
+
+      const location = response.data.results[0].geometry.location;
+      return {
+        latitude: location.lat,
+        longitude: location.lng,
+      };
+    } catch (error) {
+      console.error(
+        `Geocoding failed for address "${address}": ${error.message}`
+      );
+      return null;
+    }
   }
 }
