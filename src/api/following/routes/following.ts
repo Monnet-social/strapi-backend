@@ -17,6 +17,11 @@ module.exports = {
     },
     {
       method: "GET",
+      path: "/all-friends/:userId",
+      handler: "following.getAllFriends",
+    },
+    {
+      method: "GET",
       path: "/following/:userId",
       handler: "following.getUserFollowing",
     },

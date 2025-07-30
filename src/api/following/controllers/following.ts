@@ -371,6 +371,135 @@ export default factories.createCoreController(
       }
     },
 
+    async getAllFriends(ctx) {
+      const { user: currentUser } = ctx.state;
+      const { userId } = ctx.params;
+      const { pagination_size = 10, page = 1, query } = ctx.query;
+
+      if (!userId) return ctx.badRequest("User ID is required");
+      if (!currentUser)
+        return ctx.unauthorized(
+          "You must be logged in to perform this action."
+        );
+
+      try {
+        const followingEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { follower: { id: userId } },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+        const followingIds = new Set(
+          followingEntries
+            .map((entry: any) => entry.subject?.id)
+            .filter(Boolean)
+        );
+
+        const followerEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { subject: { id: userId } },
+            populate: { follower: { fields: ["id"] } },
+          }
+        );
+        const followerIds = new Set(
+          followerEntries
+            .map((entry: any) => entry.follower?.id)
+            .filter(Boolean)
+        );
+
+        const friendIds = [...followingIds].filter((id) => followerIds.has(id));
+
+        if (friendIds.length === 0)
+          return ctx.send({
+            data: [],
+            meta: {
+              pagination: {
+                page: 1,
+                pageSize: Number(pagination_size),
+                pageCount: 0,
+                total: 0,
+              },
+            },
+          });
+
+        const closeFriendEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: { id: userId },
+              subject: { id: { $in: friendIds } },
+              is_close_friend: true,
+            },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+        const closeFriendIds = new Set(
+          closeFriendEntries
+            .map((entry: any) => entry.subject?.id)
+            .filter(Boolean)
+        );
+
+        const userFilters: any = { id: { $in: friendIds } };
+        if (query)
+          userFilters.$or = [
+            { username: { $containsi: query } },
+            { name: { $containsi: query } },
+          ];
+
+        const users = await strapi.entityService.findMany(
+          "plugin::users-permissions.user",
+          {
+            filters: userFilters,
+            populate: { profile_picture: true },
+            start: (Number(page) - 1) * Number(pagination_size),
+            limit: Number(pagination_size),
+          }
+        );
+
+        if (users.length > 0) {
+          await Promise.all([
+            strapi
+              .service("api::following.following")
+              .enrichItemsWithFollowStatus({
+                items: users.map((user) => ({ user })),
+                userPaths: ["user"],
+                currentUserId: currentUser.id,
+              }),
+            strapi
+              .service("api::post.post")
+              .enrichUsersWithOptimizedProfilePictures(users),
+          ]);
+        }
+
+        const finalUsers = users.map((user) => ({
+          ...user,
+          is_close_friend: closeFriendIds.has(user.id),
+        }));
+
+        const count = await strapi.entityService.count(
+          "plugin::users-permissions.user",
+          { filters: userFilters }
+        );
+
+        return ctx.send({
+          data: finalUsers,
+          meta: {
+            pagination: {
+              page: Number(page),
+              pageSize: Number(pagination_size),
+              pageCount: Math.ceil(count / Number(pagination_size)),
+              total: count,
+            },
+          },
+        });
+      } catch (error) {
+        strapi.log.error("Error fetching friends:", error);
+        return ctx.internalServerError("Error fetching friends", { error });
+      }
+    },
+
     async getUserFollowing(ctx) {
       try {
         const { user: currentUser } = ctx.state;
