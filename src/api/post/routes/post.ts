@@ -34,6 +34,16 @@ module.exports = {
       handler: "post.stories",
     },
     {
+      method: "DELETE",
+      path: "/stories/expired",
+      handler: "post.deleteExpiredStories",
+    },
+    {
+      method: "GET",
+      path: "/stories/:id",
+      handler: "post.getStory",
+    },
+    {
       method: "GET",
       path: "/feed",
       handler: "post.feed",

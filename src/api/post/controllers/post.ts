@@ -196,12 +196,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           tagged_users: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
           ...(data.share_with === "CLOSE-FRIENDS" &&
-            data.share_with_close_friends
+          data.share_with_close_friends
             ? {
-              share_with_close_friends: {
-                fields: ["id", "username", "name"],
-              },
-            }
+                share_with_close_friends: {
+                  fields: ["id", "username", "name"],
+                },
+              }
             : {}),
         },
       });
@@ -758,6 +758,148 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
+  async getStory(ctx) {
+    const { id: specificUserId } = ctx.params;
+    const { id: currentUserId } = ctx.state.user;
+
+    if (!currentUserId)
+      return ctx.unauthorized("You must be logged in to view stories.");
+
+    try {
+      if (Number(specificUserId) !== currentUserId) {
+        const blockEntry = await strapi.entityService.findMany(
+          "api::block.block",
+          {
+            filters: {
+              blocked_by: { id: specificUserId },
+              blocked_user: { id: currentUserId },
+            },
+            limit: 1,
+          }
+        );
+
+        if (blockEntry.length > 0)
+          return ctx.forbidden(
+            "You are not allowed to view this user's stories."
+          );
+      }
+
+      const twentyFourHoursAgo = new Date(
+        new Date().getTime() - 24 * 60 * 60 * 1000
+      );
+
+      const populateOptions = {
+        posted_by: {
+          fields: ["id", "username", "name", "avatar_ring_color"],
+          populate: { profile_picture: true },
+        },
+        tagged_users: {
+          fields: ["id", "username", "name", "avatar_ring_color"],
+          populate: { profile_picture: true },
+        },
+        media: true,
+        share_with_close_friends: { fields: ["id"] },
+      };
+
+      let userStories = await strapi.entityService.findMany("api::post.post", {
+        filters: {
+          post_type: "story",
+          posted_by: { id: specificUserId },
+          createdAt: { $gte: twentyFourHoursAgo },
+        },
+        sort: { createdAt: "desc" },
+        populate: populateOptions,
+      });
+
+      if (userStories.length === 0)
+        return ctx.send({
+          data: [],
+          message: "This user has no active stories.",
+        });
+
+      let visibleStories;
+
+      if (Number(specificUserId) === currentUserId)
+        visibleStories = userStories;
+      else {
+        const followingEntry = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: { id: currentUserId },
+              subject: { id: specificUserId },
+            },
+            limit: 1,
+          }
+        );
+        const isFollowing = followingEntry.length > 0;
+
+        visibleStories = userStories.filter((story) => {
+          if (story.share_with === "PUBLIC") return true;
+          if (story.share_with === "FOLLOWERS") return isFollowing;
+          if (story.share_with === "CLOSE-FRIENDS") {
+            return (
+              Array.isArray(story.share_with_close_friends) &&
+              story.share_with_close_friends.some(
+                (cf) => cf.id === currentUserId
+              )
+            );
+          }
+          return false;
+        });
+      }
+
+      if (visibleStories.length > 0) {
+        const usersToProcess = visibleStories
+          .flatMap((story) => [story.posted_by, ...(story.tagged_users || [])])
+          .filter(Boolean);
+
+        await Promise.all([
+          strapi
+            .service("api::following.following")
+            .enrichItemsWithFollowStatus({
+              items: visibleStories,
+              userPaths: ["posted_by", "tagged_users"],
+              currentUserId,
+            }),
+          strapi
+            .service("api::post.post")
+            .enrichUsersWithOptimizedProfilePictures(usersToProcess),
+        ]);
+
+        for (const story of visibleStories) {
+          const [likes_count, is_liked, viewers_count] = await Promise.all([
+            strapi.service("api::like.like").getLikesCount(story.id),
+            strapi
+              .service("api::like.like")
+              .verifyPostLikeByUser(story.id, currentUserId),
+            strapi.service("api::post.post").getStoryViewersCount(story.id),
+          ]);
+
+          story.expiration_time =
+            new Date(story.createdAt).getTime() + 24 * 60 * 60 * 1000;
+          story.likes_count = likes_count;
+          story.is_liked = is_liked;
+          story.viewers_count = viewers_count;
+          story.media =
+            (await strapi
+              .service("api::post.post")
+              .getOptimisedFileData(story.media)) || [];
+        }
+      }
+
+      return ctx.send({
+        data: visibleStories,
+        message: "User stories fetched successfully.",
+      });
+    } catch (err) {
+      console.error("Find User's Stories Error:", err);
+      return ctx.internalServerError(
+        "An error occurred while fetching the user's stories."
+      );
+    }
+  },
+
   async getFriendsToTag(ctx) {
     const { id: userId } = ctx.state.user;
     const { pagination_size, page, filter } = ctx.query;
@@ -1243,6 +1385,42 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       console.error("Error in findUserPosts:", err);
       return ctx.internalServerError(
         "An error occurred while fetching user posts."
+      );
+    }
+  },
+
+  async deleteExpiredStories(ctx) {
+    try {
+      const twentyFourHoursAgo = new Date(
+        new Date().getTime() - 24 * 60 * 60 * 1000
+      );
+
+      const filters = {
+        post_type: "story",
+        createdAt: { $lt: twentyFourHoursAgo },
+      };
+
+      const { count } = await strapi.entityService.deleteMany(
+        "api::post.post",
+        {
+          filters,
+          limit: 100,
+        }
+      );
+
+      if (count > 0)
+        console.log(`Successfully deleted ${count} expired stories.`);
+
+      return ctx.send({
+        message: "Expired stories cleanup process completed successfully.",
+        data: {
+          deleted_count: count,
+        },
+      });
+    } catch (err) {
+      console.error("Delete Expired Stories Error:", err);
+      return ctx.internalServerError(
+        "An error occurred during the expired stories cleanup."
       );
     }
   },
