@@ -2,11 +2,18 @@
 
 module.exports = {
   routes: [
+    //================================================================
+    // CORE POST ROUTES
+    //================================================================
     {
       method: "POST",
       path: "/posts",
       handler: "post.create",
-      config: {},
+    },
+    {
+      method: "GET",
+      path: "/feed",
+      handler: "post.feed",
     },
     {
       method: "GET",
@@ -28,35 +35,19 @@ module.exports = {
       path: "/posts/:id",
       handler: "post.delete",
     },
+
+    //================================================================
+    // STORY ROUTES
+    //================================================================
     {
       method: "GET",
       path: "/stories",
       handler: "post.stories",
     },
     {
-      method: "DELETE",
-      path: "/stories/expired",
-      handler: "post.deleteExpiredStories",
-    },
-    {
       method: "GET",
       path: "/stories/:id",
       handler: "post.getStory",
-    },
-    {
-      method: "GET",
-      path: "/feed",
-      handler: "post.feed",
-    },
-    // {
-    //   method: "POST",
-    //   path: "/upload",
-    //   handler: "post.testFIleUpload",
-    // },
-    {
-      method: "GET",
-      path: "/test-file/:media_id",
-      handler: "post.getTestFile",
     },
     {
       method: "POST",
@@ -69,17 +60,45 @@ module.exports = {
       handler: "post.getStoryViewers",
     },
     {
-      method: "GET",
-      path: "/get-friends",
-      handler: "post.getFriendsToTag",
+      method: "DELETE",
+      path: "/stories/expired",
+      handler: "post.deleteExpiredStories",
     },
+
+    //================================================================
+    // USER & FRIENDS ROUTES
+    //================================================================
     {
       method: "GET",
       path: "/users/:id/posts",
       handler: "post.findUserPosts",
+    },
+    {
+      method: "GET",
+      path: "/get-friends",
+      handler: "post.getFriendsToTag",
+    },
+
+    //================================================================
+    // DEVELOPMENT & TESTING ROUTES
+    //================================================================
+    {
+      method: "GET",
+      path: "/posts/seed", // From previous request to seed data
+      handler: "post.seedStories",
       config: {
-        policies: [],
+        auth: false,
       },
     },
+    {
+      method: "GET",
+      path: "/test-file/:media_id",
+      handler: "post.getTestFile",
+    },
+    // {
+    //   method: "POST",
+    //   path: "/upload",
+    //   handler: "post.testFIleUpload",
+    // },
   ],
 };

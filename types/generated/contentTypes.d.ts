@@ -741,11 +741,11 @@ export interface ApiPostViewPostView extends Struct.CollectionTypeSchema {
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
-    viewedBy: Schema.Attribute.Relation<
+    viewed_by: Schema.Attribute.Relation<
       'oneToOne',
       'plugin::users-permissions.user'
     >;
-    watchedSeconds: Schema.Attribute.Integer;
+    watched_seconds: Schema.Attribute.Integer;
   };
 }
 

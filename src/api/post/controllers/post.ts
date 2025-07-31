@@ -6,6 +6,9 @@ import HelperService from "../../../utils/helper_service";
 const { createCoreController } = require("@strapi/strapi").factories;
 
 module.exports = createCoreController("api::post.post", ({ strapi }) => ({
+  //================================================================
+  // CORE POST CONTROLLERS
+  //================================================================
   async create(ctx) {
     const user = ctx.state.user;
     if (!user)
@@ -339,134 +342,147 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
-  async feed(ctx) {
+  async update(ctx) {
+    const { id: postId } = ctx.params;
     const { id: userId } = ctx.state.user;
-    const { pagination_size, page } = ctx.query;
-
-    let default_pagination = {
-      pagination: { page: 1, pageSize: 10 },
-    };
-    if (pagination_size)
-      default_pagination.pagination.pageSize = pagination_size;
-    if (page) default_pagination.pagination.page = page;
+    const data = ctx.request.body;
 
     try {
-      const blockEntries = await strapi.entityService.findMany(
-        "api::block.block",
+      const posts = await strapi.entityService.findMany("api::post.post", {
+        filters: { id: postId, posted_by: userId },
+        limit: 1,
+      });
+
+      if (posts.length === 0)
+        return ctx.forbidden(
+          "You are not allowed to update this post, or it does not exist."
+        );
+
+      if (data.category) {
+        const categoryExists = await strapi.entityService.findOne(
+          "api::category.category",
+          data.category
+        );
+        if (!categoryExists)
+          return ctx.badRequest(
+            `The provided category with ID ${data.category} does not exist.`
+          );
+      }
+
+      if (data.tagged_users && Array.isArray(data.tagged_users)) {
+        const foundUsers = await strapi.entityService.findMany(
+          "plugin::users-permissions.user",
+          {
+            filters: { id: { $in: data.tagged_users } },
+            fields: ["id"],
+          }
+        );
+        if (foundUsers.length !== data.tagged_users.length) {
+          const foundUserIds = foundUsers.map((user) => user.id);
+          const invalidUserIds = data.tagged_users.filter(
+            (id) => !foundUserIds.includes(id)
+          );
+          return ctx.badRequest(
+            `The following tagged user IDs do not exist: ${invalidUserIds.join(
+              ", "
+            )}`
+          );
+        }
+      }
+
+      if (data.location) {
+        const { latitute, longitude } = data.location;
+        if (
+          (latitute !== undefined && typeof latitute !== "number") ||
+          (longitude !== undefined && typeof longitude !== "number")
+        )
+          return ctx.badRequest(
+            "If provided, location latitude and longitude must be numbers."
+          );
+      }
+      const updatedPost = await strapi.entityService.update(
+        "api::post.post",
+        postId,
         {
-          filters: { blocked_by: { id: userId } },
-          populate: { blocked_user: { fields: ["id"] } },
+          data,
+          populate: {
+            posted_by: {
+              fields: ["id", "username", "name", "avatar_ring_color"],
+              populate: { profile_picture: true },
+            },
+            tagged_users: {
+              fields: ["id", "username", "name", "avatar_ring_color"],
+              populate: { profile_picture: true },
+            },
+            category: { fields: ["id", "name"] },
+            media: true,
+          },
         }
       );
-      const blockedUserIds = blockEntries.map(
-        (entry: any) => entry.blocked_user.id
-      );
-
-      const results = await strapi.entityService.findMany("api::post.post", {
-        filters: {
-          post_type: "post",
-          media: { id: { $notNull: true } },
-          posted_by: {
-            id: {
-              $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1],
-            },
-          },
-        },
-        sort: { createdAt: "desc" },
-        populate: {
-          posted_by: {
-            fields: ["id", "username", "name", "avatar_ring_color"],
-            populate: { profile_picture: true },
-          },
-          category: { fields: ["id", "name"] },
-          tagged_users: {
-            fields: ["id", "username", "name", "avatar_ring_color"],
-            populate: { profile_picture: true },
-          },
-          media: true,
-        },
-        start:
-          (default_pagination.pagination.page - 1) *
-          default_pagination.pagination.pageSize,
-        limit: default_pagination.pagination.pageSize,
-      });
-
-      if (results.length > 0) {
-        const usersToProcess = results
-          .flatMap((post) => [post.posted_by, ...(post.tagged_users || [])])
-          .filter(Boolean);
-
-        await Promise.all([
-          strapi
-            .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: results,
-              userPaths: ["posted_by", "tagged_users"],
-              currentUserId: userId,
-            }),
-          strapi
-            .service("api::post.post")
-            .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-        ]);
-      }
-
-      for (const post of results) {
-        post.likes_count = await strapi.services[
-          "api::like.like"
-        ].getLikesCount(post.id);
-        post.is_liked = await strapi.services[
-          "api::like.like"
-        ].verifyPostLikeByUser(post.id, userId);
-        post.dislikes_count = await strapi
-          .service("api::dislike.dislike")
-          .getDislikesCountByPostId(post.id);
-        post.is_disliked = await strapi
-          .service("api::dislike.dislike")
-          .verifyPostDislikedByUser(post.id, userId);
-        post.comments_count = await strapi.services[
-          "api::comment.comment"
-        ].getCommentsCount(post.id);
-        post.share_count = await strapi.services[
-          "api::share.share"
-        ].countShares(post.id);
-        post.media =
-          (await strapi
-            .service("api::post.post")
-            .getOptimisedFileData(post.media)) || [];
-      }
-
-      const count = await strapi.entityService.count("api::post.post", {
-        filters: {
-          post_type: "post",
-          media: { id: { $notNull: true } },
-          posted_by: {
-            id: {
-              $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1],
-            },
-          },
-        },
-      });
 
       return ctx.send({
-        data: results,
-        meta: {
-          pagination: {
-            page: Number(default_pagination.pagination.page),
-            pageSize: Number(default_pagination.pagination.pageSize),
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
-            total: count,
-          },
-        },
-        message: "Posts fetched successfully.",
+        updatedPost,
+        message: "Post updated successfully.",
       });
     } catch (err) {
-      console.error("Find Posts Error:", err);
-      return ctx.internalServerError("An error occurred while fetching posts.");
+      console.error("Update Post Error:", err);
+      return ctx.internalServerError(
+        "An unexpected error occurred while updating the post."
+      );
     }
   },
 
+  async delete(ctx) {
+    const { id: postId } = ctx.params;
+    const { id: userId } = ctx.state.user;
+
+    try {
+      const posts = await strapi.entityService.findMany("api::post.post", {
+        filters: { id: postId, posted_by: userId },
+        limit: 1,
+      });
+
+      if (posts.length === 0)
+        return ctx.forbidden(
+          "You are not allowed to delete this post, or it does not exist."
+        );
+
+      //  using db.query coz using entityService would require more operations making api much slower
+      await Promise.all([
+        strapi.db
+          .query("api::like.like")
+          .deleteMany({ where: { post: postId } }),
+        strapi.db
+          .query("api::dislike.dislike")
+          .deleteMany({ where: { post: postId } }),
+        strapi.db
+          .query("api::comment.comment")
+          .deleteMany({ where: { post: postId } }),
+        strapi.db
+          .query("api::share.share")
+          .deleteMany({ where: { post: postId } }),
+      ]);
+
+      const deletedPost = await strapi.entityService.delete(
+        "api::post.post",
+        postId
+      );
+
+      return ctx.send({
+        deletedPost,
+        message: "Post deleted successfully.",
+      });
+    } catch (err) {
+      console.error("Delete Post Error:", err);
+      return ctx.internalServerError(
+        "An error occurred while deleting the post."
+      );
+    }
+  },
+
+  //================================================================
+  // STORY CONTROLLERS
+  //================================================================
   async stories(ctx) {
     const {
       pagination_size,
@@ -900,6 +916,110 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
+  async deleteExpiredStories(ctx) {
+    try {
+      const twentyFourHoursAgo = new Date(
+        new Date().getTime() - 24 * 60 * 60 * 1000
+      );
+
+      const filters = {
+        post_type: "story",
+        createdAt: { $lt: twentyFourHoursAgo },
+      };
+
+      const { count } = await strapi.entityService.deleteMany(
+        "api::post.post",
+        {
+          filters,
+          limit: 100,
+        }
+      );
+
+      if (count > 0)
+        console.log(`Successfully deleted ${count} expired stories.`);
+
+      return ctx.send({
+        message: "Expired stories cleanup process completed successfully.",
+        data: {
+          deleted_count: count,
+        },
+      });
+    } catch (err) {
+      console.error("Delete Expired Stories Error:", err);
+      return ctx.internalServerError(
+        "An error occurred during the expired stories cleanup."
+      );
+    }
+  },
+
+  //================================================================
+  // USER & FRIENDS CONTROLLERS
+  //================================================================
+  async getStoryViewers(ctx) {
+    const { id: postId } = ctx.params;
+    const { user: currentUser } = ctx.state;
+    const { page = 1, pageSize = 20 } = ctx.query;
+
+    if (!currentUser)
+      return ctx.unauthorized("You must be logged in to perform this action.");
+
+    try {
+      const post = await strapi.entityService.findOne(
+        "api::post.post",
+        postId,
+        {
+          populate: {
+            viewers: {
+              fields: ["id", "username", "email", "name", "avatar_ring_color"],
+              populate: { profile_picture: true },
+            },
+          },
+        }
+      );
+
+      if (!post) return ctx.notFound("Post not found.");
+
+      const allViewers = post.viewers || [];
+
+      if (allViewers.length > 0) {
+        await Promise.all([
+          strapi
+            .service("api::following.following")
+            .enrichItemsWithFollowStatus({
+              items: [post],
+              userPaths: ["viewers"],
+              currentUserId: currentUser.id,
+            }),
+          strapi
+            .service("api::post.post")
+            .enrichUsersWithOptimizedProfilePictures(allViewers),
+        ]);
+      }
+
+      const totalViewers = allViewers.length;
+      const start = (Number(page) - 1) * Number(pageSize);
+      const end = start + Number(pageSize);
+      const paginatedViewers = allViewers.slice(start, end);
+
+      return ctx.send({
+        data: paginatedViewers,
+        meta: {
+          pagination: {
+            page: Number(page),
+            pageSize: Number(pageSize),
+            total: totalViewers,
+            pageCount: Math.ceil(totalViewers / Number(pageSize)),
+          },
+        },
+      });
+    } catch (error) {
+      strapi.log.error("Error fetching story viewers:", error);
+      return ctx.internalServerError(
+        "An error occurred while fetching the viewers."
+      );
+    }
+  },
+
   async getFriendsToTag(ctx) {
     const { id: userId } = ctx.state.user;
     const { pagination_size, page, filter } = ctx.query;
@@ -1015,6 +1135,135 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
+  //================================================================
+  // DEVELOPMENT & TESTING CONTROLLERS
+  //================================================================
+  async seedStories(ctx) {
+    const storiesData = [
+      {
+        posted_by: 117,
+        title: "Proper Good Times.",
+        description:
+          "From pub talks to park walks, it’s been brilliant. Soaking up the vibes and making memories with this top-tier squad.",
+        media: [378, 379, 380],
+        tagged_users: [120, 121, 124, 164, 176, 180, 183, 185, 186],
+      },
+      {
+        posted_by: 120,
+        title: "Mind the Gap.",
+        description:
+          "Between rainy spells and sunny moments, we found our perfect adventure. London's calling, and we definitely answered.",
+        media: [381, 382, 383],
+        tagged_users: [117, 121, 124, 164, 176, 180, 183, 185, 186],
+      },
+      {
+        posted_by: 121,
+        title: "Na zdraví! (Cheers!).",
+        description:
+          "Good food, great company, and a city that feels alive. Soaking in every single moment. An unforgettable journey.",
+        media: [383, 384],
+        tagged_users: [117, 120, 124, 164, 176, 180, 183, 185, 186],
+      },
+      {
+        posted_by: 124,
+        title: "History in High Definition.",
+        description:
+          "Walking through fairytales and vibrant history. This city's past is as captivating as its present. So much to explore.",
+        media: [385, 386],
+        tagged_users: [117, 120, 121, 164, 176, 180, 183, 185, 186],
+      },
+      {
+        posted_by: 164,
+        title: "Gipfelstürmer (Summit Stormers).",
+        description:
+          "Trading city noise for mountain echoes. Every challenging hike ends with a rewarding view and a story to tell.",
+        media: [387, 388],
+        tagged_users: [117, 120, 121, 124, 176, 180, 183, 185, 186],
+      },
+      {
+        posted_by: 176,
+        title: "From Another Point of View.",
+        description:
+          "We came for the mountains and stayed for the memories. That fresh alpine air hits different when you're with your favorite crew.",
+        media: [389, 390],
+        tagged_users: [117, 120, 121, 124, 164, 180, 183, 185, 186],
+      },
+      {
+        posted_by: 180,
+        title: "Midnight Sun & Memories.",
+        description:
+          "Chasing the endless summer light and making stories we'll tell for years. The days are long, but this trip felt too short.",
+        media: [391, 392],
+        tagged_users: [117, 120, 121, 124, 164, 176, 183, 185, 186],
+      },
+      {
+        posted_by: 183,
+        title: "Hygge Mode: Activated.",
+        description:
+          "Sweater weather and city streets. Finding the cozy in every corner with the best people. This is our kind of happiness.",
+        media: [396, 395, 394],
+        tagged_users: [117, 120, 121, 124, 164, 176, 180, 185, 186],
+      },
+      {
+        posted_by: 185,
+        title: "Postcard from Somewhere Beautiful.",
+        description:
+          "Finding our way through new streets and old histories. It’s not about the destination, but the journey with this crew. Prost!",
+        media: [400, 401],
+        tagged_users: [117, 120, 121, 124, 164, 176, 180, 183, 186],
+      },
+      {
+        posted_by: 186,
+        title: "La Dolce Vita.",
+        description:
+          "Living the sweet life with my favourite people. Sunshine, laughter, and a little bit of magic. Cheers to us! 🥂",
+        media: [399, 398, 397],
+        tagged_users: [117, 120, 121, 124, 164, 176, 180, 183, 185],
+      },
+    ];
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    try {
+      for (const story of storiesData) {
+        const existingPost = await strapi.entityService.findMany(
+          "api::post.post",
+          {
+            filters: { title: story.title },
+            limit: 1,
+          }
+        );
+
+        if (existingPost.length === 0) {
+          await strapi.entityService.create("api::post.post", {
+            data: {
+              ...story,
+              post_type: "story",
+              share_with: "PUBLIC",
+            },
+          });
+          createdCount++;
+        } else {
+          skippedCount++;
+        }
+      }
+
+      return ctx.send({
+        message: "Seeding process completed.",
+        data: {
+          created: createdCount,
+          skipped: skippedCount,
+        },
+      });
+    } catch (err) {
+      console.error("Seeding error:", err);
+      return ctx.internalServerError(
+        "An error occurred during the seeding process."
+      );
+    }
+  },
+
   async testFIleUpload(ctx) {
     const { file } = ctx.request.files;
     if (!file) {
@@ -1047,141 +1296,134 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
-  async update(ctx) {
-    const { id: postId } = ctx.params;
+  //================================================================
+  // POST CONTROLLERS
+  //================================================================
+  async feed(ctx) {
     const { id: userId } = ctx.state.user;
-    const data = ctx.request.body;
+    const { pagination_size, page } = ctx.query;
+
+    let default_pagination = {
+      pagination: { page: 1, pageSize: 10 },
+    };
+    if (pagination_size)
+      default_pagination.pagination.pageSize = pagination_size;
+    if (page) default_pagination.pagination.page = page;
 
     try {
-      const posts = await strapi.entityService.findMany("api::post.post", {
-        filters: { id: postId, posted_by: userId },
-        limit: 1,
-      });
-
-      if (posts.length === 0)
-        return ctx.forbidden(
-          "You are not allowed to update this post, or it does not exist."
-        );
-
-      if (data.category) {
-        const categoryExists = await strapi.entityService.findOne(
-          "api::category.category",
-          data.category
-        );
-        if (!categoryExists)
-          return ctx.badRequest(
-            `The provided category with ID ${data.category} does not exist.`
-          );
-      }
-
-      if (data.tagged_users && Array.isArray(data.tagged_users)) {
-        const foundUsers = await strapi.entityService.findMany(
-          "plugin::users-permissions.user",
-          {
-            filters: { id: { $in: data.tagged_users } },
-            fields: ["id"],
-          }
-        );
-        if (foundUsers.length !== data.tagged_users.length) {
-          const foundUserIds = foundUsers.map((user) => user.id);
-          const invalidUserIds = data.tagged_users.filter(
-            (id) => !foundUserIds.includes(id)
-          );
-          return ctx.badRequest(
-            `The following tagged user IDs do not exist: ${invalidUserIds.join(
-              ", "
-            )}`
-          );
-        }
-      }
-
-      if (data.location) {
-        const { latitute, longitude } = data.location;
-        if (
-          (latitute !== undefined && typeof latitute !== "number") ||
-          (longitude !== undefined && typeof longitude !== "number")
-        )
-          return ctx.badRequest(
-            "If provided, location latitude and longitude must be numbers."
-          );
-      }
-      const updatedPost = await strapi.entityService.update(
-        "api::post.post",
-        postId,
+      const blockEntries = await strapi.entityService.findMany(
+        "api::block.block",
         {
-          data,
-          populate: {
-            posted_by: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
-              populate: { profile_picture: true },
-            },
-            tagged_users: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
-              populate: { profile_picture: true },
-            },
-            category: { fields: ["id", "name"] },
-            media: true,
-          },
+          filters: { blocked_by: { id: userId } },
+          populate: { blocked_user: { fields: ["id"] } },
         }
       );
+      const blockedUserIds = blockEntries.map(
+        (entry: any) => entry.blocked_user.id
+      );
+
+      const results = await strapi.entityService.findMany("api::post.post", {
+        filters: {
+          post_type: "post",
+          media: { id: { $notNull: true } },
+          posted_by: {
+            id: {
+              $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1],
+            },
+          },
+        },
+        sort: { createdAt: "desc" },
+        populate: {
+          posted_by: {
+            fields: ["id", "username", "name", "avatar_ring_color"],
+            populate: { profile_picture: true },
+          },
+          category: { fields: ["id", "name"] },
+          tagged_users: {
+            fields: ["id", "username", "name", "avatar_ring_color"],
+            populate: { profile_picture: true },
+          },
+          media: true,
+        },
+        start:
+          (default_pagination.pagination.page - 1) *
+          default_pagination.pagination.pageSize,
+        limit: default_pagination.pagination.pageSize,
+      });
+
+      if (results.length > 0) {
+        const usersToProcess = results
+          .flatMap((post) => [post.posted_by, ...(post.tagged_users || [])])
+          .filter(Boolean);
+
+        await Promise.all([
+          strapi
+            .service("api::following.following")
+            .enrichItemsWithFollowStatus({
+              items: results,
+              userPaths: ["posted_by", "tagged_users"],
+              currentUserId: userId,
+            }),
+          strapi
+            .service("api::post.post")
+            .enrichUsersWithOptimizedProfilePictures(usersToProcess),
+        ]);
+      }
+
+      for (const post of results) {
+        post.likes_count = await strapi.services[
+          "api::like.like"
+        ].getLikesCount(post.id);
+        post.is_liked = await strapi.services[
+          "api::like.like"
+        ].verifyPostLikeByUser(post.id, userId);
+        post.dislikes_count = await strapi
+          .service("api::dislike.dislike")
+          .getDislikesCountByPostId(post.id);
+        post.is_disliked = await strapi
+          .service("api::dislike.dislike")
+          .verifyPostDislikedByUser(post.id, userId);
+        post.comments_count = await strapi.services[
+          "api::comment.comment"
+        ].getCommentsCount(post.id);
+        post.share_count = await strapi.services[
+          "api::share.share"
+        ].countShares(post.id);
+        post.media =
+          (await strapi
+            .service("api::post.post")
+            .getOptimisedFileData(post.media)) || [];
+      }
+
+      const count = await strapi.entityService.count("api::post.post", {
+        filters: {
+          post_type: "post",
+          media: { id: { $notNull: true } },
+          posted_by: {
+            id: {
+              $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1],
+            },
+          },
+        },
+      });
 
       return ctx.send({
-        updatedPost,
-        message: "Post updated successfully.",
+        data: results,
+        meta: {
+          pagination: {
+            page: Number(default_pagination.pagination.page),
+            pageSize: Number(default_pagination.pagination.pageSize),
+            pageCount: Math.ceil(
+              count / default_pagination.pagination.pageSize
+            ),
+            total: count,
+          },
+        },
+        message: "Posts fetched successfully.",
       });
     } catch (err) {
-      console.error("Update Post Error:", err);
-      return ctx.internalServerError(
-        "An unexpected error occurred while updating the post."
-      );
-    }
-  },
-
-  async delete(ctx) {
-    const { id: postId } = ctx.params;
-    const { id: userId } = ctx.state.user;
-
-    try {
-      const posts = await strapi.entityService.findMany("api::post.post", {
-        filters: { id: postId, posted_by: userId },
-        limit: 1,
-      });
-
-      if (posts.length === 0)
-        return ctx.forbidden(
-          "You are not allowed to delete this post, or it does not exist."
-        );
-
-      //  using db.query coz using entityService would require more operations making api much slower
-      await Promise.all([
-        strapi.db
-          .query("api::like.like")
-          .deleteMany({ where: { post: postId } }),
-        strapi.db
-          .query("api::dislike.dislike")
-          .deleteMany({ where: { post: postId } }),
-        strapi.db
-          .query("api::comment.comment")
-          .deleteMany({ where: { post: postId } }),
-        strapi.db
-          .query("api::share.share")
-          .deleteMany({ where: { post: postId } }),
-      ]);
-
-      const deletedPost = await strapi.entityService.delete(
-        "api::post.post",
-        postId
-      );
-
-      return ctx.send({
-        deletedPost,
-        message: "Post deleted successfully.",
-      });
-    } catch (err) {
-      console.error("Delete Post Error:", err);
-      return ctx.internalServerError(
-        "An error occurred while deleting the post."
-      );
+      console.error("Find Posts Error:", err);
+      return ctx.internalServerError("An error occurred while fetching posts.");
     }
   },
 
@@ -1190,8 +1432,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     const { user } = ctx.state;
     let { watchedSeconds = "1" } = ctx.query;
 
-    if (watchedSeconds)
-      watchedSeconds = parseInt(watchedSeconds, 10);
+    if (watchedSeconds) watchedSeconds = parseInt(watchedSeconds, 10);
+
     if (!user)
       return ctx.unauthorized("You must be logged in to view a story.");
 
@@ -1202,9 +1444,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const post = await strapi.entityService.findOne(
         "api::post.post",
         postId,
-        {
-          populate: { viewers: { fields: ["id"] } },
-        }
+        { populate: { viewers: { fields: ["id"] } } }
       );
 
       if (!post)
@@ -1213,6 +1453,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const hasAlreadyViewed = post.viewers.some(
         (viewer) => viewer.id === user.id
       );
+
       if (hasAlreadyViewed)
         return ctx.send({
           success: true,
@@ -1223,7 +1464,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         data: { viewers: { connect: [user.id] } },
       });
 
-      await strapi.service("api::post-view.post-view").markPostAsViewed(post.documentId, user.documentId, watchedSeconds);
+      await strapi
+        .service("api::post-view.post-view")
+        .markPostAsViewed(post.id, user.id, watchedSeconds);
 
       return ctx.send({
         success: true,
@@ -1233,71 +1476,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       strapi.log.error("Error in viewStory controller:", error);
       return ctx.internalServerError(
         "An error occurred while marking the story as viewed."
-      );
-    }
-  },
-
-  async getStoryViewers(ctx) {
-    const { id: postId } = ctx.params;
-    const { user: currentUser } = ctx.state;
-    const { page = 1, pageSize = 20 } = ctx.query;
-
-    if (!currentUser)
-      return ctx.unauthorized("You must be logged in to perform this action.");
-
-    try {
-      const post = await strapi.entityService.findOne(
-        "api::post.post",
-        postId,
-        {
-          populate: {
-            viewers: {
-              fields: ["id", "username", "email", "name", "avatar_ring_color"],
-              populate: { profile_picture: true },
-            },
-          },
-        }
-      );
-
-      if (!post) return ctx.notFound("Post not found.");
-
-      const allViewers = post.viewers || [];
-
-      if (allViewers.length > 0) {
-        await Promise.all([
-          strapi
-            .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: [post],
-              userPaths: ["viewers"],
-              currentUserId: currentUser.id,
-            }),
-          strapi
-            .service("api::post.post")
-            .enrichUsersWithOptimizedProfilePictures(allViewers),
-        ]);
-      }
-
-      const totalViewers = allViewers.length;
-      const start = (Number(page) - 1) * Number(pageSize);
-      const end = start + Number(pageSize);
-      const paginatedViewers = allViewers.slice(start, end);
-
-      return ctx.send({
-        data: paginatedViewers,
-        meta: {
-          pagination: {
-            page: Number(page),
-            pageSize: Number(pageSize),
-            total: totalViewers,
-            pageCount: Math.ceil(totalViewers / Number(pageSize)),
-          },
-        },
-      });
-    } catch (error) {
-      strapi.log.error("Error fetching story viewers:", error);
-      return ctx.internalServerError(
-        "An error occurred while fetching the viewers."
       );
     }
   },
@@ -1389,42 +1567,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       console.error("Error in findUserPosts:", err);
       return ctx.internalServerError(
         "An error occurred while fetching user posts."
-      );
-    }
-  },
-
-  async deleteExpiredStories(ctx) {
-    try {
-      const twentyFourHoursAgo = new Date(
-        new Date().getTime() - 24 * 60 * 60 * 1000
-      );
-
-      const filters = {
-        post_type: "story",
-        createdAt: { $lt: twentyFourHoursAgo },
-      };
-
-      const { count } = await strapi.entityService.deleteMany(
-        "api::post.post",
-        {
-          filters,
-          limit: 100,
-        }
-      );
-
-      if (count > 0)
-        console.log(`Successfully deleted ${count} expired stories.`);
-
-      return ctx.send({
-        message: "Expired stories cleanup process completed successfully.",
-        data: {
-          deleted_count: count,
-        },
-      });
-    } catch (err) {
-      console.error("Delete Expired Stories Error:", err);
-      return ctx.internalServerError(
-        "An error occurred during the expired stories cleanup."
       );
     }
   },

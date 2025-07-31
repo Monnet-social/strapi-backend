@@ -16,12 +16,12 @@
       "relation": "oneToOne",
       "target": "api::post.post"
     },
-    "viewedBy": {
+    "viewed_by": {
       "type": "relation",
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
     },
-    "watchedSeconds": {
+    "watched_seconds": {
       "type": "integer"
     }
   }
