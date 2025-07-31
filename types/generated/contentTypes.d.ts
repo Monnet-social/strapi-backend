@@ -686,6 +686,41 @@ export interface ApiFollowingFollowing extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiHideStoryHideStory extends Struct.CollectionTypeSchema {
+  collectionName: 'hide_stories';
+  info: {
+    displayName: 'hide-story';
+    pluralName: 'hide-stories';
+    singularName: 'hide-story';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::hide-story.hide-story'
+    > &
+      Schema.Attribute.Private;
+    owner: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    publishedAt: Schema.Attribute.DateTime;
+    target: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiLikeLike extends Struct.CollectionTypeSchema {
   collectionName: 'likes';
   info: {
@@ -1448,6 +1483,7 @@ declare module '@strapi/strapi' {
       'api::file-optimisation.file-optimisation': ApiFileOptimisationFileOptimisation;
       'api::follow-request.follow-request': ApiFollowRequestFollowRequest;
       'api::following.following': ApiFollowingFollowing;
+      'api::hide-story.hide-story': ApiHideStoryHideStory;
       'api::like.like': ApiLikeLike;
       'api::post-view.post-view': ApiPostViewPostView;
       'api::post.post': ApiPostPost;

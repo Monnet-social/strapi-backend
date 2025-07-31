@@ -1,0 +1,25 @@
+{
+  "kind": "collectionType",
+  "collectionName": "hide_stories",
+  "info": {
+    "singularName": "hide-story",
+    "pluralName": "hide-stories",
+    "displayName": "hide-story"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "owner": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "target": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  }
+}

@@ -44,11 +44,11 @@ module.exports = {
       path: "/stories",
       handler: "post.stories",
     },
-    {
-      method: "GET",
-      path: "/stories/:id",
-      handler: "post.getStory",
-    },
+    // {
+    //   method: "GET",
+    //   path: "/stories/:id",
+    //   handler: "post.getStory",
+    // },
     {
       method: "POST",
       path: "/stories/:id/view",
