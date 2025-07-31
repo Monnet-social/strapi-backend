@@ -716,6 +716,39 @@ export interface ApiLikeLike extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiPostViewPostView extends Struct.CollectionTypeSchema {
+  collectionName: 'post_views';
+  info: {
+    displayName: 'Post View';
+    pluralName: 'post-views';
+    singularName: 'post-view';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::post-view.post-view'
+    > &
+      Schema.Attribute.Private;
+    post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    viewedBy: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    watchedSeconds: Schema.Attribute.Integer;
+  };
+}
+
 export interface ApiPostPost extends Struct.CollectionTypeSchema {
   collectionName: 'posts';
   info: {
@@ -1416,6 +1449,7 @@ declare module '@strapi/strapi' {
       'api::follow-request.follow-request': ApiFollowRequestFollowRequest;
       'api::following.following': ApiFollowingFollowing;
       'api::like.like': ApiLikeLike;
+      'api::post-view.post-view': ApiPostViewPostView;
       'api::post.post': ApiPostPost;
       'api::report.report': ApiReportReport;
       'api::share.share': ApiShareShare;

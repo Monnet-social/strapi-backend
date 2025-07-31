@@ -1185,10 +1185,13 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
-  async viewStory(ctx) {
+  async viewPost(ctx) {
     const { id: postId } = ctx.params;
     const { user } = ctx.state;
+    let { watchedSeconds = "1" } = ctx.query;
 
+    if (watchedSeconds)
+      watchedSeconds = parseInt(watchedSeconds, 10);
     if (!user)
       return ctx.unauthorized("You must be logged in to view a story.");
 
@@ -1196,34 +1199,35 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       return ctx.badRequest("A valid Post ID is required in the URL.");
 
     try {
-      const story = await strapi.entityService.findOne(
+      const post = await strapi.entityService.findOne(
         "api::post.post",
         postId,
         {
-          filters: { post_type: "story" },
           populate: { viewers: { fields: ["id"] } },
         }
       );
 
-      if (!story)
-        return ctx.notFound("The story you are trying to view does not exist.");
+      if (!post)
+        return ctx.notFound("The post you are trying to view does not exist.");
 
-      const hasAlreadyViewed = story.viewers.some(
+      const hasAlreadyViewed = post.viewers.some(
         (viewer) => viewer.id === user.id
       );
       if (hasAlreadyViewed)
         return ctx.send({
           success: true,
-          message: "Story already marked as viewed.",
+          message: "Post already marked as viewed.",
         });
 
       await strapi.entityService.update("api::post.post", postId, {
         data: { viewers: { connect: [user.id] } },
       });
 
+      await strapi.service("api::post-view.post-view").markPostAsViewed(post.documentId, user.documentId, watchedSeconds);
+
       return ctx.send({
         success: true,
-        message: "Story successfully marked as viewed.",
+        message: "Post successfully marked as viewed.",
       });
     } catch (error) {
       strapi.log.error("Error in viewStory controller:", error);
