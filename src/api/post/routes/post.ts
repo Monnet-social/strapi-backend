@@ -51,7 +51,7 @@ module.exports = {
     {
       method: "POST",
       path: "/stories/:id/view",
-      handler: "post.viewStory",
+      handler: "post.viewPost",
     },
     {
       method: "GET",

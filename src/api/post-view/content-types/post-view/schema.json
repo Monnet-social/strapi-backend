@@ -1,0 +1,28 @@
+{
+  "kind": "collectionType",
+  "collectionName": "post_views",
+  "info": {
+    "singularName": "post-view",
+    "pluralName": "post-views",
+    "displayName": "Post View"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "post": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::post.post"
+    },
+    "viewedBy": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "watchedSeconds": {
+      "type": "integer"
+    }
+  }
+}
