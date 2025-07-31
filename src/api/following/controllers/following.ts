@@ -90,9 +90,10 @@ export default factories.createCoreController(
           );
 
           if (existingRequest.length > 0)
-            return ctx.badRequest("A follow request has already been sent.", {
+            return ctx.send({
               request_status: existingRequest[0].request_status,
               is_request_sent: true,
+              is_following: false,
             });
 
           await strapi.entityService.create(
