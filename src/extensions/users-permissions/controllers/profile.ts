@@ -163,6 +163,7 @@ module.exports = {
         posts: finalPosts,
         stories: finalStories,
         is_self: currentUserId == userId,
+        play_mature_content: user.play_mature_content,
       };
 
       return ctx.send(profileData);
@@ -304,11 +305,10 @@ module.exports = {
       body.play_mature_content !== undefined &&
       body.play_mature_content !== ""
     ) {
-      if (typeof body.play_mature_content !== "boolean") {
+      if (typeof body.play_mature_content !== "boolean")
         return ctx.badRequest(
           "play_mature_content must be a boolean value (true or false)."
         );
-      }
       dataToUpdate.play_mature_content = body.play_mature_content;
     }
     if (Object.keys(dataToUpdate).length === 0)
@@ -336,6 +336,7 @@ module.exports = {
             "badge",
             "gender",
             "avatar_ring_color",
+            "play_mature_content",
           ] as any,
         }
       );

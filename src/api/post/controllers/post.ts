@@ -1555,39 +1555,34 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       if (!targetUser) return ctx.notFound("Target user not found.");
 
-      // --- Start of Privacy & Relationship Check ---
-
       const isOwner =
         currentUserId && currentUserId.toString() === targetUserId.toString();
       let isFollowing = false;
       let isCloseFriend = false;
 
-      // 1. Determine the relationship between the viewer and the profile owner once.
-      // This is more efficient than checking inside a loop.
       if (currentUserId && !isOwner) {
         const [followCount, closeFriendCount] = await Promise.all([
           strapi.entityService.count("api::following.following", {
-            filters: { follower: currentUserId, subject: targetUserId },
+            filters: {
+              follower: { id: currentUserId },
+              subject: { id: targetUserId },
+            },
           }),
-          // Assuming you have a 'close-friend' model to track these relationships
-          strapi.entityService.count("api::close-friend.close-friend", {
-            filters: { user: targetUserId, friend: currentUserId },
+          strapi.entityService.count("api::following.following", {
+            filters: {
+              follower: { id: targetUserId },
+              subject: { id: currentUserId },
+              is_close_friend: true,
+            },
           }),
         ]);
         isFollowing = followCount > 0;
         isCloseFriend = closeFriendCount > 0;
       }
 
-      // 2. Initial Gate: Can the viewer see this profile's content at all?
-      // (Based on the profile being public, or the viewer being the owner or a follower).
       const canViewProfile = targetUser.is_public || isOwner || isFollowing;
-      if (!canViewProfile) {
-        return ctx.send([]);
-      }
+      if (!canViewProfile) return ctx.send([]);
 
-      // --- End of Privacy & Relationship Check ---
-
-      // Fetch all posts by the user; we will filter them next based on post-level privacy.
       const allUserPosts = await strapi.entityService.findMany(
         "api::post.post",
         {
@@ -1609,24 +1604,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }
       );
 
-      // 3. Filter posts based on the `share_with` field and the user's relationship.
       const accessiblePosts = allUserPosts.filter((post) => {
-        // The owner can see all their own posts.
-        if (isOwner) return true;
-        // Anyone can see public posts.
-        if (post.share_with === "PUBLIC") return true;
-        // Followers can see 'FOLLOWERS' posts.
+        if (isOwner || post.share_with === "PUBLIC") return true;
         if (post.share_with === "FOLLOWERS") return isFollowing;
-        // Close friends can see 'CLOSE-FRIENDS' posts.
         if (post.share_with === "CLOSE-FRIENDS") return isCloseFriend;
-        // Default to false if no condition is met.
         return false;
       });
 
-      // Abort if the user has no accessible posts to see.
       if (!accessiblePosts || accessiblePosts.length === 0) return ctx.send([]);
-
-      // --- Start of Enrichment Logic (now using `accessiblePosts`) ---
 
       const categoryIds = [
         ...new Set(
@@ -1711,8 +1696,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const optimizedMediaMap = new Map(
         (optimizedMediaArray || []).map((m) => [m.id, m])
       );
-
-      // --- End of Enrichment Logic ---
 
       const finalPosts = accessiblePosts.map((post) => {
         const postCategoryId = post.category?.id;
