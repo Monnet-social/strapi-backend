@@ -46,8 +46,8 @@ export default factories.createCoreController(
           strapi.entityService.findMany("api::follow-request.follow-request", {
             filters: {
               requested_by: { id: userId },
-              receiver: { id: { $in: requesterIds } },
-              status: "PENDING",
+              requested_for: { id: { $in: requesterIds } },
+              request_status: "PENDING",
             },
             populate: { requested_for: { fields: ["id"] } },
           }),
@@ -57,7 +57,7 @@ export default factories.createCoreController(
           followBackEntries.map((entry: any) => entry.subject.id)
         );
         const usersYouRequestedSet = new Set(
-          outgoingRequestEntries.map((entry: any) => entry.receiver.id)
+          outgoingRequestEntries.map((entry: any) => entry.requested_for.id)
         );
 
         const usersToEnrich = requests.map(
@@ -74,7 +74,7 @@ export default factories.createCoreController(
 
           return {
             ...request,
-            is_accepted: request.request_status === "ACCEPTED",
+            is_this_request_accepted: request.request_status === "ACCEPTED",
             requested_by: {
               ...requester,
               is_following: iAmFollowing,
