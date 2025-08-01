@@ -43,11 +43,12 @@ export default factories.createCoreController(
             },
             populate: { subject: { fields: ["id"] } },
           }),
+
           strapi.entityService.findMany("api::follow-request.follow-request", {
             filters: {
               requested_by: { id: userId },
               requested_for: { id: { $in: requesterIds } },
-              request_status: "PENDING",
+              request_status: { $ne: "REJECTED" },
             },
             populate: { requested_for: { fields: ["id"] } },
           }),
@@ -56,9 +57,16 @@ export default factories.createCoreController(
         const usersYouFollowSet = new Set(
           followBackEntries.map((entry: any) => entry.subject.id)
         );
-        const usersYouRequestedSet = new Set(
-          outgoingRequestEntries.map((entry: any) => entry.requested_for.id)
-        );
+
+        const outgoingRequestStatusMap = new Map();
+        for (const req of outgoingRequestEntries) {
+          if ((req as any).requested_for) {
+            outgoingRequestStatusMap.set(
+              (req as any).requested_for.id,
+              req.request_status
+            );
+          }
+        }
 
         const usersToEnrich = requests.map(
           (request: any) => request.requested_by
@@ -71,15 +79,17 @@ export default factories.createCoreController(
         const finalResponse = requests.map((request: any) => {
           const requester = request.requested_by;
           const iAmFollowing = usersYouFollowSet.has(requester.id);
+          const myRequestStatus = outgoingRequestStatusMap.get(requester.id);
 
           return {
             ...request,
-            is_this_request_accepted: request.request_status === "ACCEPTED",
             requested_by: {
+              is_accepted: request.request_status === "ACCEPTED",
               ...requester,
               is_following: iAmFollowing,
-              is_request_sent:
-                !iAmFollowing && usersYouRequestedSet.has(requester.id),
+              is_request_sent: !iAmFollowing && myRequestStatus === "PENDING",
+              is_my_request_accepted:
+                !iAmFollowing && myRequestStatus === "ACCEPTED",
             },
           };
         });
