@@ -87,5 +87,88 @@ export default factories.createCoreController(
         );
       }
     },
+
+    async getFriendsWithHideStatus(ctx) {
+      const { id: currentUserId } = ctx.state.user;
+
+      try {
+        const followingEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: { follower: { id: currentUserId } },
+            populate: {
+              subject: {
+                fields: ["id", "username", "name", "avatar_ring_color"],
+                populate: { profile_picture: true },
+              },
+            },
+          }
+        );
+        const followingUsers = followingEntries.map(
+          (entry: any) => entry.subject
+        );
+        const followingIds = new Set(followingUsers.map((user) => user.id));
+
+        if (followingIds.size === 0)
+          return ctx.send({
+            data: [],
+            message: "You are not following anyone.",
+          });
+
+        const followerEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              subject: { id: currentUserId },
+              follower: { id: { $in: Array.from(followingIds) } },
+            },
+            populate: { follower: { fields: ["id"] } },
+          }
+        );
+        const friendIds = new Set(
+          followerEntries.map((entry: any) => entry.follower.id)
+        );
+
+        const friends = followingUsers.filter((user) => friendIds.has(user.id));
+
+        if (friends.length === 0)
+          return ctx.send({ data: [], message: "No mutual friends found." });
+
+        const hiddenStoryEntries = await strapi.entityService.findMany(
+          "api::hide-story.hide-story",
+          {
+            filters: { owner: { id: currentUserId } },
+            populate: { target: { fields: ["id"] } },
+          }
+        );
+        const hiddenUserIds = new Set(
+          hiddenStoryEntries
+            .map((entry: any) => entry.target?.id)
+            .filter(Boolean)
+        );
+
+        await strapi
+          .service("api::post.post")
+          .enrichUsersWithOptimizedProfilePictures(friends);
+
+        const friendsWithStatus = friends.map((friend) => ({
+          ...friend,
+          is_story_hidden: hiddenUserIds.has(friend.id),
+        }));
+
+        return ctx.send({
+          data: friendsWithStatus,
+          message: "Friends fetched successfully.",
+        });
+      } catch (error) {
+        strapi.log.error(
+          "Error in getFriendsWithHideStatus controller:",
+          error
+        );
+        return ctx.internalServerError(
+          "An error occurred while fetching friends."
+        );
+      }
+    },
   })
 );

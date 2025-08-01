@@ -83,7 +83,7 @@ module.exports = {
     // DEVELOPMENT & TESTING ROUTES
     //================================================================
     {
-      method: "GET",
+      method: "POST",
       path: "/posts/seed", // From previous request to seed data
       handler: "post.seedStories",
       config: {

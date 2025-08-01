@@ -16,7 +16,7 @@ export default factories.createCoreController(
             },
             populate: {
               requested_by: {
-                fields: ["id", "username"],
+                fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
             },
@@ -24,6 +24,25 @@ export default factories.createCoreController(
         );
 
         if (!requests || requests.length === 0) return ctx.send([]);
+
+        const requesterIds = requests.map(
+          (request: any) => request.requested_by.id
+        );
+
+        const followBackEntries = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: { id: userId },
+              subject: { id: { $in: requesterIds } },
+            },
+            populate: { subject: { fields: ["id"] } },
+          }
+        );
+
+        const usersYouFollowSet = new Set(
+          followBackEntries.map((entry: any) => entry.subject.id)
+        );
 
         const usersToEnrich = requests.map(
           (request: any) => request.requested_by
@@ -33,7 +52,18 @@ export default factories.createCoreController(
           .service("api::post.post")
           .enrichUsersWithOptimizedProfilePictures(usersToEnrich);
 
-        return ctx.send(requests);
+        const finalResponse = requests.map((request: any) => {
+          const requester = request.requested_by;
+          return {
+            ...request,
+            requested_by: {
+              ...requester,
+              is_following: usersYouFollowSet.has(requester.id),
+            },
+          };
+        });
+
+        return ctx.send(finalResponse);
       } catch (error: unknown) {
         console.error("Error in getFollowRequests:", error);
         const errorMessage =
