@@ -16,7 +16,13 @@ export default factories.createCoreController(
             },
             populate: {
               requested_by: {
-                fields: ["id", "username", "name", "avatar_ring_color"],
+                fields: [
+                  "id",
+                  "username",
+                  "name",
+                  "avatar_ring_color",
+                  "is_public",
+                ],
                 populate: { profile_picture: true },
               },
             },
@@ -29,19 +35,29 @@ export default factories.createCoreController(
           (request: any) => request.requested_by.id
         );
 
-        const followBackEntries = await strapi.entityService.findMany(
-          "api::following.following",
-          {
+        const [followBackEntries, outgoingRequestEntries] = await Promise.all([
+          strapi.entityService.findMany("api::following.following", {
             filters: {
               follower: { id: userId },
               subject: { id: { $in: requesterIds } },
             },
             populate: { subject: { fields: ["id"] } },
-          }
-        );
+          }),
+          strapi.entityService.findMany("api::follow-request.follow-request", {
+            filters: {
+              requested_by: { id: userId },
+              receiver: { id: { $in: requesterIds } },
+              status: "PENDING",
+            },
+            populate: { requested_for: { fields: ["id"] } },
+          }),
+        ]);
 
         const usersYouFollowSet = new Set(
           followBackEntries.map((entry: any) => entry.subject.id)
+        );
+        const usersYouRequestedSet = new Set(
+          outgoingRequestEntries.map((entry: any) => entry.receiver.id)
         );
 
         const usersToEnrich = requests.map(
@@ -54,11 +70,17 @@ export default factories.createCoreController(
 
         const finalResponse = requests.map((request: any) => {
           const requester = request.requested_by;
+          const iAmFollowing = usersYouFollowSet.has(requester.id);
+
           return {
             ...request,
             is_accepted: request.request_status === "ACCEPTED",
-            is_following: usersYouFollowSet.has(requester.id),
-            requested_by: requester,
+            requested_by: {
+              ...requester,
+              is_following: iAmFollowing,
+              is_request_sent:
+                !iAmFollowing && usersYouRequestedSet.has(requester.id),
+            },
           };
         });
 
