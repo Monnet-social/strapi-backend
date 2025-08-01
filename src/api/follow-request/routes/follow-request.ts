@@ -18,5 +18,14 @@ module.exports = {
         middlewares: [],
       },
     },
+    {
+      method: "DELETE",
+      path: "/follow-request/:id",
+      handler: "follow-request.deleteRequest",
+      config: {
+        policies: [],
+        middlewares: [],
+      },
+    },
   ],
 };

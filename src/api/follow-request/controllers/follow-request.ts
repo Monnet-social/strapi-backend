@@ -155,7 +155,7 @@ export default factories.createCoreController(
     async deleteRequest(ctx) {
       try {
         const userId = ctx.state.user.id;
-        const { requestId } = ctx.request.body;
+        const { id: requestId } = ctx.params;
 
         if (!requestId)
           return ctx.badRequest(
