@@ -538,6 +538,7 @@ export default factories.createCoreController(
       const { id: parentCommentId } = ctx.params;
       const { user } = ctx.state;
       const { page = 1, pageSize = 10 } = ctx.query;
+      const userId = user.id;
 
       if (!user)
         return ctx.unauthorized("You must be logged in to view replies.");
@@ -548,6 +549,21 @@ export default factories.createCoreController(
         );
 
       try {
+        // 1. Find the parent comment and its associated post to get the author ID
+        const parentComment = await strapi.entityService.findOne(
+          "api::comment.comment",
+          parentCommentId,
+          {
+            populate: {
+              post: { populate: { posted_by: { fields: ["id"] } } },
+            },
+          }
+        );
+
+        if (!parentComment) return ctx.notFound("Parent comment not found.");
+
+        const postAuthorId = (parentComment as any).post?.posted_by?.id;
+
         const paginatedReplies = await strapi.entityService.findPage(
           "api::comment.comment",
           {
@@ -565,7 +581,6 @@ export default factories.createCoreController(
         );
 
         const { results: replies, pagination } = paginatedReplies;
-        const userId = user.id;
 
         if (replies.length === 0)
           return ctx.send({ data: [], meta: { pagination } });
@@ -592,7 +607,9 @@ export default factories.createCoreController(
           ]);
 
         const replyIds = replies.map((reply) => reply.id);
-        const [userLikes, userDislikes] = await Promise.all([
+
+        // 2. Fetch user's likes, user's dislikes, AND author's likes
+        const [userLikes, userDislikes, authorLikes] = await Promise.all([
           strapi.entityService.findMany("api::like.like", {
             filters: {
               liked_by: { id: userId },
@@ -607,6 +624,15 @@ export default factories.createCoreController(
             },
             populate: { comment: { fields: ["id"] } },
           }),
+          postAuthorId
+            ? strapi.entityService.findMany("api::like.like", {
+                filters: {
+                  liked_by: { id: postAuthorId },
+                  comment: { id: { $in: replyIds } },
+                },
+                populate: { comment: { fields: ["id"] } },
+              })
+            : Promise.resolve([]),
         ]);
 
         const likedReplyIds = new Set(
@@ -616,6 +642,10 @@ export default factories.createCoreController(
           userDislikes
             .map((dislike: any) => dislike.comment?.id)
             .filter(Boolean)
+        );
+        // 3. Create a set for author's likes
+        const authorLikedReplyIds = new Set(
+          authorLikes.map((like: any) => like.comment?.id).filter(Boolean)
         );
 
         const finalResults = await Promise.all(
@@ -635,6 +665,8 @@ export default factories.createCoreController(
               dislike_count,
               is_liked: likedReplyIds.has(reply.id),
               is_disliked: dislikedReplyIds.has(reply.id),
+              // 4. Add the new flag here
+              is_liked_by_author: authorLikedReplyIds.has(reply.id),
             };
           })
         );
