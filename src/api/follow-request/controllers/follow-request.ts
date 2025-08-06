@@ -60,12 +60,11 @@ export default factories.createCoreController(
 
         const outgoingRequestStatusMap = new Map();
         for (const req of outgoingRequestEntries) {
-          if ((req as any).requested_for) {
+          if ((req as any).requested_for)
             outgoingRequestStatusMap.set(
               (req as any).requested_for.id,
               req.request_status
             );
-          }
         }
 
         const usersToEnrich = requests.map(

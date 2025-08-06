@@ -100,9 +100,7 @@ export default factories.createCoreController(
                 fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
-              repost_of: {
-                fields: ["id", "comment"],
-              },
+              repost_of: { fields: ["id", "comment"] },
             },
           }
         );
@@ -144,13 +142,12 @@ export default factories.createCoreController(
           },
         }
       );
-      if (checkIfAnotherCommentIsPinned.length > 0) {
+      if (checkIfAnotherCommentIsPinned.length > 0)
         await strapi.entityService.update(
           "api::comment.comment",
           checkIfAnotherCommentIsPinned[0].id,
           { data: { pinned: false } }
         );
-      }
 
       await strapi.entityService.update("api::comment.comment", comment_id, {
         data: { pinned: true },
@@ -182,7 +179,6 @@ export default factories.createCoreController(
           status: 200,
         });
 
-      // FIX: Use optional chaining to prevent crash if post or posted_by is null
       if (comment[0]?.post?.posted_by?.id !== userId)
         return ctx.badRequest("You cannot unpin this comment");
 
@@ -309,13 +305,12 @@ export default factories.createCoreController(
             is_liked_by_author: isLikedByAuthor,
           };
 
-          if (pinnedComment.commented_by) {
+          if (pinnedComment.commented_by)
             await strapi
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures([
                 pinnedComment.commented_by,
               ]);
-          }
         }
 
         const { results: comments, pagination } = paginatedComments;
@@ -544,14 +539,13 @@ export default factories.createCoreController(
       const { user } = ctx.state;
       const { page = 1, pageSize = 10 } = ctx.query;
 
-      if (!user) {
+      if (!user)
         return ctx.unauthorized("You must be logged in to view replies.");
-      }
-      if (!parentCommentId || isNaN(Number(parentCommentId))) {
+
+      if (!parentCommentId || isNaN(Number(parentCommentId)))
         return ctx.badRequest(
           "A valid parent comment ID is required in the URL."
         );
-      }
 
       try {
         const paginatedReplies = await strapi.entityService.findPage(
@@ -573,19 +567,17 @@ export default factories.createCoreController(
         const { results: replies, pagination } = paginatedReplies;
         const userId = user.id;
 
-        if (replies.length === 0) {
+        if (replies.length === 0)
           return ctx.send({ data: [], meta: { pagination } });
-        }
 
         const authorsMap = new Map();
         replies.forEach((reply) => {
-          if (reply.commented_by) {
+          if (reply.commented_by)
             authorsMap.set(reply.commented_by.id, reply.commented_by);
-          }
         });
         const authors = Array.from(authorsMap.values());
 
-        if (authors.length > 0) {
+        if (authors.length > 0)
           await Promise.all([
             strapi
               .service("api::following.following")
@@ -598,7 +590,6 @@ export default factories.createCoreController(
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures(authors),
           ]);
-        }
 
         const replyIds = replies.map((reply) => reply.id);
         const [userLikes, userDislikes] = await Promise.all([
@@ -618,7 +609,6 @@ export default factories.createCoreController(
           }),
         ]);
 
-        // FIX: Add optional chaining and filter out nulls for safety
         const likedReplyIds = new Set(
           userLikes.map((like: any) => like.comment?.id).filter(Boolean)
         );

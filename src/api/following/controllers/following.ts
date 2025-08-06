@@ -141,14 +141,13 @@ export default factories.createCoreController(
           );
 
         const filters: any = { subject: { id: userId } };
-        if (query) {
+        if (query)
           filters.follower = {
             $or: [
               { username: { $containsi: query } },
               { name: { $containsi: query } },
             ],
           };
-        }
 
         const followersEntries = await strapi.entityService.findMany(
           "api::following.following",
@@ -177,7 +176,7 @@ export default factories.createCoreController(
           .map((entry: any) => entry.follower)
           .filter(Boolean);
 
-        if (users.length > 0) {
+        if (users.length > 0)
           await Promise.all([
             strapi
               .service("api::following.following")
@@ -190,7 +189,6 @@ export default factories.createCoreController(
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures(users),
           ]);
-        }
 
         const count = await strapi.entityService.count(
           "api::following.following",
@@ -359,11 +357,10 @@ export default factories.createCoreController(
       const { pagination_size = 10, page = 1, query } = ctx.query;
 
       if (!userId) return ctx.badRequest("User ID is required");
-      if (!currentUser) {
+      if (!currentUser)
         return ctx.unauthorized(
           "You must be logged in to perform this action."
         );
-      }
 
       try {
         const [followingEntries, followerEntries, hiddenStoryEntries] =
@@ -908,7 +905,7 @@ export default factories.createCoreController(
           .map((entry: any) => entry.subject)
           .filter(Boolean);
 
-        if (users.length > 0) {
+        if (users.length > 0)
           await Promise.all([
             strapi
               .service("api::following.following")
@@ -921,7 +918,6 @@ export default factories.createCoreController(
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures(users),
           ]);
-        }
 
         const count = await strapi.entityService.count(
           "api::following.following",

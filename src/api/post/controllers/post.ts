@@ -85,7 +85,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         delete data.share_with_close_friends;
       }
 
-      if (data.media && data.media.length > 0) {
+      if (data.media && data.media.length > 0)
         for (let i = 0; i < data.media.length; i++) {
           const file_id = data.media[i];
           try {
@@ -99,7 +99,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             return ctx.badRequest(`Media with ID ${file_id} does not exist.`);
           }
         }
-      }
 
       if (data.category) {
         const categoryExists = await strapi.entityService.findOne(
@@ -326,11 +325,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         const now = new Date();
         const expirationTime = createdAt.getTime() + 24 * 60 * 60 * 1000;
         entity.expiration_time = expirationTime;
-        if (now.getTime() > expirationTime) {
+        if (now.getTime() > expirationTime)
           return ctx.notFound(
             "This story has expired and is no longer available."
           );
-        }
       }
 
       return ctx.send(entity);
@@ -1230,9 +1228,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             },
           });
           createdCount++;
-        } else {
-          skippedCount++;
-        }
+        } else skippedCount++;
       }
 
       return ctx.send({
@@ -1285,6 +1281,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   //================================================================
   // POST CONTROLLERS
   //================================================================
+
   async feed(ctx) {
     const { id: userId } = ctx.state.user;
     const { pagination_size, page } = ctx.query;
@@ -1354,12 +1351,24 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           sort: { createdAt: "desc" },
           populate: {
             posted_by: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
+              fields: [
+                "id",
+                "username",
+                "name",
+                "avatar_ring_color",
+                "is_public",
+              ],
               populate: { profile_picture: true },
             },
             category: true,
             tagged_users: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
+              fields: [
+                "id",
+                "username",
+                "name",
+                "avatar_ring_color",
+                "is_public",
+              ],
               populate: { profile_picture: true },
             },
             media: true,
@@ -1371,7 +1380,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }),
         strapi.entityService.count("api::post.post", { filters: postFilters }),
       ]);
-      console.log("OK RESUTLS");
+
       if (results.length > 0) {
         const categoryIds = [
           ...new Set(results.map((post) => post.category?.id).filter(Boolean)),
@@ -1399,17 +1408,15 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           .flatMap((post) => [post.posted_by, ...(post.tagged_users || [])])
           .filter(Boolean);
 
+        const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
+
         const allMedia = results.flatMap((p) => p.media || []).filter(Boolean);
 
-        const [optimizedMediaArray] = await Promise.all([
+        const [optimizedMediaArray, followStatusMap] = await Promise.all([
           strapi.service("api::post.post").getOptimisedFileData(allMedia),
           strapi
             .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: results,
-              userPaths: ["posted_by", "tagged_users"],
-              currentUserId: userId,
-            }),
+            .getFollowStatusForUsers(userId, allUserIds),
           strapi
             .service("api::post.post")
             .enrichUsersWithOptimizedProfilePictures(usersToProcess),
@@ -1455,12 +1462,21 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
         const finalData = results.map((post) => {
           const postCategoryId = post.category?.id;
+
           return {
             ...post,
             subcategories: subcategoriesByCategory.get(postCategoryId) || [],
             media: (post.media || []).map(
               (m) => optimizedMediaMap.get(m.id) || m
             ),
+            posted_by: {
+              ...post.posted_by,
+              ...followStatusMap.get(post.posted_by.id),
+            },
+            tagged_users: (post.tagged_users || []).map((user) => ({
+              ...user,
+              ...followStatusMap.get(user.id),
+            })),
           };
         });
 

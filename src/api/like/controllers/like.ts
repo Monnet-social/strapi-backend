@@ -3,7 +3,6 @@
  */
 
 import { factories } from "@strapi/strapi";
-import { stat } from "fs";
 
 export default factories.createCoreController(
   "api::like.like",
@@ -60,19 +59,25 @@ export default factories.createCoreController(
 
         if (users.length === 0) return ctx.send([]);
 
-        await Promise.all([
+        const userIds = users.map((user) => user.id);
+
+        const [followStatusMap] = await Promise.all([
           strapi
             .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: likes,
-              userPaths: ["liked_by"],
-              currentUserId: currentUser.id,
-            }),
+            .getFollowStatusForUsers(currentUser.id, userIds),
           strapi
             .service("api::post.post")
             .enrichUsersWithOptimizedProfilePictures(users),
         ]);
-        return ctx.send(users);
+
+        const finalUsers = users.map((user) => {
+          return {
+            ...user,
+            ...followStatusMap.get(user.id),
+          };
+        });
+
+        return ctx.send(finalUsers);
       } catch (err) {
         strapi.log.error("Error in getLikesByPostId:", err);
         return ctx.internalServerError(

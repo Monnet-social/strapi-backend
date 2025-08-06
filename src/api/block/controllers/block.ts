@@ -99,12 +99,11 @@ module.exports = {
           },
         }
       )) as any;
-      if (!blockedEntries || blockedEntries.length === 0) {
+      if (!blockedEntries || blockedEntries.length === 0)
         return ctx.send({
           data: [],
           message: "You have not blocked any users.",
         });
-      }
 
       const usersToEnrich = blockedEntries.map((entry) => entry.blocked_user);
 

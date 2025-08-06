@@ -65,7 +65,7 @@ export default ({ strapi }: { strapi }) => ({
       Array.from(allUserIds)
     );
 
-    for (const item of items) {
+    for (const item of items)
       for (const path of userPaths) {
         const usersData = item[path];
 
@@ -79,13 +79,11 @@ export default ({ strapi }: { strapi }) => ({
         if (Array.isArray(usersData)) usersData.forEach(enrichUser);
         else enrichUser(usersData);
       }
-    }
   },
 
   async getMutualFollowersCount(currentUserId, targetUserId) {
-    if (!currentUserId || !targetUserId || currentUserId === targetUserId) {
+    if (!currentUserId || !targetUserId || currentUserId === targetUserId)
       return 0;
-    }
 
     const [currentUserFollowing, targetUserFollowers] = await Promise.all([
       strapi.entityService.findMany("api::following.following", {
@@ -114,5 +112,52 @@ export default ({ strapi }: { strapi }) => ({
     );
 
     return mutuals.length;
+  },
+
+  async getFollowStatusForUsers(currentUserId, userIds) {
+    const [followBackEntries, outgoingRequestEntries] = await Promise.all([
+      strapi.entityService.findMany("api::following.following", {
+        filters: {
+          follower: { id: currentUserId },
+          subject: { id: { $in: userIds } },
+        },
+        populate: { subject: { fields: ["id"] } },
+      }),
+
+      strapi.entityService.findMany("api::follow-request.follow-request", {
+        filters: {
+          requested_by: { id: currentUserId },
+          requested_for: { id: { $in: userIds } },
+          request_status: { $ne: "REJECTED" },
+        },
+        populate: { requested_for: { fields: ["id", "is_public"] } },
+      }),
+    ]);
+
+    const usersYouFollowSet = new Set(
+      followBackEntries.map((entry: any) => entry.subject.id)
+    );
+
+    const outgoingRequestStatusMap = new Map();
+    for (const req of outgoingRequestEntries) {
+      let r: any = req;
+      if (r.requested_for) {
+        outgoingRequestStatusMap.set(r.requested_for.id, req.request_status);
+      }
+    }
+
+    const result = new Map();
+    for (const userId of userIds) {
+      const is_following = usersYouFollowSet.has(userId);
+      const myRequestStatus = outgoingRequestStatusMap.get(userId);
+
+      result.set(userId, {
+        is_following: is_following,
+        is_request_sent: !is_following && myRequestStatus === "PENDING",
+        is_my_request_accepted: !is_following && myRequestStatus === "ACCEPTED",
+      });
+    }
+
+    return result;
   },
 });
