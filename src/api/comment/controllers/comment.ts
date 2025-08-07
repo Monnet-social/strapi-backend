@@ -549,7 +549,6 @@ export default factories.createCoreController(
         );
 
       try {
-        // 1. Find the parent comment and its associated post to get the author ID
         const parentComment = await strapi.entityService.findOne(
           "api::comment.comment",
           parentCommentId,
@@ -608,7 +607,6 @@ export default factories.createCoreController(
 
         const replyIds = replies.map((reply) => reply.id);
 
-        // 2. Fetch user's likes, user's dislikes, AND author's likes
         const [userLikes, userDislikes, authorLikes] = await Promise.all([
           strapi.entityService.findMany("api::like.like", {
             filters: {
@@ -643,7 +641,7 @@ export default factories.createCoreController(
             .map((dislike: any) => dislike.comment?.id)
             .filter(Boolean)
         );
-        // 3. Create a set for author's likes
+
         const authorLikedReplyIds = new Set(
           authorLikes.map((like: any) => like.comment?.id).filter(Boolean)
         );

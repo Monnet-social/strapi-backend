@@ -92,4 +92,38 @@ export default class HelperService {
       return null;
     }
   }
+
+  static async reverseGeocodeCoords(
+    latitude: number,
+    longitude: number
+  ): Promise<{ city: string | null; country: string | null }> {
+    try {
+      const response = await axios.get(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${process.env.GOOGLE_MAP_API_KEY}`
+      );
+
+      if (response.data.status !== "OK" || response.data.results.length === 0) {
+        console.error(
+          `Reverse geocoding failed for coordinates (${latitude}, ${longitude}): ${response.data.status}`
+        );
+        return { city: null, country: null };
+      }
+
+      const result = response.data.results[0];
+      let city = null;
+      let country = null;
+
+      for (const component of result.address_components) {
+        if (component.types.includes("locality")) city = component.long_name;
+        if (component.types.includes("country")) country = component.long_name;
+      }
+
+      return { city, country };
+    } catch (error) {
+      console.error(
+        `Reverse geocoding failed for coordinates (${latitude}, ${longitude}): ${error.message}`
+      );
+      return { city: null, country: null };
+    }
+  }
 }

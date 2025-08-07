@@ -139,6 +139,23 @@ module.exports = {
         currentUserId != userId &&
         followRequestCount > 0;
 
+      let locationWithNames = (user as any).location;
+      if (
+        locationWithNames &&
+        locationWithNames.latitude &&
+        locationWithNames.longitude
+      ) {
+        try {
+          const { city, country } = await HelperService.reverseGeocodeCoords(
+            locationWithNames.latitude,
+            locationWithNames.longitude
+          );
+          locationWithNames = { ...locationWithNames, city, country };
+        } catch (error) {
+          console.error("Error fetching city and country:", error);
+        }
+      }
+
       const profileData = {
         id: user.id,
         username: user.username,
@@ -146,7 +163,7 @@ module.exports = {
         bio: (user as any).bio,
         website: (user as any).website,
         professional_info: (user as any).professional_info,
-        location: (user as any).location,
+        location: locationWithNames,
         is_public: (user as any).is_public,
         badge: (user as any).badge,
         avatar_ring_color: (user as any).avatar_ring_color,
