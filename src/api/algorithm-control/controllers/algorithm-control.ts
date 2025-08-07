@@ -4,7 +4,8 @@ export default factories.createCoreController(
   "api::algorithm-control.algorithm-control",
   ({ strapi }) => ({
     async find(ctx) {
-      const { documentId: userId } = ctx.state.user;
+      const { id: userId } = ctx.state.user;
+      console.log("Fetching algorithm control for user:", userId);
       const control = await strapi
         .service("api::algorithm-control.algorithm-control")
         .findOrCreate(userId);
