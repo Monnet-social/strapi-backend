@@ -15,7 +15,18 @@ export default factories.createCoreController(
     async update(ctx) {
       const { documentId: userId } = ctx.state.user;
       const { controlDocumentId } = ctx.params;
-
+      // {
+      //   friends:0-100,
+      //   followings:0-100,
+      //   recommendations:0-100,
+      //   distance:0-100,
+      //   categories_entry: [
+      //     {
+      //       category: { documentId: "categoryId" },
+      //       weight: 0-100,
+      //     },
+      //   ],
+      // }
       const data = ctx.request.body;
       let control: any = {};
 

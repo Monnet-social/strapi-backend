@@ -2,6 +2,12 @@
  * algorithm-control router
  */
 
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::algorithm-control.algorithm-control');
+export default {
+  routes: [
+    {
+      method: "PUT",
+      path: "/algorithm-control",
+      handler: "algorithm-control.update",
+    },
+  ],
+};
