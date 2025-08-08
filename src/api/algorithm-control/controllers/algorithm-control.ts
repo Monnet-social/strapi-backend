@@ -23,11 +23,12 @@ export default factories.createCoreController(
       //   distance:0-100,
       //   categories_entry: [
       //     {
-      //       category: { documentId: "categoryId" },
+      //       category: { id: "categoryId" },
       //       weight: 0-100,
       //     },
       //   ],
       // }
+      console.log("Updating algorithm control for user:", userId);
       const data = ctx.request.body;
       let control: any = {};
 
@@ -41,7 +42,7 @@ export default factories.createCoreController(
 
       if (data.categories_entry)
         control.categories_entry = data.categories_entry.map((entry) => ({
-          category: { documentId: entry.category.documentId },
+          category: { id: entry.category.id },
           weight: entry.weight,
         }));
 
@@ -60,7 +61,10 @@ export default factories.createCoreController(
           },
         });
 
-      return response;
+      return ctx.send({
+        message: "Algorithm control updated successfully",
+        data: response,
+      });
     },
   })
 );
