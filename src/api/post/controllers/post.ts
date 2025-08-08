@@ -906,7 +906,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         new Date().getTime() - 24 * 60 * 60 * 1000
       );
 
-      // The correct way to perform a bulk delete with filters in Strapi
       const deletedCount = await strapi.db.query("api::post.post").deleteMany({
         where: {
           post_type: "story",
