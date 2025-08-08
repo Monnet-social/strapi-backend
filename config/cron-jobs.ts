@@ -60,65 +60,65 @@ export default {
       );
     }
   },
-  // deleteExpiredStories: {
-  //   task: async ({ strapi }) => {
-  //     console.log("-------------------------------------------");
-  //     console.log("[Cron Job] Running: Checking for expired stories...");
+  deleteExpiredStories: {
+    task: async ({ strapi }) => {
+      console.log("-------------------------------------------");
+      console.log("[Cron Job] Running: Checking for expired stories...");
 
-  //     const twentyFourHoursAgo = new Date(
-  //       new Date().getTime() - 24 * 60 * 60 * 1000
-  //     );
-  //     console.log(
-  //       `[Cron Job] Deleting stories created before: ${twentyFourHoursAgo.toISOString()}`
-  //     );
+      const twentyFourHoursAgo = new Date(
+        new Date().getTime() - 24 * 60 * 60 * 1000
+      );
+      console.log(
+        `[Cron Job] Deleting stories created before: ${twentyFourHoursAgo.toISOString()}`
+      );
 
-  //     const expiredStories = await strapi.entityService.findMany(
-  //       "api::post.post",
-  //       {
-  //         filters: {
-  //           post_type: "story",
-  //           createdAt: {
-  //             $lt: twentyFourHoursAgo,
-  //           },
-  //         },
-  //         populate: { media: true },
-  //       }
-  //     );
+      const expiredStories = await strapi.entityService.findMany(
+        "api::post.post",
+        {
+          filters: {
+            post_type: "story",
+            createdAt: {
+              $lt: twentyFourHoursAgo,
+            },
+          },
+          populate: { media: true },
+        }
+      );
 
-  //     if (expiredStories.length === 0) {
-  //       console.log("[Cron Job] No expired stories found.");
-  //       console.log("-------------------------------------------");
-  //       return;
-  //     }
+      if (expiredStories.length === 0) {
+        console.log("[Cron Job] No expired stories found.");
+        console.log("-------------------------------------------");
+        return;
+      }
 
-  //     console.log(
-  //       `[Cron Job] Found ${expiredStories.length} expired stories to delete.`
-  //     );
+      console.log(
+        `[Cron Job] Found ${expiredStories.length} expired stories to delete.`
+      );
 
-  //     for (const story of expiredStories) {
-  //       try {
-  //         if (story.media && story.media.length > 0) {
-  //           for (const mediaFile of story.media) {
-  //             await strapi
-  //               .service("api::file-optimisation.file-optimisation")
-  //               .deleteOptimisedFile(mediaFile.id);
-  //           }
-  //         }
+      for (const story of expiredStories) {
+        try {
+          if (story.media && story.media.length > 0) {
+            for (const mediaFile of story.media) {
+              await strapi
+                .service("api::file-optimisation.file-optimisation")
+                .deleteOptimisedFile(mediaFile.id);
+            }
+          }
 
-  //         await strapi.entityService.delete("api::post.post", story.id);
-  //         console.log(` -> Deleted story with ID: ${story.id}`);
-  //       } catch (error) {
-  //         console.error(
-  //           `[Cron Job] Failed to delete story with ID ${story.id}:`,
-  //           error
-  //         );
-  //       }
-  //     }
-  //     console.log("[Cron Job] Finished deleting expired stories.");
-  //     console.log("-------------------------------------------");
-  //   },
-  //   options: {
-  //     rule: "0 * * * *",
-  //   },
-  // },
+          await strapi.entityService.delete("api::post.post", story.id);
+          console.log(` -> Deleted story with ID: ${story.id}`);
+        } catch (error) {
+          console.error(
+            `[Cron Job] Failed to delete story with ID ${story.id}:`,
+            error
+          );
+        }
+      }
+      console.log("[Cron Job] Finished deleting expired stories.");
+      console.log("-------------------------------------------");
+    },
+    options: {
+      rule: "0 * * * *",
+    },
+  },
 };

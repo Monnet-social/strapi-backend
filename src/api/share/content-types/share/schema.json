@@ -20,6 +20,11 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "api::post.post"
+    },
+    "shared_profile": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
     }
   }
 }

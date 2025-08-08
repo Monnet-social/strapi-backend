@@ -906,26 +906,24 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         new Date().getTime() - 24 * 60 * 60 * 1000
       );
 
-      const filters = {
-        post_type: "story",
-        createdAt: { $lt: twentyFourHoursAgo },
-      };
+      // The correct way to perform a bulk delete with filters in Strapi
+      const deletedCount = await strapi.db.query("api::post.post").deleteMany({
+        where: {
+          post_type: "story",
+          // createdAt: { $lt: twentyFourHoursAgo },
+        },
+      });
 
-      const { count } = await strapi.entityService.deleteMany(
-        "api::post.post",
-        {
-          filters,
-          limit: 100,
-        }
-      );
-
-      if (count > 0)
-        console.log(`Successfully deleted ${count} expired stories.`);
+      if (deletedCount > 0) {
+        console.log(`Successfully deleted ${deletedCount} expired stories.`);
+      } else {
+        console.log("No expired stories found to delete.");
+      }
 
       return ctx.send({
         message: "Expired stories cleanup process completed successfully.",
         data: {
-          deleted_count: count,
+          deleted_count: deletedCount,
         },
       });
     } catch (err) {
