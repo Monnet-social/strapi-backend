@@ -67,7 +67,7 @@ export default {
       "plugin::users-permissions.user",
       {
         filters: {
-          confirmed: false,
+          tos_accepted: false,
           createdAt: { $lt: twentyFourHoursAgo },
         },
         fields: ["id"],
