@@ -1596,28 +1596,37 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const canViewProfile = targetUser.is_public || isOwner || isFollowing;
       if (!canViewProfile) return ctx.send([]);
 
-      const allUserPosts = await strapi.entityService.findMany(
-        "api::post.post",
-        {
-          filters: { posted_by: { id: targetUserId }, post_type: "post" },
-          sort: { createdAt: "desc" },
-          populate: {
-            media: true,
-            repost_of: true,
-            category: true,
-            posted_by: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
-              populate: { profile_picture: true },
-            },
-            tagged_users: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
-              populate: { profile_picture: true },
-            },
+      const posts = await strapi.entityService.findMany("api::post.post", {
+        filters: { posted_by: { id: targetUserId }, post_type: "post" },
+        sort: { createdAt: "desc" },
+        populate: {
+          media: true,
+          repost_of: true,
+          category: true,
+          posted_by: {
+            fields: [
+              "id",
+              "username",
+              "name",
+              "avatar_ring_color",
+              "is_public",
+            ],
+            populate: { profile_picture: true },
           },
-        }
-      );
+          tagged_users: {
+            fields: [
+              "id",
+              "username",
+              "name",
+              "avatar_ring_color",
+              "is_public",
+            ],
+            populate: { profile_picture: true },
+          },
+        },
+      });
 
-      const accessiblePosts = allUserPosts.filter((post) => {
+      const accessiblePosts = posts.filter((post) => {
         if (isOwner || post.share_with === "PUBLIC") return true;
         if (post.share_with === "FOLLOWERS") return isFollowing;
         if (post.share_with === "CLOSE-FRIENDS") return isCloseFriend;
@@ -1653,17 +1662,24 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const usersToProcess = accessiblePosts
         .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
         .filter(Boolean);
+      const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
 
-      await Promise.all([
-        strapi.service("api::following.following").enrichItemsWithFollowStatus({
-          items: accessiblePosts,
-          userPaths: ["posted_by", "tagged_users"],
-          currentUserId: currentUserId,
-        }),
+      const allMedia = accessiblePosts
+        .flatMap((p) => p.media || [])
+        .filter(Boolean);
+
+      const [optimizedMediaArray, followStatusMap] = await Promise.all([
+        strapi.service("api::post.post").getOptimisedFileData(allMedia),
+        strapi
+          .service("api::following.following")
+          .getFollowStatusForUsers(currentUserId, allUserIds),
         strapi
           .service("api::post.post")
           .enrichUsersWithOptimizedProfilePictures(usersToProcess),
       ]);
+      const optimizedMediaMap = new Map(
+        (optimizedMediaArray || []).map((m) => [m.id, m])
+      );
 
       await Promise.all(
         accessiblePosts.map(async (post) => {
@@ -1700,32 +1716,30 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         })
       );
 
-      const allMedia = accessiblePosts
-        .flatMap((p) => p.media || [])
-        .filter(Boolean);
-      const optimizedMediaArray = await strapi
-        .service("api::post.post")
-        .getOptimisedFileData(allMedia);
-      const optimizedMediaMap = new Map(
-        (optimizedMediaArray || []).map((m) => [m.id, m])
-      );
-
       const finalPosts = accessiblePosts.map((post) => {
         const postCategoryId = post.category?.id;
-        const relatedSubcategories =
-          subcategoriesByCategory.get(postCategoryId) || [];
-
         return {
           ...post,
-          subcategories: relatedSubcategories,
-          is_repost: post.repost_of !== null,
+          subcategories: subcategoriesByCategory.get(postCategoryId) || [],
           media: (post.media || []).map(
             (m) => optimizedMediaMap.get(m.id) || m
           ),
+          is_repost: !!post.repost_of,
+          posted_by: {
+            ...post.posted_by,
+            ...followStatusMap.get(post.posted_by.id),
+          },
+          tagged_users: (post.tagged_users || []).map((user) => ({
+            ...user,
+            ...followStatusMap.get(user.id),
+          })),
         };
       });
 
-      return ctx.send(finalPosts);
+      return ctx.send({
+        data: finalPosts,
+        message: "User's posts fetched successfully.",
+      });
     } catch (err) {
       console.error("Error in findUserPosts:", err);
       return ctx.internalServerError(
