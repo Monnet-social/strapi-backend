@@ -751,6 +751,34 @@ export interface ApiLikeLike extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiNotificationNotification
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'notifications';
+  info: {
+    displayName: 'Notification';
+    pluralName: 'notifications';
+    singularName: 'notification';
+  };
+  options: {
+    draftAndPublish: true;
+  };
+  attributes: {
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::notification.notification'
+    > &
+      Schema.Attribute.Private;
+    publishedAt: Schema.Attribute.DateTime;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiPostViewPostView extends Struct.CollectionTypeSchema {
   collectionName: 'post_views';
   info: {
@@ -1489,6 +1517,7 @@ declare module '@strapi/strapi' {
       'api::following.following': ApiFollowingFollowing;
       'api::hide-story.hide-story': ApiHideStoryHideStory;
       'api::like.like': ApiLikeLike;
+      'api::notification.notification': ApiNotificationNotification;
       'api::post-view.post-view': ApiPostViewPostView;
       'api::post.post': ApiPostPost;
       'api::report.report': ApiReportReport;

@@ -1,4 +1,5 @@
 import { factories } from "@strapi/strapi";
+import { request } from "http";
 
 export default factories.createCoreController(
   "api::algorithm-control.algorithm-control",
@@ -14,43 +15,80 @@ export default factories.createCoreController(
     },
 
     async update(ctx) {
-      const { documentId: userId } = ctx.state.user;
-      const { controlDocumentId } = ctx.params;
-      // {
-      //   friends:0-100,
-      //   followings:0-100,
-      //   recommendations:0-100,
-      //   distance:0-100,
-      //   categories_entry: [
+      const { id: userId } = ctx.state.user;
+      // sample request body
+      //  {
+      //   "friends": 73,
+      //   "followings": 22,
+      //   "recommendations": 91,
+      //   "distance": 45,
+      //   "categories_entry": [
       //     {
-      //       category: { id: "categoryId" },
-      //       weight: 0-100,
+      //       "category": {
+      //         "id": 19
+      //       },
+      //       "weight": 88
       //     },
-      //   ],
+      //         {
+      //       "category": {
+      //         "id": 21
+      //       },
+      //       "weight": 69
+      //     }
+      //   ]
       // }
+
+      const alog_control = await strapi
+        .service("api::algorithm-control.algorithm-control")
+        .findOrCreate(userId);
+      if (!alog_control.id) {
+        return ctx.badRequest("Control document not found for user.");
+      }
       console.log("Updating algorithm control for user:", userId);
       const data = ctx.request.body;
       let control: any = {};
 
-      if (!data.friends) control.friends = data.friends;
+      if (data.friends) control.friends = data.friends;
 
-      if (!data.followings) control.followings = data.followings;
+      if (data.followings) control.followings = data.followings;
 
-      if (!data.recommendations) control.recommendations = data.recommendations;
+      if (data.recommendations) control.recommendations = data.recommendations;
 
-      if (!data.distance) control.distance = data.distance;
+      if (data.distance) control.distance = data.distance;
 
-      if (data.categories_entry)
-        control.categories_entry = data.categories_entry.map((entry) => ({
-          category: { id: entry.category.id },
-          weight: entry.weight,
-        }));
+      if (data.categories_entry) {
+        let categories = [];
+        for (const entry of alog_control.categories_entry) {
+          console.log("Processing category entry:", entry);
+          const updatedCategory = data.categories_entry.find(
+            (cat) => cat.category.id === entry.category.id
+          );
+          if (updatedCategory) {
+            categories.push({
+              category: updatedCategory.category.id,
+              weightage: updatedCategory.weight,
+            });
+          } else {
+            categories.push({
+              category: entry.category.id,
+              weightage: entry.weightage,
+            });
+          }
+        }
+        control.categories_entry = categories;
+      }
 
-      const response = await strapi
-        .documents("api::algorithm-control.algorithm-control")
-        .update({
-          documentId: controlDocumentId,
-          filters: { user: { documentId: userId } },
+      console.log(
+        "Updating control document with ID:",
+        control.categories_entry
+      );
+
+      console.log("Updating control document with ID:", control);
+
+      const response = await strapi.entityService.update(
+        "api::algorithm-control.algorithm-control",
+        alog_control.id,
+        {
           data: control,
           populate: {
             categories_entry: {
@@ -59,7 +97,8 @@ export default factories.createCoreController(
               },
             },
           },
-        });
+        }
+      );
 
       return ctx.send({
         message: "Algorithm control updated successfully",
