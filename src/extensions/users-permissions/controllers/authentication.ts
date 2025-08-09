@@ -189,6 +189,30 @@ async function register(ctx: any) {
   }
 }
 
+async function acceptTos(ctx) {
+  const { user } = ctx.state;
+  if (!user)
+    return ctx.unauthorized("You must be logged in to accept the terms.");
+
+  try {
+    await strapi.entityService.update(
+      "plugin::users-permissions.user",
+      user.id,
+      { data: { tos_accepted: true } }
+    );
+
+    return ctx.send({
+      success: true,
+      message: "Terms and Conditions have been accepted successfully.",
+    });
+  } catch (error) {
+    console.error("Error accepting Terms and Conditions:", error);
+    return ctx.internalServerError(
+      "An error occurred while accepting the terms."
+    );
+  }
+}
+
 async function getUser(ctx) {
   try {
     const userId = ctx.state.user.id;
@@ -466,30 +490,6 @@ async function checkUserStatus(ctx) {
   } catch (err) {
     console.error("Check User Status Error:", err);
     return ctx.internalServerError("An unexpected error occurred.");
-  }
-}
-
-async function acceptTos(ctx) {
-  const { user } = ctx.state;
-  if (!user)
-    return ctx.unauthorized("You must be logged in to accept the terms.");
-
-  try {
-    await strapi.entityService.update(
-      "plugin::users-permissions.user",
-      user.id,
-      { data: { tos_accepted: true } }
-    );
-
-    return ctx.send({
-      success: true,
-      message: "Terms and Conditions have been accepted successfully.",
-    });
-  } catch (error) {
-    console.error("Error accepting Terms and Conditions:", error);
-    return ctx.internalServerError(
-      "An error occurred while accepting the terms."
-    );
   }
 }
 

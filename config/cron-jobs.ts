@@ -60,6 +60,32 @@ export default {
       );
     }
   },
+  "0 3 * * *": async ({ strapi }) => {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const abandonedUsers = await strapi.entityService.findMany(
+      "plugin::users-permissions.user",
+      {
+        filters: {
+          confirmed: false,
+          createdAt: { $lt: twentyFourHoursAgo },
+        },
+        fields: ["id"],
+      }
+    );
+
+    if (abandonedUsers.length > 0) {
+      const userIdsToDelete = abandonedUsers.map((user) => user.id);
+
+      await strapi.db.query("plugin::users-permissions.user").deleteMany({
+        where: { id: { $in: userIdsToDelete } },
+      });
+
+      console.log(
+        `Successfully deleted ${abandonedUsers.length} abandoned provisional user(s).`
+      );
+    }
+  },
   deleteExpiredStories: {
     task: async ({ strapi }) => {
       console.log("-------------------------------------------");
