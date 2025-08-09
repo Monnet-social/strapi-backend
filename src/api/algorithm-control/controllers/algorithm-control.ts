@@ -1,4 +1,5 @@
 import { factories } from "@strapi/strapi";
+import { request } from "http";
 
 export default factories.createCoreController(
   "api::algorithm-control.algorithm-control",
@@ -15,18 +16,26 @@ export default factories.createCoreController(
 
     async update(ctx) {
       const { id: userId } = ctx.state.user;
-
-      // {
-      //   friends:0-100,
-      //   followings:0-100,
-      //   recommendations:0-100,
-      //   distance:0-100,
-      //   categories_entry: [
+      // sample request body
+      //  {
+      //   "friends": 73,
+      //   "followings": 22,
+      //   "recommendations": 91,
+      //   "distance": 45,
+      //   "categories_entry": [
       //     {
-      //       category: { id: "categoryId" },
-      //       weight: 0-100,
+      //       "category": {
+      //         "id": 19
+      //       },
+      //       "weight": 88
       //     },
-      //   ],
+      //         {
+      //       "category": {
+      //         "id": 21
+      //       },
+      //       "weight": 69
+      //     }
+      //   ]
       // }
 
       const alog_control = await strapi
@@ -48,7 +57,6 @@ export default factories.createCoreController(
       if (data.distance) control.distance = data.distance;
 
       if (data.categories_entry) {
-        //get old category and new category map with category id and then remove id from component and create new category with updated data and create new one
         let categories = [];
         for (const entry of alog_control.categories_entry) {
           console.log("Processing category entry:", entry);
@@ -56,13 +64,11 @@ export default factories.createCoreController(
             (cat) => cat.category.id === entry.category.id
           );
           if (updatedCategory) {
-            // If the category exists, update its weight
             categories.push({
               category: updatedCategory.category.id,
               weightage: updatedCategory.weight,
             });
           } else {
-            // If the category does not exist, get old category and push them by removing id
             categories.push({
               category: entry.category.id,
               weightage: entry.weightage,
