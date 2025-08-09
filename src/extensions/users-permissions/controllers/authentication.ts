@@ -514,14 +514,24 @@ async function checkUsername(ctx: any) {
     });
 
   try {
+    const sessionTimeout = new Date(Date.now() - 30 * 60 * 1000);
+
     const existingUser = await strapi.entityService.findMany(
       "plugin::users-permissions.user",
       {
-        filters: { username: trimmedUsername },
+        filters: {
+          username: trimmedUsername,
+          $or: [
+            { tos_accepted: true },
+            {
+              tos_accepted: false,
+              createdAt: { $gt: sessionTimeout },
+            },
+          ],
+        },
         limit: 1,
       }
     );
-
     if (existingUser.length > 0)
       return ctx.send({
         available: false,
@@ -547,6 +557,11 @@ async function updateUsername(ctx) {
   if (!user)
     return ctx.unauthorized("You must be logged in to update your username.");
 
+  if (user.tos_accepted)
+    return ctx.forbidden(
+      "You cannot change your username after completing registration."
+    );
+
   if (!newUsername || typeof newUsername !== "string")
     return ctx.badRequest('A new "username" must be provided as a string.');
 
@@ -558,12 +573,20 @@ async function updateUsername(ctx) {
     );
 
   try {
+    const sessionTimeout = new Date(Date.now() - 30 * 60 * 1000);
     const existingUser = await strapi.entityService.findMany(
       "plugin::users-permissions.user",
       {
         filters: {
           username: trimmedUsername,
           id: { $ne: user.id },
+          $or: [
+            { tos_accepted: true },
+            {
+              tos_accepted: false,
+              createdAt: { $gt: sessionTimeout },
+            },
+          ],
         },
         limit: 1,
       }
@@ -577,11 +600,7 @@ async function updateUsername(ctx) {
     await strapi.entityService.update(
       "plugin::users-permissions.user",
       user.id,
-      {
-        data: {
-          username: trimmedUsername,
-        },
-      }
+      { data: { username: trimmedUsername } }
     );
 
     return ctx.send({
