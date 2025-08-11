@@ -145,10 +145,6 @@
     },
     "last_active_at": {
       "type": "datetime"
-    },
-    "mesibo_id": {
-      "type": "integer",
-      "unique": true
     }
   }
 }

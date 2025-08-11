@@ -1456,7 +1456,6 @@ export interface PluginUsersPermissionsUser
     > &
       Schema.Attribute.Private;
     location: Schema.Attribute.Component<'location.location', false>;
-    mesibo_id: Schema.Attribute.Integer & Schema.Attribute.Unique;
     name: Schema.Attribute.String;
     no_of_referrals: Schema.Attribute.Integer & Schema.Attribute.DefaultTo<0>;
     password: Schema.Attribute.Password &
