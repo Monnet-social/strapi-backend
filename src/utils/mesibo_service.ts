@@ -14,7 +14,7 @@ export default class MesiboService {
         populate: {
           profile_picture: true,
         },
-        fields: ["id", "name", "mesibo_id"],
+        fields: ["id", "name", "mesibo_id", "mesibo_token"],
       }
     );
     if (findUser.length == 0) {
