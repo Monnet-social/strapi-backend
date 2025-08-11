@@ -455,25 +455,32 @@ export default class FileOptimisationService {
     }
   }
   async getSignedUrl(file_id: string) {
-    try {
-      let expiryTime = process.env.IMAGE_EXPIRE_TIME
-        ? Number(process.env.IMAGE_EXPIRE_TIME)
-        : 3600; // Default to 1 hour if not set
-      let expiryTimeInSeconds = parseInt(expiryTime?.toString(), 10);
-      const options: any = {
-        version: "v4",
-        action: "read",
-        expires: Date.now() + expiryTimeInSeconds, // Expiration time in milliseconds
-      };
-      const file_path = `${file_id}`;
-      console.log("Generating signed URL for file:", options, file_path);
-      const [url] = await this.gcs.file(file_path).getSignedUrl(options);
-      console.log("Generated signed URL:", url);
-      return url;
-    } catch (error) {
-      console.error("Error generating signed URL:", error);
-      return null;
-    }
+    console.log("FILE URL", file_id);
+    // try {
+    //   let expiryTime = process.env.IMAGE_EXPIRE_TIME
+    //     ? Number(process.env.IMAGE_EXPIRE_TIME)
+    //     : 3600; // Default to 1 hour if not set
+    //   let expiryTimeInSeconds = parseInt(expiryTime?.toString(), 10);
+    //   const options: any = {
+    //     version: "v4",
+    //     action: "read",
+    //     expires: Date.now() + expiryTimeInSeconds, // Expiration time in milliseconds
+    //   };
+    //   const file_path = `${file_id}`;
+    //   console.log("Generating signed URL for file:", options, file_path);
+    //   const [url] = await this.gcs.file(file_path).getSignedUrl(options);
+    //   console.log("Generated signed URL:", url);
+    //   return url;
+    // } catch (error) {
+    //   console.error("Error generating signed URL:", error);
+    //   return null;
+    // }
+    let baseUrl =
+      "https://storage.googleapis.com/" +
+      process.env.GCP_STORAGE_BUCKET +
+      "/" +
+      file_id;
+    return baseUrl;
   }
   async uploadFileToCloudStorage(
     file_path: string,
