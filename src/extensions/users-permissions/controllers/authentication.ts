@@ -343,7 +343,7 @@ async function verifyOTP(ctx) {
     "plugin::users-permissions.user",
     {
       filters: { email },
-      fields: ["id", "email", "name", "email_otp", "mesibo_id"],
+      fields: ["id", "email", "name", "email_otp", "mesibo_id", "mesibo_token"],
     }
   );
 
