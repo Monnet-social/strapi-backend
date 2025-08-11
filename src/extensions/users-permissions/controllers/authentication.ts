@@ -631,7 +631,8 @@ async function updateUsername(ctx) {
 }
 async function getShareImage(ctx) {
   return ctx.send({
-    url: "https://storage.googleapis.com/monnet-dev/media/Monnet_Icons_6_1_133ebea5b9/Monnet_Icons_6_1_133ebea5b9.png",
+    // url: "https://storage.googleapis.com/monnet-dev/media/Monnet_Icons_6_1_133ebea5b9/Monnet_Icons_6_1_133ebea5b9.png",
+    url: "https://storage.googleapis.com/monnet-dev/media/Monnet_Icons_FIX_4_1_bd216e6e7e/Monnet_Icons_FIX_4_1_bd216e6e7e.svg",
     message: "Share image URL retrieved successfully.",
     status: 200,
   });
