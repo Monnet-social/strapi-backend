@@ -144,4 +144,12 @@ module.exports = [
       prefix: "",
     },
   },
+  {
+    method: "GET",
+    path: "/mesibo",
+    handler: "authentication.getMesiboUser",
+    config: {
+      prefix: "",
+    },
+  },
 ];

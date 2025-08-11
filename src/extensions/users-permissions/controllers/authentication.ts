@@ -684,4 +684,5 @@ module.exports = {
   checkUsername,
   updateUsername,
   getShareImage,
+  generateMesiboToken,
 };
