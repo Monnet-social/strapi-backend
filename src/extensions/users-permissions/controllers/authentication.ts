@@ -1,5 +1,6 @@
 import HelperService from "../../../utils/helper_service";
 import EmailService from "../../../utils/email/email_service";
+import MesiboService from "../../../utils/mesibo_service";
 const bcrypt = require("bcryptjs");
 
 async function login(ctx) {
@@ -32,6 +33,7 @@ async function login(ctx) {
           "is_email_verified",
           "tos_accepted",
           "date_of_birth",
+          "mesibo_id",
         ],
         populate: {
           referred_by: {
@@ -180,7 +182,12 @@ async function register(ctx: any) {
       .service("jwt")
       .issue({ id: newUser.id });
 
-    return ctx.send({ jwt: token, user: newUser });
+    const updateMesiboId = await MesiboService.editMesiboUser(newUser.id);
+    console.log("Mesibo ID updated:", updateMesiboId);
+    return ctx.send({
+      jwt: token,
+      user: { ...newUser, mesibo_id: updateMesiboId },
+    });
   } catch (error) {
     console.error("Registration Error:", error);
     return ctx.internalServerError(
@@ -233,7 +240,14 @@ async function getUser(ctx) {
         ],
         populate: {
           referred_by: {
-            fields: ["id", "name", "username", "email", "avatar_ring_color"],
+            fields: [
+              "id",
+              "name",
+              "username",
+              "email",
+              "avatar_ring_color",
+              "mesibo_id",
+            ],
           },
           profile_picture: true,
         },
@@ -329,7 +343,7 @@ async function verifyOTP(ctx) {
     "plugin::users-permissions.user",
     {
       filters: { email },
-      fields: ["id", "email", "name", "email_otp"],
+      fields: ["id", "email", "name", "email_otp", "mesibo_id"],
     }
   );
 

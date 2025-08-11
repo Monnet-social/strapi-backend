@@ -63,7 +63,7 @@ export default class MesiboService {
         }
       );
       console.log("Mesibo user edited:", response.data);
-      return response.data;
+      return mesibo_id;
     } catch (error) {
       console.error("Error editing Mesibo user:", error);
       throw new Error("Failed to edit Mesibo user");
