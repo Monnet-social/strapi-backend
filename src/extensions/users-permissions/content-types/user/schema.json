@@ -149,6 +149,9 @@
     "mesibo_id": {
       "type": "string",
       "unique": true
+    },
+    "mesibo_token": {
+      "type": "string"
     }
   }
 }

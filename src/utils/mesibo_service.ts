@@ -21,10 +21,12 @@ export default class MesiboService {
       throw new Error("User not found");
     }
     let mesibo_id = findUser[0].mesibo_id;
+    let mesibo_token = findUser[0].mesibo_token;
     if (!mesibo_id) {
       let createMesiboUser = await this.createMesiboUser(userId);
       if (createMesiboUser) {
         mesibo_id = createMesiboUser.uid;
+        mesibo_token = createMesiboUser.token;
         console.log(
           "Mesibo user created:",
           createMesiboUser,
@@ -63,7 +65,10 @@ export default class MesiboService {
         }
       );
       console.log("Mesibo user edited:", response.data);
-      return mesibo_id;
+      return {
+        uid: mesibo_id,
+        token: mesibo_token,
+      };
     } catch (error) {
       console.error("Error editing Mesibo user:", error);
       throw new Error("Failed to edit Mesibo user");
@@ -106,6 +111,7 @@ export default class MesiboService {
         {
           data: {
             mesibo_id: finalResponse.user.uid,
+            mesibo_token: finalResponse.user.token,
           },
         }
       );

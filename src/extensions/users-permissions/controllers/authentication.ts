@@ -34,6 +34,7 @@ async function login(ctx) {
           "tos_accepted",
           "date_of_birth",
           "mesibo_id",
+          "mesibo_token",
         ],
         populate: {
           referred_by: {
@@ -186,7 +187,11 @@ async function register(ctx: any) {
     console.log("Mesibo ID updated:", updateMesiboId);
     return ctx.send({
       jwt: token,
-      user: { ...newUser, mesibo_id: updateMesiboId },
+      user: {
+        ...newUser,
+        mesibo_id: updateMesiboId.uid,
+        mesibo_token: updateMesiboId.token,
+      },
     });
   } catch (error) {
     console.error("Registration Error:", error);
@@ -237,17 +242,12 @@ async function getUser(ctx) {
           "is_email_verified",
           "tos_accepted",
           "date_of_birth",
+          "mesibo_id",
+          "mesibo_token",
         ],
         populate: {
           referred_by: {
-            fields: [
-              "id",
-              "name",
-              "username",
-              "email",
-              "avatar_ring_color",
-              "mesibo_id",
-            ],
+            fields: ["id", "name", "username", "email", "avatar_ring_color"],
           },
           profile_picture: true,
         },
@@ -635,6 +635,40 @@ async function getShareImage(ctx) {
     message: "Share image URL retrieved successfully.",
     status: 200,
   });
+}
+async function generateMesiboToken(ctx) {
+  const new_token = ctx.params;
+  const findUser = await strapi.entityService.findMany(
+    "plugin::users-permissions.user",
+    {
+      filters: { id: ctx.state.user.id },
+      populate: { profile_picture: true },
+    }
+  );
+  if (!new_token) {
+    if (!findUser[0]?.mesibo_id) {
+      const newMesiboUser = await MesiboService.editMesiboUser(
+        ctx.state.user.id
+      );
+      return ctx.send({
+        mesibo_id: newMesiboUser.uid,
+        mesibo_token: newMesiboUser.token,
+      });
+    } else {
+      return ctx.send({
+        mesibo_id: findUser[0].mesibo_id,
+        mesibo_token: findUser[0].mesibo_token,
+      });
+    }
+  } else {
+    const newMesiboUser = await MesiboService.createMesiboUser(
+      ctx.state.user.id
+    );
+    return ctx.send({
+      mesibo_id: newMesiboUser.uid,
+      mesibo_token: newMesiboUser.token,
+    });
+  }
 }
 
 module.exports = {
