@@ -103,10 +103,7 @@
     "profile_picture": {
       "type": "media",
       "multiple": false,
-      "allowedTypes": [
-        "images",
-        "files"
-      ]
+      "allowedTypes": ["images", "files"]
     },
     "bio": {
       "type": "text",
@@ -129,9 +126,7 @@
     },
     "badge": {
       "type": "enumeration",
-      "enum": [
-        "verified"
-      ]
+      "enum": ["verified"]
     },
     "gender": {
       "type": "string"
@@ -147,8 +142,7 @@
       "type": "datetime"
     },
     "mesibo_id": {
-      "type": "string",
-      "unique": true
+      "type": "string"
     },
     "mesibo_token": {
       "type": "string"

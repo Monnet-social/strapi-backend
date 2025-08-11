@@ -189,7 +189,7 @@ async function register(ctx: any) {
       jwt: token,
       user: {
         ...newUser,
-        mesibo_id: updateMesiboId.uid,
+        mesibo_id: updateMesiboId.uid?.toString(),
         mesibo_token: updateMesiboId.token,
       },
     });
@@ -637,7 +637,7 @@ async function getShareImage(ctx) {
   });
 }
 async function generateMesiboToken(ctx) {
-  const new_token = ctx.params;
+  const { new_token } = ctx.params;
   const findUser = await strapi.entityService.findMany(
     "plugin::users-permissions.user",
     {
@@ -645,18 +645,19 @@ async function generateMesiboToken(ctx) {
       populate: { profile_picture: true },
     }
   );
+  console.log("NEW TOKEN:", new_token, findUser[0]);
   if (!new_token) {
     if (!findUser[0]?.mesibo_id) {
       const newMesiboUser = await MesiboService.editMesiboUser(
         ctx.state.user.id
       );
       return ctx.send({
-        mesibo_id: newMesiboUser.uid,
+        mesibo_id: newMesiboUser.uid?.toString(),
         mesibo_token: newMesiboUser.token,
       });
     } else {
       return ctx.send({
-        mesibo_id: findUser[0].mesibo_id,
+        mesibo_id: findUser[0].mesibo_id?.toString(),
         mesibo_token: findUser[0].mesibo_token,
       });
     }
@@ -665,7 +666,7 @@ async function generateMesiboToken(ctx) {
       ctx.state.user.id
     );
     return ctx.send({
-      mesibo_id: newMesiboUser.uid,
+      mesibo_id: newMesiboUser.uid?.toString(),
       mesibo_token: newMesiboUser.token,
     });
   }

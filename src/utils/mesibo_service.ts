@@ -43,6 +43,7 @@ export default class MesiboService {
     }
     let fields = ["name", "profile_picture"];
     let updateData: any = {};
+    console.log("USER update before", data);
     for (let field of fields) {
       if (data[field] && field == "profile_picture") {
         updateData["image"] = data[field];
@@ -110,7 +111,7 @@ export default class MesiboService {
         userId,
         {
           data: {
-            mesibo_id: finalResponse.user.uid,
+            mesibo_id: finalResponse.user.uid?.toString(),
             mesibo_token: finalResponse.user.token,
           },
         }
