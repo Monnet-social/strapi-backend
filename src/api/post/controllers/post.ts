@@ -1309,11 +1309,17 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             populate: { follower: true },
           }),
         ]);
-      const blockedUserIds = blockEntries.map((entry) => entry.blocked_user.id);
-      const followingIds = followingRelations.map((f) => f.subject.id);
-      const closeFriendAuthorIds = closeFriendRelations.map(
-        (cf) => cf.follower.id
-      );
+      const blockedUserIds = blockEntries
+        .map((entry) => entry.blocked_user && entry.blocked_user.id)
+        .filter(Boolean);
+
+      const followingIds = followingRelations
+        .map((f) => f.subject && f.subject.id)
+        .filter(Boolean);
+
+      const closeFriendAuthorIds = closeFriendRelations
+        .map((cf) => cf.follower && cf.follower.id)
+        .filter(Boolean);
 
       const postFilters = {
         post_type: "post",
@@ -1594,8 +1600,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
 
       const canViewProfile = targetUser.is_public || isOwner || isFollowing;
-      if (!canViewProfile) return ctx.send([]);
+      if (!canViewProfile) return ctx.send({ data: [] });
 
+      // Main find query
       const posts = await strapi.entityService.findMany("api::post.post", {
         filters: { posted_by: { id: targetUserId }, post_type: "post" },
         sort: { createdAt: "desc" },
@@ -1626,6 +1633,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         },
       });
 
+      // Visibility checks
       const accessiblePosts = posts.filter((post) => {
         if (isOwner || post.share_with === "PUBLIC") return true;
         if (post.share_with === "FOLLOWERS") return isFollowing;
@@ -1633,8 +1641,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         return false;
       });
 
-      if (!accessiblePosts || accessiblePosts.length === 0) return ctx.send([]);
+      if (!accessiblePosts || accessiblePosts.length === 0)
+        return ctx.send({ data: [] });
 
+      // Subcategory mapping (as feed API)
       const categoryIds = [
         ...new Set(
           accessiblePosts.map((post) => post.category?.id).filter(Boolean)
@@ -1659,6 +1669,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }
       }
 
+      // Feed-style user enrichment
       const usersToProcess = accessiblePosts
         .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
         .filter(Boolean);
@@ -1681,6 +1692,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         (optimizedMediaArray || []).map((m) => [m.id, m])
       );
 
+      // Engagement stats
       await Promise.all(
         accessiblePosts.map(async (post) => {
           const [
@@ -1716,15 +1728,17 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         })
       );
 
+      // Final feed-style response mapping
       const finalPosts = accessiblePosts.map((post) => {
         const postCategoryId = post.category?.id;
+
         return {
           ...post,
           subcategories: subcategoriesByCategory.get(postCategoryId) || [],
+          is_repost: !!post.repost_of,
           media: (post.media || []).map(
             (m) => optimizedMediaMap.get(m.id) || m
           ),
-          is_repost: !!post.repost_of,
           posted_by: {
             ...post.posted_by,
             ...followStatusMap.get(post.posted_by.id),
@@ -1736,6 +1750,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         };
       });
 
+      // Always respond as an object with `data` array, so frontend can treat same as feed
       return ctx.send({
         data: finalPosts,
         message: "User's posts fetched successfully.",
