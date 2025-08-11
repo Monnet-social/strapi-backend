@@ -147,7 +147,7 @@ module.exports = [
   {
     method: "GET",
     path: "/mesibo",
-    handler: "authentication.getMesiboUser",
+    handler: "authentication.generateMesiboToken",
     config: {
       prefix: "",
     },
