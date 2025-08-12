@@ -281,6 +281,8 @@ module.exports = {
         id: user.id,
         username: user.username,
         name: user.name,
+        mesibo_id: user.mesibo_id,
+        mesibo_token: user.mesibo_token,
         bio: user.bio,
         website: user.website,
         professional_info: user.professional_info,
