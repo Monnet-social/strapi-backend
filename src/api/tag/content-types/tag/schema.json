@@ -13,16 +13,6 @@
   "attributes": {
     "name": {
       "type": "string"
-    },
-    "post": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::post.post"
-    },
-    "comment": {
-      "type": "relation",
-      "relation": "oneToOne",
-      "target": "api::comment.comment"
     }
   }
 }
