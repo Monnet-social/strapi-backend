@@ -8,7 +8,7 @@ module.exports = {
     if (!userId) return ctx.badRequest("User ID is required.");
 
     try {
-      const user = await strapi.entityService.findOne(
+      let user = await strapi.entityService.findOne(
         "plugin::users-permissions.user",
         userId,
         {
@@ -32,11 +32,10 @@ module.exports = {
       );
 
       if (!user) return ctx.notFound("User not found.");
-
+      console.log("User found:", user);
       if (!user.mesibo_id) {
-        const newMesiboUser = await MesiboService.editMesiboUser(
-          ctx.state.user.id
-        );
+        const newMesiboUser = await MesiboService.editMesiboUser(userId);
+
         user.mesibo_id = newMesiboUser.uid?.toString();
         user.mesibo_token = newMesiboUser.token;
       }
