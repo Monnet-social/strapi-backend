@@ -8,7 +8,7 @@ module.exports = {
     if (!userId) return ctx.badRequest("User ID is required.");
 
     try {
-      const user = await strapi.entityService.findOne(
+      let user = await strapi.entityService.findOne(
         "plugin::users-permissions.user",
         userId,
         {
@@ -32,13 +32,12 @@ module.exports = {
       );
 
       if (!user) return ctx.notFound("User not found.");
-
+      console.log("User found:", user);
       if (!user.mesibo_id) {
-        // const newMesiboUser = await MesiboService.editMesiboUser(
-        //   ctx.state.user.id
-        // );
-        // user.mesibo_id = newMesiboUser.uid?.toString();
-        // user.mesibo_token = newMesiboUser.token;
+        const newMesiboUser = await MesiboService.editMesiboUser(userId);
+
+        user.mesibo_id = newMesiboUser.uid?.toString();
+        user.mesibo_token = newMesiboUser.token;
       }
 
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -282,6 +281,8 @@ module.exports = {
         id: user.id,
         username: user.username,
         name: user.name,
+        mesibo_id: user.mesibo_id,
+        mesibo_token: user.mesibo_token,
         bio: user.bio,
         website: user.website,
         professional_info: user.professional_info,

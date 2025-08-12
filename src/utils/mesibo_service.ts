@@ -20,6 +20,7 @@ export default class MesiboService {
     if (findUser.length == 0) {
       throw new Error("User not found");
     }
+    console.log("Found user: 54423", findUser[0]);
     let mesibo_id = findUser[0].mesibo_id;
     let mesibo_token = findUser[0].mesibo_token;
     if (!mesibo_id) {
@@ -52,6 +53,7 @@ export default class MesiboService {
       }
     }
     console.log("Update Data:", updateData);
+
     try {
       const response = await axios.post(
         process.env.MESIBO_BASE_URL ??
@@ -72,6 +74,7 @@ export default class MesiboService {
       };
     } catch (error) {
       console.error("Error editing Mesibo user:", error);
+      return null;
       throw new Error("Failed to edit Mesibo user");
     }
   }
@@ -122,6 +125,7 @@ export default class MesiboService {
       };
     } catch (error) {
       console.error("Error creating Mesibo user:", error);
+
       throw new Error("Failed to create Mesibo user");
     }
   }
