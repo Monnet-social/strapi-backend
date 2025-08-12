@@ -103,9 +103,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       .map((p) => {
         if (typeof p.repost_of === "number" || typeof p.repost_of === "string")
           return p.repost_of;
-
         if (p.repost_of.id) return p.repost_of.id;
-
         return null;
       })
       .filter(Boolean);
@@ -132,7 +130,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
 
     return posts.map((post) => {
       if (post.repost_of) {
-        let origId =
+        const origId =
           typeof post.repost_of === "number" ||
           typeof post.repost_of === "string"
             ? post.repost_of
@@ -145,6 +143,26 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
           post.reposted_from = (orig as any).posted_by || null;
 
           post.media = (orig as any).media || [];
+
+          const fieldsToCopy = [
+            "title",
+            "description",
+            "link",
+            "category",
+            "tagged_users",
+            "share_with",
+            "post_type",
+            "locale",
+            "documentId",
+          ];
+
+          for (const field of fieldsToCopy) {
+            if (
+              post[field] == null ||
+              (Array.isArray(post[field]) && post[field].length === 0)
+            )
+              post[field] = orig[field];
+          }
         }
       }
       return post;
