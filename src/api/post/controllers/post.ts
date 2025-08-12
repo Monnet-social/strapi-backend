@@ -13,6 +13,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     const user = ctx.state.user;
     if (!user)
       return ctx.unauthorized("You must be logged in to create a post.");
+
     const userId = user.id;
 
     try {
@@ -20,21 +21,15 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       if (!data)
         return ctx.badRequest("Request body must contain a data object.");
 
-      if (!data.title || !data.post_type)
+      if (!data.repost_of && (!data.title || !data.post_type))
         return ctx.badRequest("Missing required fields. (title, post_type)");
-
       if (!data.repost_of && data.post_type === "post" && !data.category)
         return ctx.badRequest("Category is required for post type 'post'.");
-
       if (!data.repost_of && (!data.media || data.media.length === 0))
         return ctx.badRequest("Media is required for a normal post.");
 
+      const allowedShareWithOptions = ["PUBLIC", "FOLLOWERS", "CLOSE-FRIENDS"];
       if (data.share_with) {
-        const allowedShareWithOptions = [
-          "PUBLIC",
-          "FOLLOWERS",
-          "CLOSE-FRIENDS",
-        ];
         if (!allowedShareWithOptions.includes(data.share_with))
           return ctx.badRequest(
             `Invalid share_with value. Allowed values are: ${allowedShareWithOptions.join(", ")}`
@@ -48,23 +43,22 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           data.share_with_close_friends.length === 0
         )
           return ctx.badRequest(
-            "For 'CLOSE-FRIENDS' sharing, 'share_with_close_friends' must be a non-empty array of user IDs."
+            "For 'CLOSE-FRIENDS', 'share_with_close_friends' must be a non-empty array of user IDs."
           );
-
-        const foundCloseFriends = await strapi.entityService.findMany(
+        const found = await strapi.entityService.findMany(
           "plugin::users-permissions.user",
           {
             filters: { id: { $in: data.share_with_close_friends } },
             fields: ["id"],
           }
         );
-        if (foundCloseFriends.length !== data.share_with_close_friends.length) {
-          const foundIds = foundCloseFriends.map((u) => u.id);
+        if (found.length !== data.share_with_close_friends.length) {
+          const foundIds = found.map((u) => u.id);
           const invalidIds = data.share_with_close_friends.filter(
             (id) => !foundIds.includes(id)
           );
           return ctx.badRequest(
-            `The following 'share_with_close_friends' IDs do not exist: ${invalidIds.join(", ")}`
+            `Invalid close friends: ${invalidIds.join(", ")}`
           );
         }
         if (data.share_with_close_friends.includes(userId))
@@ -82,6 +76,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         delete data.share_with_close_friends;
       }
 
+      // Media validation for original posts only (not for reposts)
       if (!data.repost_of && data.media && data.media.length > 0) {
         for (let file_id of data.media) {
           const fileData = await strapi.entityService.findOne(
@@ -94,30 +89,30 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
 
       if (data.category) {
-        const categoryExists = await strapi.entityService.findOne(
+        const exists = await strapi.entityService.findOne(
           "api::category.category",
           data.category
         );
-        if (!categoryExists)
+        if (!exists)
           return ctx.badRequest(
-            `The provided category with ID ${data.category} does not exist.`
+            `Category with ID ${data.category} does not exist.`
           );
       }
 
       if (Array.isArray(data.tagged_users) && data.tagged_users.length > 0) {
         if (data.tagged_users.includes(userId))
           return ctx.badRequest("You cannot tag yourself in a post.");
-        const foundUsers = await strapi.entityService.findMany(
+        const users = await strapi.entityService.findMany(
           "plugin::users-permissions.user",
           { filters: { id: { $in: data.tagged_users } }, fields: ["id"] }
         );
-        if (foundUsers.length !== data.tagged_users.length) {
-          const foundIds = foundUsers.map((u) => u.id);
+        if (users.length !== data.tagged_users.length) {
+          const foundIds = users.map((u) => u.id);
           const invalidIds = data.tagged_users.filter(
             (id) => !foundIds.includes(id)
           );
           return ctx.badRequest(
-            `The following tagged user IDs do not exist: ${invalidIds.join(", ")}`
+            `Invalid tagged user IDs: ${invalidIds.join(", ")}`
           );
         }
       }
@@ -140,50 +135,21 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       let repostOfData = null;
       if (data.repost_of) {
-        let postToRepost = await strapi.entityService.findOne(
+        const original = await strapi.entityService.findOne(
           "api::post.post",
           data.repost_of,
-          {
-            populate: {
-              posted_by: true,
-              repost_of: true,
-              media: true,
-              category: true,
-              tagged_users: true,
-            },
-          }
+          { populate: { posted_by: true } }
         );
-        if (!postToRepost)
-          return ctx.badRequest(
-            `The post you are trying to repost (ID: ${data.repost_of}) does not exist.`
-          );
 
-        if (postToRepost.repost_of) {
-          data.repost_of = postToRepost.repost_of.id;
-          postToRepost = await strapi.entityService.findOne(
-            "api::post.post",
-            postToRepost.repost_of.id,
-            {
-              populate: {
-                posted_by: true,
-                media: true,
-                category: true,
-                tagged_users: true,
-              },
-            }
-          );
-          if (!postToRepost)
-            return ctx.badRequest(
-              `The original post you are trying to repost does not exist.`
-            );
-        }
-
-        if (postToRepost.posted_by.id === userId)
+        if (!original) return ctx.badRequest("Original post not found.");
+        if (original.posted_by.id === userId)
           return ctx.badRequest("You cannot repost your own post.");
 
-        repostOfData = postToRepost;
+        data.repost_of = original.id;
 
-        delete data.media;
+        data.reposted_from = original.posted_by.id;
+
+        repostOfData = original;
       }
 
       data.posted_by = userId;
@@ -194,6 +160,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           posted_by: { fields: ["id", "username", "name"] },
           tagged_users: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
+          media: true,
           repost_of: { populate: "*" },
           ...(data.share_with === "CLOSE-FRIENDS" &&
           data.share_with_close_friends
@@ -206,15 +173,25 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         },
       });
 
+      const responsePost = {
+        ...newPost,
+        is_repost: !!data.repost_of,
+        ...(repostOfData
+          ? {
+              reposted_from: {
+                id: repostOfData.posted_by.id,
+                username: repostOfData.posted_by.username,
+                name: repostOfData.posted_by.name,
+              },
+              repost_of: repostOfData,
+            }
+          : {}),
+      };
+
       const message =
         data.post_type === "post" ? "Post created" : "Story added";
-
       return ctx.send({
-        post: {
-          ...newPost,
-          is_repost: !!data.repost_of,
-          ...(repostOfData ? { repost_of: repostOfData } : {}),
-        },
+        post: responsePost,
         message: `${message} successfully.`,
       });
     } catch (err) {
@@ -225,6 +202,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
+
   async findOneAdmin(ctx) {
     const { id } = ctx.params;
 
@@ -270,7 +248,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     const { id: userId } = ctx.state.user;
 
     try {
-      const entity = await strapi.entityService.findOne("api::post.post", id, {
+      let entity = await strapi.entityService.findOne("api::post.post", id, {
         populate: {
           posted_by: {
             fields: ["id", "username", "name", "avatar_ring_color"],
@@ -282,14 +260,22 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           },
           category: { fields: ["id", "name"] },
           media: true,
+          repost_of: true, // important to at least know the reference
         },
       });
 
       if (!entity) return ctx.notFound("Post not found");
 
-      const usersToProcess = [entity.posted_by, ...entity.tagged_users].filter(
-        Boolean
-      );
+      const enriched = await strapi
+        .service("api::post.post")
+        .populateRepostData([entity], userId);
+
+      entity = enriched[0];
+
+      const usersToProcess = [
+        entity.posted_by,
+        ...(entity.tagged_users || []),
+      ].filter(Boolean);
 
       await Promise.all([
         strapi.service("api::following.following").enrichItemsWithFollowStatus({
@@ -317,6 +303,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       entity.comments_count = await strapi.services[
         "api::comment.comment"
       ].getCommentsCount(entity.id);
+
       entity.media =
         (await strapi
           .service("api::post.post")
@@ -327,11 +314,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         const now = new Date();
         const expirationTime = createdAt.getTime() + 24 * 60 * 60 * 1000;
         entity.expiration_time = expirationTime;
-        if (now.getTime() > expirationTime)
+        if (now.getTime() > expirationTime) {
           return ctx.notFound(
             "This story has expired and is no longer available."
           );
+        }
       }
+
+      entity.is_repost = !!entity.repost_of;
 
       return ctx.send(entity);
     } catch (err) {
@@ -341,7 +331,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
-
   async update(ctx) {
     const { id: postId } = ctx.params;
     const { id: userId } = ctx.state.user;
@@ -1681,8 +1670,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           message: "No posts found.",
         });
 
+      const enrichedResults = await strapi
+        .service("api::post.post")
+        .populateRepostData(results, userId);
+
       const categoryIds = [
-        ...new Set(results.map((post) => post.category?.id).filter(Boolean)),
+        ...new Set(
+          enrichedResults.map((post) => post.category?.id).filter(Boolean)
+        ),
       ];
       let subcategoriesByCategory = new Map();
 
@@ -1704,11 +1699,13 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }
       }
 
-      const usersToProcess = results
+      const usersToProcess = enrichedResults
         .flatMap((post) => [post.posted_by, ...(post.tagged_users || [])])
         .filter(Boolean);
       const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
-      const allMedia = results.flatMap((p) => p.media || []).filter(Boolean);
+      const allMedia = enrichedResults
+        .flatMap((p) => p.media || [])
+        .filter(Boolean);
 
       const [optimizedMediaArray, followStatusMap] = await Promise.all([
         strapi.service("api::post.post").getOptimisedFileData(allMedia),
@@ -1725,7 +1722,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
 
       await Promise.all(
-        results.map(async (post) => {
+        enrichedResults.map(async (post) => {
           const [
             likes_count,
             is_liked,
@@ -1759,7 +1756,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         })
       );
 
-      const finalData = results.map((post) => {
+      const finalData = enrichedResults.map((post) => {
         const postCategoryId = post.category?.id;
         return {
           ...post,
@@ -1980,6 +1977,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           })),
         };
       });
+      await strapi.service("api::post.post").populateRepostData(finalPosts, 12);
 
       return ctx.send({
         data: finalPosts,

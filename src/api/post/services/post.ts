@@ -95,4 +95,59 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       } else if (user) user.profile_picture = null;
     }
   },
+  async populateRepostData(posts, userId) {
+    if (!posts || posts.length === 0) return posts;
+
+    const repostIds = posts
+      .filter((p) => p.repost_of != null)
+      .map((p) => {
+        if (typeof p.repost_of === "number" || typeof p.repost_of === "string")
+          return p.repost_of;
+
+        if (p.repost_of.id) return p.repost_of.id;
+
+        return null;
+      })
+      .filter(Boolean);
+
+    if (repostIds.length === 0) return posts;
+
+    const originals = await strapi.entityService.findMany("api::post.post", {
+      filters: { id: { $in: repostIds } },
+      populate: {
+        posted_by: {
+          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
+          populate: { profile_picture: true },
+        },
+        category: true,
+        tagged_users: {
+          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
+          populate: { profile_picture: true },
+        },
+        media: true,
+      },
+    });
+
+    const originalsMap = new Map(originals.map((o) => [o.id, o]));
+
+    return posts.map((post) => {
+      if (post.repost_of) {
+        let origId =
+          typeof post.repost_of === "number" ||
+          typeof post.repost_of === "string"
+            ? post.repost_of
+            : post.repost_of.id;
+
+        const orig = originalsMap.get(origId);
+        if (orig) {
+          post.is_repost = true;
+          post.repost_of = orig;
+          post.reposted_from = (orig as any).posted_by || null;
+
+          post.media = (orig as any).media || [];
+        }
+      }
+      return post;
+    });
+  },
 }));

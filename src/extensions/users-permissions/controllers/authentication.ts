@@ -163,7 +163,7 @@ async function register(ctx: any) {
       .service("user")
       .add({
         email,
-        username: email,
+        username,
         password,
         name,
         gender,
