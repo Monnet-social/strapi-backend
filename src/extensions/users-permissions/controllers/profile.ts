@@ -23,6 +23,8 @@ module.exports = {
             "badge",
             "avatar_ring_color",
             "play_mature_content",
+            "mesibo_id",
+            "mesibo_token",
           ],
           populate: { profile_picture: true, location: true },
         }
