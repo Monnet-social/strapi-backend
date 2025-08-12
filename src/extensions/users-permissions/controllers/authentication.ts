@@ -1,5 +1,6 @@
 import HelperService from "../../../utils/helper_service";
 import EmailService from "../../../utils/email/email_service";
+import MesiboService from "../../../utils/mesibo_service";
 const bcrypt = require("bcryptjs");
 
 async function login(ctx) {
@@ -32,6 +33,8 @@ async function login(ctx) {
           "is_email_verified",
           "tos_accepted",
           "date_of_birth",
+          "mesibo_id",
+          "mesibo_token",
         ],
         populate: {
           referred_by: {
@@ -180,7 +183,16 @@ async function register(ctx: any) {
       .service("jwt")
       .issue({ id: newUser.id });
 
-    return ctx.send({ jwt: token, user: newUser });
+    // const updateMesiboId = await MesiboService.editMesiboUser(newUser.id);
+    // console.log("Mesibo ID updated:", updateMesiboId);
+    return ctx.send({
+      jwt: token,
+      user: {
+        ...newUser,
+        // mesibo_id: updateMesiboId.uid?.toString(),
+        // mesibo_token: updateMesiboId.token,
+      },
+    });
   } catch (error) {
     console.error("Registration Error:", error);
     return ctx.internalServerError(
@@ -230,6 +242,8 @@ async function getUser(ctx) {
           "is_email_verified",
           "tos_accepted",
           "date_of_birth",
+          "mesibo_id",
+          "mesibo_token",
         ],
         populate: {
           referred_by: {
@@ -329,7 +343,7 @@ async function verifyOTP(ctx) {
     "plugin::users-permissions.user",
     {
       filters: { email },
-      fields: ["id", "email", "name", "email_otp"],
+      fields: ["id", "email", "name", "email_otp", "mesibo_id", "mesibo_token"],
     }
   );
 
@@ -617,10 +631,46 @@ async function updateUsername(ctx) {
 }
 async function getShareImage(ctx) {
   return ctx.send({
-    url: "https://storage.googleapis.com/monnet-dev/media/Monnet_Icons_6_1_133ebea5b9/Monnet_Icons_6_1_133ebea5b9.png",
+    // url: "https://storage.googleapis.com/monnet-dev/media/Monnet_Icons_6_1_133ebea5b9/Monnet_Icons_6_1_133ebea5b9.png",
+    url: "https://storage.googleapis.com/monnet-dev/media/Monnet_Icons_FIX_4_1_bd216e6e7e/Monnet_Icons_FIX_4_1_bd216e6e7e.svg",
     message: "Share image URL retrieved successfully.",
     status: 200,
   });
+}
+async function generateMesiboToken(ctx) {
+  const { new_token } = ctx.params;
+  const findUser = await strapi.entityService.findMany(
+    "plugin::users-permissions.user",
+    {
+      filters: { id: ctx.state.user.id },
+      populate: { profile_picture: true },
+    }
+  );
+  console.log("NEW TOKEN:", new_token, findUser[0]);
+  if (!new_token) {
+    if (!findUser[0]?.mesibo_id) {
+      const newMesiboUser = await MesiboService.editMesiboUser(
+        ctx.state.user.id
+      );
+      return ctx.send({
+        mesibo_id: newMesiboUser.uid?.toString(),
+        mesibo_token: newMesiboUser.token,
+      });
+    } else {
+      return ctx.send({
+        mesibo_id: findUser[0].mesibo_id?.toString(),
+        mesibo_token: findUser[0].mesibo_token,
+      });
+    }
+  } else {
+    const newMesiboUser = await MesiboService.createMesiboUser(
+      ctx.state.user.id
+    );
+    return ctx.send({
+      mesibo_id: newMesiboUser.uid?.toString(),
+      mesibo_token: newMesiboUser.token,
+    });
+  }
 }
 
 module.exports = {
@@ -636,4 +686,5 @@ module.exports = {
   checkUsername,
   updateUsername,
   getShareImage,
+  generateMesiboToken,
 };
