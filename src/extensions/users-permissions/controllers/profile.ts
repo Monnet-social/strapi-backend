@@ -1,4 +1,5 @@
 import HelperService from "../../../utils/helper_service";
+import MesiboService from "../../../utils/mesibo_service";
 module.exports = {
   async getProfile(ctx) {
     const { userId } = ctx.params;
@@ -31,6 +32,14 @@ module.exports = {
       );
 
       if (!user) return ctx.notFound("User not found.");
+
+      if (!user.mesibo_id) {
+        const newMesiboUser = await MesiboService.editMesiboUser(
+          ctx.state.user.id
+        );
+        user.mesibo_id = newMesiboUser.uid?.toString();
+        user.mesibo_token = newMesiboUser.token;
+      }
 
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
