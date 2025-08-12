@@ -183,14 +183,14 @@ async function register(ctx: any) {
       .service("jwt")
       .issue({ id: newUser.id });
 
-    // const updateMesiboId = await MesiboService.editMesiboUser(newUser.id);
-    // console.log("Mesibo ID updated:", updateMesiboId);
+    const updateMesiboId = await MesiboService.editMesiboUser(newUser.id);
+    console.log("Mesibo ID updated:", updateMesiboId);
     return ctx.send({
       jwt: token,
       user: {
         ...newUser,
-        // mesibo_id: updateMesiboId.uid?.toString(),
-        // mesibo_token: updateMesiboId.token,
+        mesibo_id: updateMesiboId.uid?.toString(),
+        mesibo_token: updateMesiboId.token,
       },
     });
   } catch (error) {
