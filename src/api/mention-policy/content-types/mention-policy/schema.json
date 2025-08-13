@@ -1,0 +1,47 @@
+{
+  "kind": "collectionType",
+  "collectionName": "mention_policies",
+  "info": {
+    "singularName": "mention-policy",
+    "pluralName": "mention-policies",
+    "displayName": "Mention Policy"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "user": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "comment_policy": {
+      "type": "enumeration",
+      "default": "anyone",
+      "enum": [
+        "friends",
+        "followers",
+        "anyone"
+      ]
+    },
+    "story_policy": {
+      "type": "enumeration",
+      "default": "anyone",
+      "enum": [
+        "friends",
+        "followers",
+        "anyone"
+      ]
+    },
+    "post_policy": {
+      "type": "enumeration",
+      "default": "anyone",
+      "enum": [
+        "friends",
+        "followers",
+        "anyone"
+      ]
+    }
+  }
+}
