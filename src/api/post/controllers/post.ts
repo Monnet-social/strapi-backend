@@ -148,7 +148,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         data.repost_of = original.id;
 
         data.reposted_from = original.posted_by.id;
-
         repostOfData = original;
       }
 
@@ -207,11 +206,17 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     const { id } = ctx.params;
 
     try {
-      const entity = await strapi.entityService.findOne("api::post.post", id, {
+      let entity = await strapi.entityService.findOne("api::post.post", id, {
         populate: {
           media: true,
           posted_by: {
-            fields: ["id", "username", "name", "avatar_ring_color"],
+            fields: [
+              "id",
+              "username",
+              "name",
+              "avatar_ring_color",
+              "is_public",
+            ],
             populate: { profile_picture: true },
           },
         },
@@ -223,20 +228,16 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         (await strapi
           .service("api::post.post")
           .getOptimisedFileData(entity.media)) || [];
-      entity.likes_count = await strapi.services[
-        "api::like.like"
-      ].getLikesCount(entity.id);
-      entity.comments_count = await strapi.services[
-        "api::comment.comment"
-      ].getCommentsCount(entity.id);
-      const usersToProcess = [entity.posted_by];
+
+      await strapi.service("api::post.post").enrichPostsWithStats(entity, null);
+
       await strapi
         .service("api::post.post")
-        .enrichUsersWithOptimizedProfilePictures(usersToProcess);
+        .enrichUsersWithOptimizedProfilePictures([entity.posted_by]);
 
       return ctx.send(entity);
     } catch (err) {
-      console.error("Find One Post Error:", err);
+      console.error("Find One Admin Post Error:", err);
       return ctx.internalServerError(
         "An error occurred while fetching the post."
       );
@@ -251,16 +252,28 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       let entity = await strapi.entityService.findOne("api::post.post", id, {
         populate: {
           posted_by: {
-            fields: ["id", "username", "name", "avatar_ring_color"],
+            fields: [
+              "id",
+              "username",
+              "name",
+              "avatar_ring_color",
+              "is_public",
+            ],
             populate: { profile_picture: true },
           },
           tagged_users: {
-            fields: ["id", "username", "name", "avatar_ring_color"],
+            fields: [
+              "id",
+              "username",
+              "name",
+              "avatar_ring_color",
+              "is_public",
+            ],
             populate: { profile_picture: true },
           },
           category: { fields: ["id", "name"] },
           media: true,
-          repost_of: true, // important to at least know the reference
+          repost_of: true,
         },
       });
 
@@ -268,53 +281,31 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       const enriched = await strapi
         .service("api::post.post")
-        .populateRepostData([entity], userId);
-
+        .enrichRepostsAndStats([entity], userId);
       entity = enriched[0];
 
-      const usersToProcess = [
-        entity.posted_by,
-        ...(entity.tagged_users || []),
-      ].filter(Boolean);
+      const { optimizedMediaMap, followStatusMap } = await strapi
+        .service("api::post.post")
+        .enrichMediaAndFollowStatus([entity], userId);
 
-      await Promise.all([
-        strapi.service("api::following.following").enrichItemsWithFollowStatus({
-          items: [entity],
-          userPaths: ["posted_by", "tagged_users"],
-          currentUserId: userId,
-        }),
-        strapi
-          .service("api::post.post")
-          .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-      ]);
+      entity.media = (entity.media || []).map(
+        (m) => optimizedMediaMap.get(m.id) || m
+      );
 
-      entity.likes_count = await strapi.services[
-        "api::like.like"
-      ].getLikesCount(entity.id);
-      entity.is_liked = await strapi.services[
-        "api::like.like"
-      ].verifyPostLikeByUser(entity.id, userId);
-      entity.dislikes_count = await strapi
-        .service("api::dislike.dislike")
-        .getDislikesCountByPostId(entity.id);
-      entity.is_disliked = await strapi
-        .service("api::dislike.dislike")
-        .verifyPostDislikedByUser(entity.id, userId);
-      entity.comments_count = await strapi.services[
-        "api::comment.comment"
-      ].getCommentsCount(entity.id);
-
-      entity.media =
-        (await strapi
-          .service("api::post.post")
-          .getOptimisedFileData(entity.media)) || [];
+      entity.posted_by = {
+        ...entity.posted_by,
+        ...followStatusMap.get(entity.posted_by.id),
+      };
+      entity.tagged_users = (entity.tagged_users || []).map((u) => ({
+        ...u,
+        ...followStatusMap.get(u.id),
+      }));
 
       if (entity.post_type === "story") {
         const createdAt = new Date(entity.createdAt);
-        const now = new Date();
         const expirationTime = createdAt.getTime() + 24 * 60 * 60 * 1000;
         entity.expiration_time = expirationTime;
-        if (now.getTime() > expirationTime) {
+        if (Date.now() > expirationTime) {
           return ctx.notFound(
             "This story has expired and is no longer available."
           );
@@ -331,6 +322,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
+
   async update(ctx) {
     const { id: postId } = ctx.params;
     const { id: userId } = ctx.state.user;
@@ -749,148 +741,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
-  // async getStory(ctx) {
-  //   const { id: specificUserId } = ctx.params;
-  //   const { id: currentUserId } = ctx.state.user;
-
-  //   if (!currentUserId)
-  //     return ctx.unauthorized("You must be logged in to view stories.");
-
-  //   try {
-  //     if (Number(specificUserId) !== currentUserId) {
-  //       const blockEntry = await strapi.entityService.findMany(
-  //         "api::block.block",
-  //         {
-  //           filters: {
-  //             blocked_by: { id: specificUserId },
-  //             blocked_user: { id: currentUserId },
-  //           },
-  //           limit: 1,
-  //         }
-  //       );
-
-  //       if (blockEntry.length > 0)
-  //         return ctx.forbidden(
-  //           "You are not allowed to view this user's stories."
-  //         );
-  //     }
-
-  //     const twentyFourHoursAgo = new Date(
-  //       new Date().getTime() - 24 * 60 * 60 * 1000
-  //     );
-
-  //     const populateOptions = {
-  //       posted_by: {
-  //         fields: ["id", "username", "name", "avatar_ring_color"],
-  //         populate: { profile_picture: true },
-  //       },
-  //       tagged_users: {
-  //         fields: ["id", "username", "name", "avatar_ring_color"],
-  //         populate: { profile_picture: true },
-  //       },
-  //       media: true,
-  //       share_with_close_friends: { fields: ["id"] },
-  //     };
-
-  //     let userStories = await strapi.entityService.findMany("api::post.post", {
-  //       filters: {
-  //         post_type: "story",
-  //         posted_by: { id: specificUserId },
-  //         createdAt: { $gte: twentyFourHoursAgo },
-  //       },
-  //       sort: { createdAt: "desc" },
-  //       populate: populateOptions,
-  //     });
-
-  //     if (userStories.length === 0)
-  //       return ctx.send({
-  //         data: [],
-  //         message: "This user has no active stories.",
-  //       });
-
-  //     let visibleStories;
-
-  //     if (Number(specificUserId) === currentUserId)
-  //       visibleStories = userStories;
-  //     else {
-  //       const followingEntry = await strapi.entityService.findMany(
-  //         "api::following.following",
-  //         {
-  //           filters: {
-  //             follower: { id: currentUserId },
-  //             subject: { id: specificUserId },
-  //           },
-  //           limit: 1,
-  //         }
-  //       );
-  //       const isFollowing = followingEntry.length > 0;
-
-  //       visibleStories = userStories.filter((story) => {
-  //         if (story.share_with === "PUBLIC") return true;
-  //         if (story.share_with === "FOLLOWERS") return isFollowing;
-  //         if (story.share_with === "CLOSE-FRIENDS") {
-  //           return (
-  //             Array.isArray(story.share_with_close_friends) &&
-  //             story.share_with_close_friends.some(
-  //               (cf) => cf.id === currentUserId
-  //             )
-  //           );
-  //         }
-  //         return false;
-  //       });
-  //     }
-
-  //     if (visibleStories.length > 0) {
-  //       const usersToProcess = visibleStories
-  //         .flatMap((story) => [story.posted_by, ...(story.tagged_users || [])])
-  //         .filter(Boolean);
-
-  //       await Promise.all([
-  //         strapi
-  //           .service("api::following.following")
-  //           .enrichItemsWithFollowStatus({
-  //             items: visibleStories,
-  //             userPaths: ["posted_by", "tagged_users"],
-  //             currentUserId,
-  //           }),
-  //         strapi
-  //           .service("api::post.post")
-  //           .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-  //       ]);
-
-  //       for (const story of visibleStories) {
-  //         const [likes_count, is_liked, viewers_count] = await Promise.all([
-  //           strapi.service("api::like.like").getLikesCount(story.id),
-  //           strapi
-  //             .service("api::like.like")
-  //             .verifyPostLikeByUser(story.id, currentUserId),
-  //           strapi.service("api::post.post").getStoryViewersCount(story.id),
-  //         ]);
-
-  //         story.expiration_time =
-  //           new Date(story.createdAt).getTime() + 24 * 60 * 60 * 1000;
-  //         story.likes_count = likes_count;
-  //         story.is_liked = is_liked;
-  //         story.viewers_count = viewers_count;
-  //         story.media =
-  //           (await strapi
-  //             .service("api::post.post")
-  //             .getOptimisedFileData(story.media)) || [];
-  //       }
-  //     }
-
-  //     return ctx.send({
-  //       data: visibleStories,
-  //       message: "User stories fetched successfully.",
-  //     });
-  //   } catch (err) {
-  //     console.error("Find User's Stories Error:", err);
-  //     return ctx.internalServerError(
-  //       "An error occurred while fetching the user's stories."
-  //     );
-  //   }
-  // },
-
   async deleteExpiredStories(ctx) {
     try {
       const twentyFourHoursAgo = new Date(
@@ -1202,7 +1052,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         const existingPost = await strapi.entityService.findMany(
           "api::post.post",
           {
-            filters: { title: story.title },
+            filters: {
+              title: story.title,
+              post_type: "story",
+              posted_by: { id: story.posted_by },
+            },
             limit: 1,
           }
         );
@@ -1270,233 +1124,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   // POST CONTROLLERS
   //================================================================
 
-  // async feed(ctx) {
-  //   const { id: userId } = ctx.state.user;
-  //   const { pagination_size, page } = ctx.query;
-
-  //   let default_pagination = {
-  //     pagination: { page: 1, pageSize: 10 },
-  //   };
-  //   if (pagination_size)
-  //     default_pagination.pagination.pageSize = pagination_size;
-  //   if (page) default_pagination.pagination.page = page;
-
-  //   try {
-  //     const [blockEntries, followingRelations, closeFriendRelations] =
-  //       await Promise.all([
-  //         strapi.entityService.findMany("api::block.block", {
-  //           filters: { blocked_by: { id: userId } },
-  //           populate: { blocked_user: { fields: ["id"] } },
-  //         }),
-  //         strapi.entityService.findMany("api::following.following", {
-  //           filters: { follower: { id: userId } },
-  //           populate: { subject: { fields: ["id"] } },
-  //         }),
-  //         strapi.entityService.findMany("api::following.following", {
-  //           filters: {
-  //             subject: { id: userId },
-  //             is_close_friend: true,
-  //           },
-  //           populate: { follower: true },
-  //         }),
-  //       ]);
-  //     const blockedUserIds = blockEntries
-  //       .map((entry) => entry.blocked_user && entry.blocked_user.id)
-  //       .filter(Boolean);
-
-  //     const followingIds = followingRelations
-  //       .map((f) => f.subject && f.subject.id)
-  //       .filter(Boolean);
-
-  //     const closeFriendAuthorIds = closeFriendRelations
-  //       .map((cf) => cf.follower && cf.follower.id)
-  //       .filter(Boolean);
-
-  //     const postFilters = {
-  //       post_type: "post",
-  //       media: { id: { $notNull: true } },
-  //       posted_by: {
-  //         id: { $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1] },
-  //       },
-  //       $or: [
-  //         { share_with: "PUBLIC" },
-  //         {
-  //           share_with: "FOLLOWERS",
-  //           posted_by: {
-  //             id: { $in: followingIds.length > 0 ? followingIds : [-1] },
-  //           },
-  //         },
-  //         {
-  //           share_with: "CLOSE-FRIENDS",
-  //           posted_by: {
-  //             id: {
-  //               $in:
-  //                 closeFriendAuthorIds.length > 0 ? closeFriendAuthorIds : [-1],
-  //             },
-  //           },
-  //         },
-  //         { posted_by: { id: userId } },
-  //       ],
-  //     };
-
-  //     const [results, count] = await Promise.all([
-  //       strapi.entityService.findMany("api::post.post", {
-  //         filters: postFilters,
-  //         sort: { createdAt: "desc" },
-  //         populate: {
-  //           posted_by: {
-  //             fields: [
-  //               "id",
-  //               "username",
-  //               "name",
-  //               "avatar_ring_color",
-  //               "is_public",
-  //             ],
-  //             populate: { profile_picture: true },
-  //           },
-  //           category: true,
-  //           tagged_users: {
-  //             fields: [
-  //               "id",
-  //               "username",
-  //               "name",
-  //               "avatar_ring_color",
-  //               "is_public",
-  //             ],
-  //             populate: { profile_picture: true },
-  //           },
-  //           media: true,
-  //         },
-  //         start:
-  //           (default_pagination.pagination.page - 1) *
-  //           default_pagination.pagination.pageSize,
-  //         limit: default_pagination.pagination.pageSize,
-  //       }),
-  //       strapi.entityService.count("api::post.post", { filters: postFilters }),
-  //     ]);
-
-  //     if (results.length > 0) {
-  //       const categoryIds = [
-  //         ...new Set(results.map((post) => post.category?.id).filter(Boolean)),
-  //       ];
-  //       let subcategoriesByCategory = new Map();
-  //       if (categoryIds.length > 0) {
-  //         const allSubcategories = await strapi.entityService.findMany(
-  //           "api::subcategory.subcategory",
-  //           {
-  //             filters: { category: { id: { $in: categoryIds } } },
-  //             populate: { category: true },
-  //             pagination: { limit: -1 },
-  //           }
-  //         );
-  //         for (const subcat of allSubcategories) {
-  //           const catId = subcat.category?.id;
-  //           if (!catId) continue;
-  //           if (!subcategoriesByCategory.has(catId))
-  //             subcategoriesByCategory.set(catId, []);
-  //           subcategoriesByCategory.get(catId).push(subcat);
-  //         }
-  //       }
-
-  //       const usersToProcess = results
-  //         .flatMap((post) => [post.posted_by, ...(post.tagged_users || [])])
-  //         .filter(Boolean);
-
-  //       const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
-
-  //       const allMedia = results.flatMap((p) => p.media || []).filter(Boolean);
-
-  //       const [optimizedMediaArray, followStatusMap] = await Promise.all([
-  //         strapi.service("api::post.post").getOptimisedFileData(allMedia),
-  //         strapi
-  //           .service("api::following.following")
-  //           .getFollowStatusForUsers(userId, allUserIds),
-  //         strapi
-  //           .service("api::post.post")
-  //           .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-  //       ]);
-  //       const optimizedMediaMap = new Map(
-  //         (optimizedMediaArray || []).map((m) => [m.id, m])
-  //       );
-
-  //       await Promise.all(
-  //         results.map(async (post) => {
-  //           const [
-  //             likes_count,
-  //             is_liked,
-  //             dislikes_count,
-  //             is_disliked,
-  //             comments_count,
-  //             share_count,
-  //           ] = await Promise.all([
-  //             strapi.services["api::like.like"].getLikesCount(post.id),
-  //             strapi.services["api::like.like"].verifyPostLikeByUser(
-  //               post.id,
-  //               userId
-  //             ),
-  //             strapi
-  //               .service("api::dislike.dislike")
-  //               .getDislikesCountByPostId(post.id),
-  //             strapi
-  //               .service("api::dislike.dislike")
-  //               .verifyPostDislikedByUser(post.id, userId),
-  //             strapi.services["api::comment.comment"].getCommentsCount(post.id),
-  //             strapi.services["api::share.share"].countShares(post.id),
-  //           ]);
-  //           Object.assign(post, {
-  //             likes_count,
-  //             is_liked,
-  //             dislikes_count,
-  //             is_disliked,
-  //             comments_count,
-  //             share_count,
-  //           });
-  //         })
-  //       );
-
-  //       const finalData = results.map((post) => {
-  //         const postCategoryId = post.category?.id;
-
-  //         return {
-  //           ...post,
-  //           subcategories: subcategoriesByCategory.get(postCategoryId) || [],
-  //           media: (post.media || []).map(
-  //             (m) => optimizedMediaMap.get(m.id) || m
-  //           ),
-  //           posted_by: {
-  //             ...post.posted_by,
-  //             ...followStatusMap.get(post.posted_by.id),
-  //           },
-  //           tagged_users: (post.tagged_users || []).map((user) => ({
-  //             ...user,
-  //             ...followStatusMap.get(user.id),
-  //           })),
-  //         };
-  //       });
-
-  //       return ctx.send({
-  //         data: finalData,
-  //         meta: {
-  //           pagination: {
-  //             page: Number(default_pagination.pagination.page),
-  //             pageSize: Number(default_pagination.pagination.pageSize),
-  //             pageCount: Math.ceil(
-  //               count / default_pagination.pagination.pageSize
-  //             ),
-  //             total: count,
-  //           },
-  //         },
-  //         message: "Posts fetched successfully.",
-  //       });
-  //     }
-
-  //     return ctx.send({ data: [] });
-  //   } catch (err) {
-  //     console.error("Find Posts Error:", err);
-  //     return ctx.internalServerError("An error occurred while fetching posts.");
-  //   }
-  // },
-
   async viewPost(ctx) {
     const { id: postId } = ctx.params;
     const { user } = ctx.state;
@@ -1549,16 +1176,15 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
+
   async feed(ctx) {
     const { id: userId } = ctx.state.user;
     const { pagination_size, page } = ctx.query;
 
-    let default_pagination = {
-      pagination: { page: 1, pageSize: 10 },
+    const default_pagination = {
+      page: Number(page) || 1,
+      pageSize: Number(pagination_size) || 10,
     };
-    if (pagination_size)
-      default_pagination.pagination.pageSize = pagination_size;
-    if (page) default_pagination.pagination.page = page;
 
     try {
       const [blockEntries, followingRelations, closeFriendRelations] =
@@ -1572,46 +1198,40 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             populate: { subject: { fields: ["id"] } },
           }),
           strapi.entityService.findMany("api::following.following", {
-            filters: {
-              subject: { id: userId },
-              is_close_friend: true,
-            },
+            filters: { subject: { id: userId }, is_close_friend: true },
             populate: { follower: true },
           }),
         ]);
 
       const blockedUserIds = blockEntries
-        .map((entry) => entry.blocked_user && entry.blocked_user.id)
+        .map((e) => e.blocked_user?.id)
         .filter(Boolean);
-
       const followingIds = followingRelations
-        .map((f) => f.subject && f.subject.id)
+        .map((e) => e.subject?.id)
         .filter(Boolean);
-
       const closeFriendAuthorIds = closeFriendRelations
-        .map((cf) => cf.follower && cf.follower.id)
+        .map((e) => e.follower?.id)
         .filter(Boolean);
 
       const postFilters = {
         post_type: "post",
         media: { id: { $notNull: true } },
         posted_by: {
-          id: { $notIn: blockedUserIds.length > 0 ? blockedUserIds : [-1] },
+          id: { $notIn: blockedUserIds.length ? blockedUserIds : [-1] },
         },
         $or: [
           { share_with: "PUBLIC" },
           {
             share_with: "FOLLOWERS",
             posted_by: {
-              id: { $in: followingIds.length > 0 ? followingIds : [-1] },
+              id: { $in: followingIds.length ? followingIds : [-1] },
             },
           },
           {
             share_with: "CLOSE-FRIENDS",
             posted_by: {
               id: {
-                $in:
-                  closeFriendAuthorIds.length > 0 ? closeFriendAuthorIds : [-1],
+                $in: closeFriendAuthorIds.length ? closeFriendAuthorIds : [-1],
               },
             },
           },
@@ -1648,143 +1268,41 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             media: true,
             repost_of: true,
           },
-          start:
-            (default_pagination.pagination.page - 1) *
-            default_pagination.pagination.pageSize,
-          limit: default_pagination.pagination.pageSize,
+          start: (default_pagination.page - 1) * default_pagination.pageSize,
+          limit: default_pagination.pageSize,
         }),
         strapi.entityService.count("api::post.post", { filters: postFilters }),
       ]);
-
-      if (results.length === 0)
+      if (!results.length)
         return ctx.send({
           data: [],
           meta: {
-            pagination: {
-              page: default_pagination.pagination.page,
-              pageSize: default_pagination.pagination.pageSize,
-              pageCount: 0,
-              total: 0,
-            },
+            pagination: { ...default_pagination, pageCount: 0, total: 0 },
           },
           message: "No posts found.",
         });
 
-      const enrichedResults = await strapi
+      let posts = await strapi
         .service("api::post.post")
-        .populateRepostData(results, userId);
+        .enrichRepostsAndStats(results, userId);
+      const subMap = await strapi
+        .service("api::post.post")
+        .mapSubcategoriesToPosts(posts);
+      const { optimizedMediaMap, followStatusMap } = await strapi
+        .service("api::post.post")
+        .enrichMediaAndFollowStatus(posts, userId);
 
-      const categoryIds = [
-        ...new Set(
-          enrichedResults.map((post) => post.category?.id).filter(Boolean)
-        ),
-      ];
-      let subcategoriesByCategory = new Map();
-
-      if (categoryIds.length > 0) {
-        const allSubcategories = await strapi.entityService.findMany(
-          "api::subcategory.subcategory",
-          {
-            filters: { category: { id: { $in: categoryIds } } },
-            populate: { category: true },
-            pagination: { limit: -1 },
-          }
-        );
-        for (const subcat of allSubcategories) {
-          const catId = subcat.category?.id;
-          if (!catId) continue;
-          if (!subcategoriesByCategory.has(catId))
-            subcategoriesByCategory.set(catId, []);
-          subcategoriesByCategory.get(catId).push(subcat);
-        }
-      }
-
-      const usersToProcess = enrichedResults
-        .flatMap((post) => [post.posted_by, ...(post.tagged_users || [])])
-        .filter(Boolean);
-      const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
-      const allMedia = enrichedResults
-        .flatMap((p) => p.media || [])
-        .filter(Boolean);
-
-      const [optimizedMediaArray, followStatusMap] = await Promise.all([
-        strapi.service("api::post.post").getOptimisedFileData(allMedia),
-        strapi
-          .service("api::following.following")
-          .getFollowStatusForUsers(userId, allUserIds),
-        strapi
-          .service("api::post.post")
-          .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-      ]);
-
-      const optimizedMediaMap = new Map(
-        (optimizedMediaArray || []).map((m) => [m.id, m])
-      );
-
-      await Promise.all(
-        enrichedResults.map(async (post) => {
-          const [
-            likes_count,
-            is_liked,
-            dislikes_count,
-            is_disliked,
-            comments_count,
-            share_count,
-          ] = await Promise.all([
-            strapi.services["api::like.like"].getLikesCount(post.id),
-            strapi.services["api::like.like"].verifyPostLikeByUser(
-              post.id,
-              userId
-            ),
-            strapi
-              .service("api::dislike.dislike")
-              .getDislikesCountByPostId(post.id),
-            strapi
-              .service("api::dislike.dislike")
-              .verifyPostDislikedByUser(post.id, userId),
-            strapi.services["api::comment.comment"].getCommentsCount(post.id),
-            strapi.services["api::share.share"].countShares(post.id),
-          ]);
-          Object.assign(post, {
-            likes_count,
-            is_liked,
-            dislikes_count,
-            is_disliked,
-            comments_count,
-            share_count,
-          });
-        })
-      );
-
-      const finalData = enrichedResults.map((post) => {
-        const postCategoryId = post.category?.id;
-        return {
-          ...post,
-          subcategories: subcategoriesByCategory.get(postCategoryId) || [],
-          is_repost: !!post.repost_of,
-          media: (post.media || []).map(
-            (m) => optimizedMediaMap.get(m.id) || m
-          ),
-          posted_by: {
-            ...post.posted_by,
-            ...followStatusMap.get(post.posted_by.id),
-          },
-          tagged_users: (post.tagged_users || []).map((user) => ({
-            ...user,
-            ...followStatusMap.get(user.id),
-          })),
-        };
-      });
+      posts = strapi
+        .service("api::post.post")
+        .mapFinalPosts(posts, subMap, optimizedMediaMap, followStatusMap);
 
       return ctx.send({
-        data: finalData,
+        data: posts,
         meta: {
           pagination: {
-            page: Number(default_pagination.pagination.page),
-            pageSize: Number(default_pagination.pagination.pageSize),
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
+            page: default_pagination.page,
+            pageSize: default_pagination.pageSize,
+            pageCount: Math.ceil(count / default_pagination.pageSize),
             total: count,
           },
         },
@@ -1799,7 +1317,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   async findUserPosts(ctx) {
     const { id: targetUserId } = ctx.params;
     const { id: currentUserId } = ctx.state.user;
-
     if (!targetUserId) return ctx.badRequest("User ID is required.");
 
     try {
@@ -1812,9 +1329,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       const isOwner =
         currentUserId && currentUserId.toString() === targetUserId.toString();
-      let isFollowing = false;
-      let isCloseFriend = false;
-
+      let isFollowing = false,
+        isCloseFriend = false;
       if (currentUserId && !isOwner) {
         const [followCount, closeFriendCount] = await Promise.all([
           strapi.entityService.count("api::following.following", {
@@ -1838,7 +1354,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const canViewProfile = targetUser.is_public || isOwner || isFollowing;
       if (!canViewProfile) return ctx.send({ data: [] });
 
-      const posts = await strapi.entityService.findMany("api::post.post", {
+      const postsRaw = await strapi.entityService.findMany("api::post.post", {
         filters: { posted_by: { id: targetUserId }, post_type: "post" },
         sort: { createdAt: "desc" },
         populate: {
@@ -1868,119 +1384,31 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         },
       });
 
-      const accessiblePosts = posts.filter((post) => {
+      let posts = postsRaw.filter((post) => {
         if (isOwner || post.share_with === "PUBLIC") return true;
         if (post.share_with === "FOLLOWERS") return isFollowing;
         if (post.share_with === "CLOSE-FRIENDS") return isCloseFriend;
         return false;
       });
 
-      if (!accessiblePosts || accessiblePosts.length === 0)
-        return ctx.send({ data: [] });
+      if (!posts.length) return ctx.send({ data: [] });
 
-      const categoryIds = [
-        ...new Set(
-          accessiblePosts.map((post) => post.category?.id).filter(Boolean)
-        ),
-      ];
-      let subcategoriesByCategory = new Map();
-      if (categoryIds.length > 0) {
-        const allSubcategories = await strapi.entityService.findMany(
-          "api::subcategory.subcategory",
-          {
-            filters: { category: { id: { $in: categoryIds } } },
-            populate: { category: true },
-            pagination: { limit: -1 },
-          }
-        );
-        for (const subcat of allSubcategories) {
-          const catId = subcat.category?.id;
-          if (!catId) continue;
-          if (!subcategoriesByCategory.has(catId))
-            subcategoriesByCategory.set(catId, []);
-          subcategoriesByCategory.get(catId).push(subcat);
-        }
-      }
+      posts = await strapi
+        .service("api::post.post")
+        .enrichRepostsAndStats(posts, currentUserId);
+      const subMap = await strapi
+        .service("api::post.post")
+        .mapSubcategoriesToPosts(posts);
+      const { optimizedMediaMap, followStatusMap } = await strapi
+        .service("api::post.post")
+        .enrichMediaAndFollowStatus(posts, currentUserId);
 
-      const usersToProcess = accessiblePosts
-        .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
-        .filter(Boolean);
-      const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
-      const allMedia = accessiblePosts
-        .flatMap((p) => p.media || [])
-        .filter(Boolean);
-
-      const [optimizedMediaArray, followStatusMap] = await Promise.all([
-        strapi.service("api::post.post").getOptimisedFileData(allMedia),
-        strapi
-          .service("api::following.following")
-          .getFollowStatusForUsers(currentUserId, allUserIds),
-        strapi
-          .service("api::post.post")
-          .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-      ]);
-      const optimizedMediaMap = new Map(
-        (optimizedMediaArray || []).map((m) => [m.id, m])
-      );
-
-      await Promise.all(
-        accessiblePosts.map(async (post) => {
-          const [
-            likes_count,
-            is_liked,
-            dislikes_count,
-            is_disliked,
-            comments_count,
-            share_count,
-          ] = await Promise.all([
-            strapi.services["api::like.like"].getLikesCount(post.id),
-            strapi.services["api::like.like"].verifyPostLikeByUser(
-              post.id,
-              currentUserId
-            ),
-            strapi
-              .service("api::dislike.dislike")
-              .getDislikesCountByPostId(post.id),
-            strapi
-              .service("api::dislike.dislike")
-              .verifyPostDislikedByUser(post.id, currentUserId),
-            strapi.services["api::comment.comment"].getCommentsCount(post.id),
-            strapi.services["api::share.share"].countShares(post.id),
-          ]);
-          Object.assign(post, {
-            likes_count,
-            is_liked,
-            dislikes_count,
-            is_disliked,
-            comments_count,
-            share_count,
-          });
-        })
-      );
-
-      const finalPosts = accessiblePosts.map((post) => {
-        const postCategoryId = post.category?.id;
-        return {
-          ...post,
-          subcategories: subcategoriesByCategory.get(postCategoryId) || [],
-          is_repost: !!post.repost_of,
-          media: (post.media || []).map(
-            (m) => optimizedMediaMap.get(m.id) || m
-          ),
-          posted_by: {
-            ...post.posted_by,
-            ...followStatusMap.get(post.posted_by.id),
-          },
-          tagged_users: (post.tagged_users || []).map((user) => ({
-            ...user,
-            ...followStatusMap.get(user.id),
-          })),
-        };
-      });
-      await strapi.service("api::post.post").populateRepostData(finalPosts, 12);
+      posts = strapi
+        .service("api::post.post")
+        .mapFinalPosts(posts, subMap, optimizedMediaMap, followStatusMap);
 
       return ctx.send({
-        data: finalPosts,
+        data: posts,
         message: "User's posts fetched successfully.",
       });
     } catch (err) {
@@ -1990,208 +1418,4 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
-
-  // async findUserPosts(ctx) {
-  //   const { id: targetUserId } = ctx.params;
-  //   const { id: currentUserId } = ctx.state.user;
-
-  //   if (!targetUserId) return ctx.badRequest("User ID is required.");
-
-  //   try {
-  //     const targetUser = await strapi.entityService.findOne(
-  //       "plugin::users-permissions.user",
-  //       targetUserId,
-  //       { fields: ["id", "is_public"] }
-  //     );
-
-  //     if (!targetUser) return ctx.notFound("Target user not found.");
-
-  //     const isOwner =
-  //       currentUserId && currentUserId.toString() === targetUserId.toString();
-  //     let isFollowing = false;
-  //     let isCloseFriend = false;
-
-  //     if (currentUserId && !isOwner) {
-  //       const [followCount, closeFriendCount] = await Promise.all([
-  //         strapi.entityService.count("api::following.following", {
-  //           filters: {
-  //             follower: { id: currentUserId },
-  //             subject: { id: targetUserId },
-  //           },
-  //         }),
-  //         strapi.entityService.count("api::following.following", {
-  //           filters: {
-  //             follower: { id: targetUserId },
-  //             subject: { id: currentUserId },
-  //             is_close_friend: true,
-  //           },
-  //         }),
-  //       ]);
-  //       isFollowing = followCount > 0;
-  //       isCloseFriend = closeFriendCount > 0;
-  //     }
-
-  //     const canViewProfile = targetUser.is_public || isOwner || isFollowing;
-  //     if (!canViewProfile) return ctx.send({ data: [] });
-
-  //     // Main find query
-  //     const posts = await strapi.entityService.findMany("api::post.post", {
-  //       filters: { posted_by: { id: targetUserId }, post_type: "post" },
-  //       sort: { createdAt: "desc" },
-  //       populate: {
-  //         media: true,
-  //         repost_of: true,
-  //         category: true,
-  //         posted_by: {
-  //           fields: [
-  //             "id",
-  //             "username",
-  //             "name",
-  //             "avatar_ring_color",
-  //             "is_public",
-  //           ],
-  //           populate: { profile_picture: true },
-  //         },
-  //         tagged_users: {
-  //           fields: [
-  //             "id",
-  //             "username",
-  //             "name",
-  //             "avatar_ring_color",
-  //             "is_public",
-  //           ],
-  //           populate: { profile_picture: true },
-  //         },
-  //       },
-  //     });
-
-  //     // Visibility checks
-  //     const accessiblePosts = posts.filter((post) => {
-  //       if (isOwner || post.share_with === "PUBLIC") return true;
-  //       if (post.share_with === "FOLLOWERS") return isFollowing;
-  //       if (post.share_with === "CLOSE-FRIENDS") return isCloseFriend;
-  //       return false;
-  //     });
-
-  //     if (!accessiblePosts || accessiblePosts.length === 0)
-  //       return ctx.send({ data: [] });
-
-  //     // Subcategory mapping (as feed API)
-  //     const categoryIds = [
-  //       ...new Set(
-  //         accessiblePosts.map((post) => post.category?.id).filter(Boolean)
-  //       ),
-  //     ];
-  //     let subcategoriesByCategory = new Map();
-  //     if (categoryIds.length > 0) {
-  //       const allSubcategories = await strapi.entityService.findMany(
-  //         "api::subcategory.subcategory",
-  //         {
-  //           filters: { category: { id: { $in: categoryIds } } },
-  //           populate: { category: true },
-  //           pagination: { limit: -1 },
-  //         }
-  //       );
-  //       for (const subcat of allSubcategories) {
-  //         const catId = subcat.category?.id;
-  //         if (!catId) continue;
-  //         if (!subcategoriesByCategory.has(catId))
-  //           subcategoriesByCategory.set(catId, []);
-  //         subcategoriesByCategory.get(catId).push(subcat);
-  //       }
-  //     }
-
-  //     // Feed-style user enrichment
-  //     const usersToProcess = accessiblePosts
-  //       .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
-  //       .filter(Boolean);
-  //     const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
-
-  //     const allMedia = accessiblePosts
-  //       .flatMap((p) => p.media || [])
-  //       .filter(Boolean);
-
-  //     const [optimizedMediaArray, followStatusMap] = await Promise.all([
-  //       strapi.service("api::post.post").getOptimisedFileData(allMedia),
-  //       strapi
-  //         .service("api::following.following")
-  //         .getFollowStatusForUsers(currentUserId, allUserIds),
-  //       strapi
-  //         .service("api::post.post")
-  //         .enrichUsersWithOptimizedProfilePictures(usersToProcess),
-  //     ]);
-  //     const optimizedMediaMap = new Map(
-  //       (optimizedMediaArray || []).map((m) => [m.id, m])
-  //     );
-
-  //     // Engagement stats
-  //     await Promise.all(
-  //       accessiblePosts.map(async (post) => {
-  //         const [
-  //           likes_count,
-  //           is_liked,
-  //           dislikes_count,
-  //           is_disliked,
-  //           comments_count,
-  //           share_count,
-  //         ] = await Promise.all([
-  //           strapi.services["api::like.like"].getLikesCount(post.id),
-  //           strapi.services["api::like.like"].verifyPostLikeByUser(
-  //             post.id,
-  //             currentUserId
-  //           ),
-  //           strapi
-  //             .service("api::dislike.dislike")
-  //             .getDislikesCountByPostId(post.id),
-  //           strapi
-  //             .service("api::dislike.dislike")
-  //             .verifyPostDislikedByUser(post.id, currentUserId),
-  //           strapi.services["api::comment.comment"].getCommentsCount(post.id),
-  //           strapi.services["api::share.share"].countShares(post.id),
-  //         ]);
-  //         Object.assign(post, {
-  //           likes_count,
-  //           is_liked,
-  //           dislikes_count,
-  //           is_disliked,
-  //           comments_count,
-  //           share_count,
-  //         });
-  //       })
-  //     );
-
-  //     // Final feed-style response mapping
-  //     const finalPosts = accessiblePosts.map((post) => {
-  //       const postCategoryId = post.category?.id;
-
-  //       return {
-  //         ...post,
-  //         subcategories: subcategoriesByCategory.get(postCategoryId) || [],
-  //         is_repost: !!post.repost_of,
-  //         media: (post.media || []).map(
-  //           (m) => optimizedMediaMap.get(m.id) || m
-  //         ),
-  //         posted_by: {
-  //           ...post.posted_by,
-  //           ...followStatusMap.get(post.posted_by.id),
-  //         },
-  //         tagged_users: (post.tagged_users || []).map((user) => ({
-  //           ...user,
-  //           ...followStatusMap.get(user.id),
-  //         })),
-  //       };
-  //     });
-
-  //     // Always respond as an object with `data` array, so frontend can treat same as feed
-  //     return ctx.send({
-  //       data: finalPosts,
-  //       message: "User's posts fetched successfully.",
-  //     });
-  //   } catch (err) {
-  //     console.error("Error in findUserPosts:", err);
-  //     return ctx.internalServerError(
-  //       "An error occurred while fetching user posts."
-  //     );
-  //   }
-  // },
 }));

@@ -73,6 +73,9 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "plugin::users-permissions.user"
+    },
+    "repost_caption": {
+      "type": "string"
     }
   }
 }

@@ -20,10 +20,10 @@ module.exports = {
             "website",
             "gender",
             "professional_info",
+            "play_mature_content",
             "is_public",
             "badge",
             "avatar_ring_color",
-            "play_mature_content",
             "mesibo_id",
             "mesibo_token",
           ],
@@ -31,7 +31,7 @@ module.exports = {
         }
       );
 
-      if (!user) return ctx.notFound("User not found.");
+      if (!user) return ctx.notFound("User not found");
 
       if (!user.mesibo_id) {
         const newMesiboUser = await MesiboService.editMesiboUser(userId);
@@ -39,12 +39,15 @@ module.exports = {
         user.mesibo_token = newMesiboUser.token;
       }
 
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
       const [
         postsCount,
         followersCount,
         followingCount,
         mutualFollowersCount,
         followRequestCount,
+        activeStoriesCount,
       ] = await Promise.all([
         strapi.entityService.count("api::post.post", {
           filters: { posted_by: { id: userId }, post_type: "post" },
@@ -64,6 +67,13 @@ module.exports = {
             requested_for: { id: userId },
           },
         }),
+        strapi.entityService.count("api::post.post", {
+          filters: {
+            posted_by: { id: userId },
+            post_type: "story",
+            createdAt: { $gte: twentyFourHoursAgo },
+          },
+        }),
       ]);
 
       await Promise.all([
@@ -80,12 +90,14 @@ module.exports = {
       await strapi.entityService.update(
         "plugin::users-permissions.user",
         userId,
-        { data: { last_active_at: new Date() } }
+        {
+          data: { last_active_at: new Date() },
+        }
       );
 
       const isRequestSent =
         !(user as any).is_following &&
-        currentUserId != userId &&
+        currentUserId !== userId &&
         followRequestCount > 0;
 
       let locationWithNames = (user as any).location;
@@ -105,16 +117,18 @@ module.exports = {
         id: user.id,
         username: user.username,
         name: user.name,
-        mesibo_id: user.mesibo_id,
-        mesibo_token: user.mesibo_token,
         bio: user.bio,
         website: user.website,
+        gender: user.gender,
         professional_info: user.professional_info,
-        location: locationWithNames,
+        play_mature_content: user.play_mature_content,
         is_public: user.is_public,
         badge: user.badge,
         avatar_ring_color: user.avatar_ring_color,
+        mesibo_id: user.mesibo_id,
+        mesibo_token: user.mesibo_token,
         profile_picture: (user as any).profile_picture,
+        location: locationWithNames,
         stats: {
           posts: postsCount,
           followers: followersCount,
@@ -124,13 +138,13 @@ module.exports = {
         is_following: (user as any).is_following,
         is_follower: (user as any).is_follower,
         is_request_sent: isRequestSent,
-        is_self: currentUserId == userId,
-        play_mature_content: user.play_mature_content,
+        has_stories: activeStoriesCount > 0,
+        is_self: currentUserId === userId,
       };
 
       return ctx.send(profileData);
     } catch (err) {
-      console.error("Get Profile Error:", err);
+      console.error("GetProfile Error:", err);
       return ctx.internalServerError(
         "An error occurred while fetching the profile."
       );

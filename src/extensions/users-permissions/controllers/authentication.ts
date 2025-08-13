@@ -571,11 +571,6 @@ async function updateUsername(ctx) {
   if (!user)
     return ctx.unauthorized("You must be logged in to update your username.");
 
-  if (user.tos_accepted)
-    return ctx.forbidden(
-      "You cannot change your username after completing registration."
-    );
-
   if (!newUsername || typeof newUsername !== "string")
     return ctx.badRequest('A new "username" must be provided as a string.');
 
@@ -629,6 +624,7 @@ async function updateUsername(ctx) {
     );
   }
 }
+
 async function getShareImage(ctx) {
   return ctx.send({
     // url: "https://storage.googleapis.com/monnet-dev/media/Monnet_Icons_6_1_133ebea5b9/Monnet_Icons_6_1_133ebea5b9.png",
