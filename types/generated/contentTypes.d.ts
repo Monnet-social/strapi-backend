@@ -972,6 +972,47 @@ export interface ApiSubcategorySubcategory extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiTagPolicyTagPolicy extends Struct.CollectionTypeSchema {
+  collectionName: 'tag_policies';
+  info: {
+    displayName: 'Tag Policy';
+    pluralName: 'tag-policies';
+    singularName: 'tag-policy';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    comment_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    > &
+      Schema.Attribute.DefaultTo<'anyone'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::tag-policy.tag-policy'
+    > &
+      Schema.Attribute.Private;
+    post_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    >;
+    publishedAt: Schema.Attribute.DateTime;
+    story_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    >;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiTagTag extends Struct.CollectionTypeSchema {
   collectionName: 'tags';
   info: {
@@ -1555,6 +1596,7 @@ declare module '@strapi/strapi' {
       'api::report.report': ApiReportReport;
       'api::share.share': ApiShareShare;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
+      'api::tag-policy.tag-policy': ApiTagPolicyTagPolicy;
       'api::tag.tag': ApiTagTag;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
