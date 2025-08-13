@@ -1,6 +1,97 @@
 import HelperService from "../../../utils/helper_service";
 import MesiboService from "../../../utils/mesibo_service";
 module.exports = {
+  async getMesiboProfile(ctx) {
+    const { mesibo_id } = ctx.params;
+    const { id: currentUserId } = ctx.state.user;
+
+    if (!mesibo_id) return ctx.badRequest("Mesibo ID is required.");
+
+    try {
+      let userProfile = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+
+        {
+          filters: {
+            mesibo_id,
+          },
+          fields: [
+            "id",
+            "username",
+            "name",
+            "bio",
+            "website",
+            "gender",
+            "professional_info",
+            "is_public",
+            "badge",
+            "avatar_ring_color",
+            "play_mature_content",
+            "mesibo_id",
+            "mesibo_token",
+          ],
+          populate: { profile_picture: true, location: true },
+        }
+      );
+      if (userProfile.length === 0) return ctx.notFound("User not found.");
+      const user = userProfile[0];
+
+      if (!user) return ctx.notFound("User not found.");
+
+      if (!user.mesibo_id) {
+        const newMesiboUser = await MesiboService.editMesiboUser(user.id);
+        user.mesibo_id = newMesiboUser.uid?.toString();
+        user.mesibo_token = newMesiboUser.token;
+      }
+
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        user.id,
+        { data: { last_active_at: new Date() } }
+      );
+
+      let locationWithNames = (user as any).location;
+      if (locationWithNames?.latitude && locationWithNames?.longitude) {
+        try {
+          const { city, country } = await HelperService.reverseGeocodeCoords(
+            locationWithNames.latitude,
+            locationWithNames.longitude
+          );
+          locationWithNames = { ...locationWithNames, city, country };
+        } catch (err) {
+          console.error("Error fetching city and country:", err);
+        }
+      }
+
+      const profileData = {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        mesibo_id: user.mesibo_id,
+        mesibo_token: user.mesibo_token,
+        bio: user.bio,
+        website: user.website,
+        professional_info: user.professional_info,
+        location: locationWithNames,
+        is_public: user.is_public,
+        badge: user.badge,
+        avatar_ring_color: user.avatar_ring_color,
+        profile_picture: (user as any).profile_picture,
+
+        is_following: (user as any).is_following,
+        is_follower: (user as any).is_follower,
+
+        play_mature_content: user.play_mature_content,
+      };
+
+      return ctx.send(profileData);
+    } catch (err) {
+      console.error("Get Profile Error:", err);
+      return ctx.internalServerError(
+        "An error occurred while fetching the profile."
+      );
+    }
+  },
   async getProfile(ctx) {
     const { userId } = ctx.params;
     const { id: currentUserId } = ctx.state.user;

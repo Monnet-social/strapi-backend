@@ -122,6 +122,14 @@ module.exports = [
   },
   {
     method: "GET",
+    path: "/mesibo/profile/:mesibo_id",
+    handler: "profile.getMesiboProfile",
+    config: {
+      prefix: "",
+    },
+  },
+  {
+    method: "GET",
     path: "/check-username",
     handler: "authentication.checkUsername",
     config: {
