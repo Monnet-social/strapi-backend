@@ -101,7 +101,9 @@ export default class MesiboService {
           user: {
             address: userId,
             token: {
-              appid: "com.monnetsocial.monnet",
+              v2: true,
+              bundle: "com.monnetsocial.monnet",
+              package: "com.monnetsocial.monnet",
               expiry: 525600,
             },
           },
