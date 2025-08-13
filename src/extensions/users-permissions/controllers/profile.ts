@@ -10,11 +10,8 @@ module.exports = {
     try {
       let userProfile = await strapi.entityService.findMany(
         "plugin::users-permissions.user",
-
         {
-          filters: {
-            mesibo_id,
-          },
+          filters: { mesibo_id },
           fields: [
             "id",
             "username",
@@ -33,9 +30,10 @@ module.exports = {
           populate: { profile_picture: true, location: true },
         }
       );
-      if (userProfile.length === 0) return ctx.notFound("User not found.");
-      const user = userProfile[0];
 
+      if (!userProfile.length) return ctx.notFound("User not found.");
+
+      const user = userProfile[0];
       if (!user) return ctx.notFound("User not found.");
 
       if (!user.mesibo_id) {
@@ -63,6 +61,18 @@ module.exports = {
         }
       }
 
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const activeStoriesCount = await strapi.entityService.count(
+        "api::post.post",
+        {
+          filters: {
+            posted_by: { id: user.id },
+            post_type: "story",
+            createdAt: { $gte: twentyFourHoursAgo },
+          },
+        }
+      );
+
       const profileData = {
         id: user.id,
         username: user.username,
@@ -71,27 +81,28 @@ module.exports = {
         mesibo_token: user.mesibo_token,
         bio: user.bio,
         website: user.website,
+        gender: user.gender,
         professional_info: user.professional_info,
         location: locationWithNames,
         is_public: user.is_public,
         badge: user.badge,
         avatar_ring_color: user.avatar_ring_color,
         profile_picture: (user as any).profile_picture,
-
         is_following: (user as any).is_following,
         is_follower: (user as any).is_follower,
-
         play_mature_content: user.play_mature_content,
+        has_stories: activeStoriesCount > 0,
       };
 
       return ctx.send(profileData);
     } catch (err) {
-      console.error("Get Profile Error:", err);
+      console.error("Get Mesibo Profile Error:", err);
       return ctx.internalServerError(
         "An error occurred while fetching the profile."
       );
     }
   },
+
   async getProfile(ctx) {
     const { userId } = ctx.params;
     const { id: currentUserId } = ctx.state.user;
