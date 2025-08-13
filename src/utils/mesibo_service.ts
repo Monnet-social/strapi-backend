@@ -32,11 +32,11 @@ export default class MesiboService {
           "Mesibo user created:",
           createMesiboUser,
           findUser[0].name,
-          findUser[0].profile_picture.url
+          findUser[0].profile_picture?.url
         );
         data = {
           name: findUser[0].name,
-          profile_picture: findUser[0].profile_picture.url,
+          profile_picture: findUser[0].profile_picture?.url,
         };
       } else {
         throw new Error("Failed to create Mesibo user");
@@ -91,6 +91,7 @@ export default class MesiboService {
     );
     if (findUser?.length == 0) throw new Error("User not found");
     const user = findUser[0];
+    //fs
     try {
       const response = await axios.post(
         process.env.MESIBO_BASE_URL ??
@@ -101,7 +102,10 @@ export default class MesiboService {
           user: {
             address: userId,
             token: {
-              appid: "com.mesibo.dev",
+              v2: true,
+              appid: "com.monnetsocial.monnet",
+              // bundle: "com.monnetsocial.monnet",
+              // package: "com.monnetsocial.monnet",
               expiry: 525600,
             },
           },
