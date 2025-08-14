@@ -469,6 +469,17 @@ module.exports = {
       message: "Updated FCM token successfully.",
     });
   },
+  async getUserFCMToken(ctx) {
+    const userId = ctx.state.user.id;
+    const user = await strapi.entityService.findOne(
+      "plugin::users-permissions.user",
+      userId
+    );
+    return ctx.send({
+      status: 200,
+      fcm_token: user.fcm_token,
+    });
+  },
 
   async updateProfilePicture(ctx): Promise<void> {
     const { user } = ctx.state;

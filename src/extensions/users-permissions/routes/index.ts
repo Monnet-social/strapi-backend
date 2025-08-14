@@ -147,7 +147,15 @@ module.exports = [
   {
     method: "PUT",
     path: "/fcm-token",
-    handler: "authentication.updateFCMToken",
+    handler: "profile.updateFCMToken",
+    config: {
+      prefix: "",
+    },
+  },
+  {
+    method: "GET",
+    path: "/fcm-token",
+    handler: "profile.getUserFCMToken",
     config: {
       prefix: "",
     },
