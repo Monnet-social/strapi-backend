@@ -269,6 +269,7 @@ module.exports = {
       );
     }
   },
+
   async updateProfile(ctx) {
     const { user } = ctx.state;
     if (!user)
@@ -571,6 +572,33 @@ module.exports = {
     return ctx.send({
       message: "Fetched colors succesfully",
       avatarRingColors: HelperService.avatarRingColors,
+    });
+  },
+
+  async updateFCMToken(ctx) {
+    const userId = ctx.state.user.id;
+    const { fcm_token } = ctx.request.body;
+    const updatedUser = await strapi.entityService.update(
+      "plugin::users-permissions.user",
+      userId,
+      {
+        data: { fcm_token },
+      }
+    );
+    return ctx.send({
+      status: 200,
+      message: "Updated FCM token successfully.",
+    });
+  },
+  async getUserFCMToken(ctx) {
+    const userId = ctx.state.user.id;
+    const user = await strapi.entityService.findOne(
+      "plugin::users-permissions.user",
+      userId
+    );
+    return ctx.send({
+      status: 200,
+      fcm_token: user.fcm_token,
     });
   },
 };

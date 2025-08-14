@@ -1,4 +1,5 @@
 import { factories } from "@strapi/strapi";
+import NotificationService from "../../../utils/notification_service";
 
 export default factories.createCoreController(
   "api::follow-request.follow-request",
@@ -54,7 +55,6 @@ export default factories.createCoreController(
                 populate: { requested_for: { fields: ["id"] } },
               }
             ),
-            // Fetch users who have posted stories in last 24h
             strapi.entityService.findMany("api::post.post", {
               filters: {
                 posted_by: { id: { $in: requesterIds } },
@@ -76,7 +76,6 @@ export default factories.createCoreController(
           ])
         );
 
-        // Build a set of IDs that have active stories within last 24h
         const hasStoriesSet = new Set(
           usersWithStories
             .map((story: any) => story.posted_by?.id)
@@ -111,6 +110,7 @@ export default factories.createCoreController(
         return ctx.internalServerError("Failed to fetch follow requests.");
       }
     },
+
     async manageFollowRequest(ctx) {
       try {
         const userId = ctx.state.user.id;
@@ -130,6 +130,8 @@ export default factories.createCoreController(
         if ((request as any).requested_for.id !== userId)
           return ctx.unauthorized("Not allowed.");
 
+        const notificationService = new NotificationService();
+
         if (action === "ACCEPT") {
           const requesterId = (request as any).requested_by.id;
 
@@ -142,10 +144,11 @@ export default factories.createCoreController(
               },
             }
           );
-          if (!already)
+          if (!already) {
             await strapi.entityService.create("api::following.following", {
               data: { follower: { id: requesterId }, subject: { id: userId } },
             });
+          }
 
           await strapi.entityService.update(
             "api::follow-request.follow-request",
@@ -153,18 +156,49 @@ export default factories.createCoreController(
             { data: { request_status: "ACCEPTED" } }
           );
 
+          const msg = `${(request as any).requested_for.username} accepted your follow request.`;
+          await notificationService.saveNotification(
+            "follow_request",
+            userId,
+            requesterId,
+            msg
+          );
+
+          if ((request as any).requested_by.fcm_token)
+            await notificationService.sendPushNotification(
+              "Follow Request Accepted",
+              msg,
+              { type: "follow_request", accepted: "true" },
+              (request as any).requested_by.fcm_token
+            );
+
           return ctx.send({
             message: "Follow request accepted.",
-            data: { requestId, is_following: false },
+            data: { requestId, is_following: true },
           });
         } else {
           await strapi.entityService.update(
             "api::follow-request.follow-request",
             request.id,
-            {
-              data: { request_status: "REJECTED" },
-            }
+            { data: { request_status: "REJECTED" } }
           );
+
+          const msg = `${(request as any).requested_for.username} rejected your follow request.`;
+          await notificationService.saveNotification(
+            "follow_request",
+            userId,
+            (request as any).requested_by.id,
+            msg
+          );
+          if ((request as any).requested_by.fcm_token) {
+            await notificationService.sendPushNotification(
+              "Follow Request Rejected",
+              msg,
+              { type: "follow_request", accepted: "false" },
+              (request as any).requested_by.fcm_token
+            );
+          }
+
           return ctx.send({
             message: "Follow request rejected.",
             data: { requestId },
@@ -187,8 +221,8 @@ export default factories.createCoreController(
           requestId,
           {
             populate: {
-              requested_for: { fields: ["id"] },
-              requested_by: { fields: ["id"] },
+              requested_for: { fields: ["id", "username", "fcm_token"] },
+              requested_by: { fields: ["id", "username", "fcm_token"] },
             },
           }
         );
@@ -202,13 +236,40 @@ export default factories.createCoreController(
             "You are not authorized to delete this request."
           );
 
-        const deleted = await strapi.entityService.delete(
+        await strapi.entityService.delete(
           "api::follow-request.follow-request",
           requestId
         );
+
+        const otherId =
+          (request as any).requested_for.id === userId
+            ? (request as any).requested_by.id
+            : (request as any).requested_for.id;
+
+        const notificationService = new NotificationService();
+        const msg = `Your follow request was removed.`;
+        await notificationService.saveNotification(
+          "follow_request",
+          userId,
+          otherId,
+          msg
+        );
+        const otherUser =
+          (request as any).requested_for.id === userId
+            ? (request as any).requested_by
+            : (request as any).requested_for;
+        if ((otherUser as any).fcm_token) {
+          await notificationService.sendPushNotification(
+            "Follow Request Removed",
+            msg,
+            { type: "follow_request", removed: "true" },
+            otherUser.fcm_token
+          );
+        }
+
         return ctx.send({
           message: "Follow request deleted.",
-          data: { id: deleted.id },
+          data: { id: requestId },
         });
       } catch (error) {
         console.error("Error in deleteRequest:", error);
