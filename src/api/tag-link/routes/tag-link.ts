@@ -1,7 +1,9 @@
-/**
- * tag-link router
- */
-
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::tag-link.tag-link');
+module.exports = {
+  routes: [
+    {
+      method: "GET",
+      path: "/extractTags",
+      handler: "tag-link.extractTags",
+    },
+  ],
+};
