@@ -37,7 +37,10 @@
     },
     "post_type": {
       "type": "enumeration",
-      "enum": ["story", "post"]
+      "enum": [
+        "story",
+        "post"
+      ]
     },
     "category": {
       "type": "relation",
@@ -47,7 +50,12 @@
     "media": {
       "type": "media",
       "multiple": true,
-      "allowedTypes": ["images", "files", "videos", "audios"]
+      "allowedTypes": [
+        "images",
+        "files",
+        "videos",
+        "audios"
+      ]
     },
     "viewers": {
       "type": "relation",
@@ -57,7 +65,11 @@
     "share_with": {
       "type": "enumeration",
       "default": "PUBLIC",
-      "enum": ["PUBLIC", "FOLLOWERS", "CLOSE-FRIENDS"]
+      "enum": [
+        "PUBLIC",
+        "FOLLOWERS",
+        "CLOSE-FRIENDS"
+      ]
     },
     "repost_of": {
       "type": "relation",
@@ -76,6 +88,11 @@
     },
     "repost_caption": {
       "type": "string"
+    },
+    "mentioned_users": {
+      "type": "component",
+      "component": "mention.mention",
+      "repeatable": true
     }
   }
 }

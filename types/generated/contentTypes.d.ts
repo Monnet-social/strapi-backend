@@ -530,6 +530,7 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
       'api::comment.comment'
     > &
       Schema.Attribute.Private;
+    mentioned_users: Schema.Attribute.Component<'mention.mention', true>;
     parent_comment: Schema.Attribute.Relation<
       'oneToOne',
       'api::comment.comment'
