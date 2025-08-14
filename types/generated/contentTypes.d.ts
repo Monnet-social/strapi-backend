@@ -882,6 +882,7 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
       'images' | 'files' | 'videos' | 'audios',
       true
     >;
+    mentioned_users: Schema.Attribute.Component<'mention.mention', true>;
     post_type: Schema.Attribute.Enumeration<['story', 'post']>;
     posted_by: Schema.Attribute.Relation<
       'oneToOne',
