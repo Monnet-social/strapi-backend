@@ -8,6 +8,7 @@ export default factories.createCoreService(
   "api::tag-link.tag-link",
   ({ strapi }) => ({
     async extractTags(content, type, id) {
+      console.log("Extracting tags...", content);
       const tags = content.match(/#\w+/g);
       let finalTags = tags ? tags.map((tag) => tag.slice(1)) : [];
       for (let i = 0; i < finalTags.length; i++) {

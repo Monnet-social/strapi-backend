@@ -15,9 +15,10 @@ export default factories.createCoreController(
       );
       for (let i = 0; i < findAllPost.length; i++) {
         const post = findAllPost[i];
-        await strapi
-          .service("api::tag-link.tag-link")
-          .extractTags(post.description, "post", post.id);
+        if (post.description)
+          await strapi
+            .service("api::tag-link.tag-link")
+            .extractTags(post.description, "post", post.id);
       }
       const findAllComment = await strapi.entityService.findMany(
         "api::comment.comment",
@@ -25,9 +26,10 @@ export default factories.createCoreController(
       );
       for (let i = 0; i < findAllComment.length; i++) {
         const comment = findAllComment[i];
-        await strapi
-          .service("api::tag-link.tag-link")
-          .extractTags(comment.comment, "comment", comment.id);
+        if (comment.comment)
+          await strapi
+            .service("api::tag-link.tag-link")
+            .extractTags(comment.comment, "comment", comment.id);
       }
       return ctx.send({
         message: "Tags extracted successfully",
