@@ -40,7 +40,9 @@
         "mention",
         "follow_request",
         "reaction",
-        "comment"
+        "comment",
+        "repost",
+        "reply"
       ]
     }
   }

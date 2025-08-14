@@ -826,7 +826,7 @@ export interface ApiNotificationNotification
     post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
     publishedAt: Schema.Attribute.DateTime;
     type: Schema.Attribute.Enumeration<
-      ['mention', 'follow_request', 'reaction', 'comment']
+      ['mention', 'follow_request', 'reaction', 'comment', 'repost', 'reply']
     >;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &

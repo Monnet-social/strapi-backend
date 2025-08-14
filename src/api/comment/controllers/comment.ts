@@ -115,6 +115,7 @@ export default factories.createCoreController(
                 commented_by: {
                   fields: ["id", "username", "name", "fcm_token"],
                 },
+                post: { fields: ["id"] },
               },
             }
           );
@@ -134,6 +135,18 @@ export default factories.createCoreController(
               originalComment[0]?.commented_by?.fcm_token
             );
           }
+          await strapi
+            .service("api::notification.notification")
+            .saveNotification(
+              "repost",
+              ctx.state.user.id,
+              originalComment[0]?.commented_by.id,
+              `Your comment: "${originalComment[0]?.comment}" was reposted by ${actorUserName}.`,
+              {
+                comment: originalComment[0].id,
+                post: originalComment[0]?.post.id,
+              }
+            );
         }
 
         if (dataToCreate?.parent_comment) {
@@ -164,6 +177,18 @@ export default factories.createCoreController(
               parentComment[0]?.commented_by?.fcm_token
             );
           }
+          await strapi
+            .service("api::notification.notification")
+            .saveNotification(
+              "reply",
+              ctx.state.user.id,
+              parentComment[0]?.commented_by.id,
+              `Your comment: "${parentComment[0]?.comment}" was replied to by ${actorUserName}.`,
+              {
+                comment: parentComment[0].id,
+                post: parentComment[0]?.post.id,
+              }
+            );
         }
 
         if (dataToCreate.post) {
@@ -194,6 +219,18 @@ export default factories.createCoreController(
               findPost[0]?.posted_by?.fcm_token
             );
           }
+          await strapi
+            .service("api::notification.notification")
+            .saveNotification(
+              "comment",
+              ctx.state.user.id,
+              findPost[0]?.posted_by.id,
+              `Your post: "${findPost[0]?.title}" received a comment from ${actorUserName}.`,
+              {
+                comment: newComment.id,
+                post: findPost[0].id,
+              }
+            );
         }
 
         return ctx.send(newComment);
