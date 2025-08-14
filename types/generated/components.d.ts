@@ -33,11 +33,43 @@ export interface LocationLocation extends Struct.ComponentSchema {
   };
 }
 
+export interface MentionMention extends Struct.ComponentSchema {
+  collectionName: 'components_mention_mentions';
+  info: {
+    displayName: 'Mention';
+  };
+  attributes: {
+    end: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    mention_status: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    start: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    username: Schema.Attribute.String;
+  };
+}
+
 declare module '@strapi/strapi' {
   export module Public {
     export interface ComponentSchemas {
       'global.algo-category-entry': GlobalAlgoCategoryEntry;
       'location.location': LocationLocation;
+      'mention.mention': MentionMention;
     }
   }
 }

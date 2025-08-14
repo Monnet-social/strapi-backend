@@ -530,6 +530,7 @@ export interface ApiCommentComment extends Struct.CollectionTypeSchema {
       'api::comment.comment'
     > &
       Schema.Attribute.Private;
+    mentioned_users: Schema.Attribute.Component<'mention.mention', true>;
     parent_comment: Schema.Attribute.Relation<
       'oneToOne',
       'api::comment.comment'
@@ -751,6 +752,50 @@ export interface ApiLikeLike extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiMentionPolicyMentionPolicy
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'mention_policies';
+  info: {
+    displayName: 'Mention Policy';
+    pluralName: 'mention-policies';
+    singularName: 'mention-policy';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    comment_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    > &
+      Schema.Attribute.DefaultTo<'anyone'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::mention-policy.mention-policy'
+    > &
+      Schema.Attribute.Private;
+    post_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    > &
+      Schema.Attribute.DefaultTo<'anyone'>;
+    publishedAt: Schema.Attribute.DateTime;
+    story_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    > &
+      Schema.Attribute.DefaultTo<'anyone'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiNotificationNotification
   extends Struct.CollectionTypeSchema {
   collectionName: 'notifications';
@@ -760,9 +805,14 @@ export interface ApiNotificationNotification
     singularName: 'notification';
   };
   options: {
-    draftAndPublish: true;
+    draftAndPublish: false;
   };
   attributes: {
+    actor: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+    comment: Schema.Attribute.Relation<'oneToOne', 'api::comment.comment'>;
     createdAt: Schema.Attribute.DateTime;
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -772,10 +822,19 @@ export interface ApiNotificationNotification
       'api::notification.notification'
     > &
       Schema.Attribute.Private;
+    message: Schema.Attribute.String;
+    post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
     publishedAt: Schema.Attribute.DateTime;
+    type: Schema.Attribute.Enumeration<
+      ['mention', 'follow_request', 'reaction', 'comment', 'repost', 'reply']
+    >;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
   };
 }
 
@@ -837,6 +896,7 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
       'images' | 'files' | 'videos' | 'audios',
       true
     >;
+    mentioned_users: Schema.Attribute.Component<'mention.mention', true>;
     post_type: Schema.Attribute.Enumeration<['story', 'post']>;
     posted_by: Schema.Attribute.Relation<
       'oneToOne',
@@ -972,6 +1032,36 @@ export interface ApiSubcategorySubcategory extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiTagLinkTagLink extends Struct.CollectionTypeSchema {
+  collectionName: 'tag_links';
+  info: {
+    displayName: 'Tag Link';
+    pluralName: 'tag-links';
+    singularName: 'tag-link';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    comment: Schema.Attribute.Relation<'oneToOne', 'api::comment.comment'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::tag-link.tag-link'
+    > &
+      Schema.Attribute.Private;
+    post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
+    publishedAt: Schema.Attribute.DateTime;
+    tag: Schema.Attribute.Relation<'oneToOne', 'api::tag.tag'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+  };
+}
+
 export interface ApiTagTag extends Struct.CollectionTypeSchema {
   collectionName: 'tags';
   info: {
@@ -990,6 +1080,14 @@ export interface ApiTagTag extends Struct.CollectionTypeSchema {
     localizations: Schema.Attribute.Relation<'oneToMany', 'api::tag.tag'> &
       Schema.Attribute.Private;
     name: Schema.Attribute.String;
+    post_count: Schema.Attribute.Integer &
+      Schema.Attribute.SetMinMax<
+        {
+          min: 0;
+        },
+        number
+      > &
+      Schema.Attribute.DefaultTo<0>;
     publishedAt: Schema.Attribute.DateTime;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -1473,6 +1571,7 @@ export interface PluginUsersPermissionsUser
         minLength: 6;
       }>;
     email_otp: Schema.Attribute.String;
+    fcm_token: Schema.Attribute.String;
     gender: Schema.Attribute.String;
     is_email_verified: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
@@ -1549,12 +1648,14 @@ declare module '@strapi/strapi' {
       'api::following.following': ApiFollowingFollowing;
       'api::hide-story.hide-story': ApiHideStoryHideStory;
       'api::like.like': ApiLikeLike;
+      'api::mention-policy.mention-policy': ApiMentionPolicyMentionPolicy;
       'api::notification.notification': ApiNotificationNotification;
       'api::post-view.post-view': ApiPostViewPostView;
       'api::post.post': ApiPostPost;
       'api::report.report': ApiReportReport;
       'api::share.share': ApiShareShare;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
+      'api::tag-link.tag-link': ApiTagLinkTagLink;
       'api::tag.tag': ApiTagTag;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;

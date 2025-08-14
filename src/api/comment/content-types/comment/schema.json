@@ -1,42 +1,47 @@
 {
-    "kind": "collectionType",
-    "collectionName": "comments",
-    "info": {
-        "singularName": "comment",
-        "pluralName": "comments",
-        "displayName": "Comment"
+  "kind": "collectionType",
+  "collectionName": "comments",
+  "info": {
+    "singularName": "comment",
+    "pluralName": "comments",
+    "displayName": "Comment"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "comment": {
+      "type": "string"
     },
-    "options": {
-        "draftAndPublish": false
+    "post": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::post.post"
     },
-    "pluginOptions": {},
-    "attributes": {
-        "comment": {
-            "type": "string"
-        },
-        "post": {
-            "type": "relation",
-            "relation": "oneToOne",
-            "target": "api::post.post"
-        },
-        "commented_by": {
-            "type": "relation",
-            "relation": "oneToOne",
-            "target": "plugin::users-permissions.user"
-        },
-        "pinned": {
-            "type": "boolean",
-            "default": false
-        },
-        "parent_comment": {
-            "type": "relation",
-            "relation": "oneToOne",
-            "target": "api::comment.comment"
-        },
-        "repost_of": {
-            "type": "relation",
-            "relation": "oneToOne",
-            "target": "api::comment.comment"
-        }
+    "commented_by": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    },
+    "pinned": {
+      "type": "boolean",
+      "default": false
+    },
+    "parent_comment": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::comment.comment"
+    },
+    "repost_of": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "api::comment.comment"
+    },
+    "mentioned_users": {
+      "type": "component",
+      "component": "mention.mention",
+      "repeatable": true
     }
+  }
 }
