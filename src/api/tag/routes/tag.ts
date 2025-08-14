@@ -1,7 +1,9 @@
-/**
- * tag router
- */
-
-import { factories } from '@strapi/strapi';
-
-export default factories.createCoreRouter('api::tag.tag');
+module.exports = {
+  routes: [
+    {
+      method: "GET",
+      path: "/tags",
+      handler: "tag.getTags",
+    },
+  ],
+};
