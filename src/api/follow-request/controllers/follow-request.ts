@@ -14,7 +14,6 @@ export default factories.createCoreController(
               requested_for: { id: userId },
               request_status: { $ne: "REJECTED" },
             },
-
             sort: { createdAt: "desc" },
             populate: {
               requested_by: {
@@ -30,27 +29,42 @@ export default factories.createCoreController(
             },
           }
         );
+
         if (!requests?.length) return ctx.send([]);
 
         const requesterIds = requests.map((r: any) => r.requested_by.id);
 
-        const [followBackEntries, outgoingRequests] = await Promise.all([
-          strapi.entityService.findMany("api::following.following", {
-            filters: {
-              follower: { id: userId },
-              subject: { id: { $in: requesterIds } },
-            },
-            populate: { subject: { fields: ["id"] } },
-          }),
-          strapi.entityService.findMany("api::follow-request.follow-request", {
-            filters: {
-              requested_by: { id: userId },
-              requested_for: { id: { $in: requesterIds } },
-              request_status: { $ne: "REJECTED" },
-            },
-            populate: { requested_for: { fields: ["id"] } },
-          }),
-        ]);
+        const [followBackEntries, outgoingRequests, usersWithStories] =
+          await Promise.all([
+            strapi.entityService.findMany("api::following.following", {
+              filters: {
+                follower: { id: userId },
+                subject: { id: { $in: requesterIds } },
+              },
+              populate: { subject: { fields: ["id"] } },
+            }),
+            strapi.entityService.findMany(
+              "api::follow-request.follow-request",
+              {
+                filters: {
+                  requested_by: { id: userId },
+                  requested_for: { id: { $in: requesterIds } },
+                  request_status: { $ne: "REJECTED" },
+                },
+                populate: { requested_for: { fields: ["id"] } },
+              }
+            ),
+            // Fetch users who have posted stories in last 24h
+            strapi.entityService.findMany("api::post.post", {
+              filters: {
+                posted_by: { id: { $in: requesterIds } },
+                post_type: "story",
+                createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+              },
+              fields: ["id"],
+              populate: { posted_by: { fields: ["id"] } },
+            }),
+          ]);
 
         const usersYouFollow = new Set(
           followBackEntries.map((e: any) => e.subject.id)
@@ -60,6 +74,13 @@ export default factories.createCoreController(
             r.requested_for.id,
             r.request_status,
           ])
+        );
+
+        // Build a set of IDs that have active stories within last 24h
+        const hasStoriesSet = new Set(
+          usersWithStories
+            .map((story: any) => story.posted_by?.id)
+            .filter(Boolean)
         );
 
         const usersToProcess = requests.map((r: any) => r.requested_by);
@@ -79,6 +100,7 @@ export default factories.createCoreController(
               is_following: iFollow,
               is_request_sent: !iFollow && myReqStatus === "PENDING",
               is_my_request_accepted: !iFollow && myReqStatus === "ACCEPTED",
+              has_stories: hasStoriesSet.has(by.id),
             },
           };
         });
@@ -89,7 +111,6 @@ export default factories.createCoreController(
         return ctx.internalServerError("Failed to fetch follow requests.");
       }
     },
-
     async manageFollowRequest(ctx) {
       try {
         const userId = ctx.state.user.id;

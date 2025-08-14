@@ -1,5 +1,6 @@
 import { factories } from "@strapi/strapi";
 import FileOptimisationService from "../../../utils/file_optimisation_service";
+
 interface PostStats {
   id: string | number;
   likes_count?: number;
@@ -9,9 +10,12 @@ interface PostStats {
   comments_count?: number;
   share_count?: number;
 }
+
+type Post = Record<string, any>;
+
 export default factories.createCoreService("api::post.post", ({ strapi }) => ({
   async getOptimisedFileData(media: any[]) {
-    let finalMedia = [];
+    const finalMedia = [];
     for (let i = 0; i < media?.length; i++) {
       const file = media[i];
       const findImage = await strapi.entityService.findMany(
@@ -52,46 +56,24 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
   },
 
   async getStoryViewersCount(postId: number): Promise<number> {
-    if (!postId || isNaN(postId)) {
-      strapi.log.warn("getStoryViewersCount called with an invalid postId.");
-      return 0;
-    }
-
+    if (!postId || isNaN(postId)) return 0;
     try {
       const post = await strapi.entityService.findOne(
         "api::post.post",
         postId,
-        {
-          fields: ["id"],
-          populate: { viewers: { count: true } } as any,
-        }
+        { fields: ["id"], populate: { viewers: { count: true } } as any }
       );
-
-      if (!post) {
-        strapi.log.info(
-          `getStoryViewersCount: Post with id ${postId} not found.`
-        );
-        return 0;
-      }
-
-      const totalViewers = (post as any).viewers.count || 0;
-      return totalViewers;
-    } catch (error) {
-      strapi.log.error(
-        `Error fetching story viewers count for post ${postId}:`,
-        error
-      );
+      if (!post) return 0;
+      return (post as any).viewers.count || 0;
+    } catch {
       return 0;
     }
   },
 
   async enrichUsersWithOptimizedProfilePictures(users: any[]) {
-    if (!users || users.length === 0) {
-      return;
-    }
-
+    if (!users?.length) return;
     for (const user of users) {
-      if (user && user.profile_picture && user.profile_picture.id) {
+      if (user?.profile_picture?.id) {
         const optimizedPictures = await this.getOptimisedFileData([
           user.profile_picture,
         ]);
@@ -100,10 +82,9 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     }
   },
 
-  async enrichPostsWithStats(posts, currentUserId) {
+  async enrichPostsWithStats(posts: any, currentUserId: string | number) {
     const isArray = Array.isArray(posts);
     const postList = isArray ? posts : [posts];
-
     await Promise.all(
       postList.map(async (post) => {
         const [
@@ -128,7 +109,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
           strapi.services["api::comment.comment"].getCommentsCount(post.id),
           strapi.services["api::share.share"].countShares(post.id),
         ]);
-
         Object.assign(post, {
           likes_count,
           is_liked,
@@ -139,25 +119,26 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         });
       })
     );
-
     return isArray ? postList : postList[0];
   },
 
-  async populateRepostData(posts, currentUserId) {
+  async populateRepostData(
+    posts: Post[],
+    currentUserId: string | number
+  ): Promise<Post[]> {
     if (!posts?.length) return posts;
-
     const repostIds = posts
-      .filter((p) => p.repost_of != null)
-      .map((p) => {
-        if (typeof p.repost_of === "number" || typeof p.repost_of === "string")
-          return p.repost_of;
-        if (p.repost_of.id) return p.repost_of.id;
-        return null;
-      })
-      .filter(Boolean);
-
+      .filter((p) => p.repost_of)
+      .map((p) =>
+        typeof p.repost_of === "number" || typeof p.repost_of === "string"
+          ? p.repost_of
+          : p.repost_of.id
+      )
+      .filter(
+        (id): id is string | number =>
+          typeof id === "string" || typeof id === "number"
+      );
     if (!repostIds.length) return posts;
-
     const originals = await strapi.entityService.findMany("api::post.post", {
       filters: { id: { $in: repostIds } },
       populate: {
@@ -178,9 +159,9 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         reposted_from: true,
       },
     });
-
-    const originalsMap = new Map(originals.map((o) => [o.id, o]));
-
+    const originalsMap = new Map<string | number, Post>(
+      originals.map((o: any) => [o.id, o])
+    );
     const skipKeys = [
       "id",
       "documentId",
@@ -198,33 +179,31 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       "comments_count",
       "share_count",
     ];
-
-    return posts.map((post) => {
+    return posts.map((post: Post) => {
       if (post.repost_of) {
         const origId =
           typeof post.repost_of === "number" ||
           typeof post.repost_of === "string"
             ? post.repost_of
             : post.repost_of.id;
-
         const orig = originalsMap.get(origId);
         if (orig) {
           post.is_repost = true;
-
           Object.keys(orig).forEach((key) => {
-            if (!skipKeys.includes(key)) {
-              post[key] = orig[key];
-            }
+            if (!skipKeys.includes(key)) post[key] = orig[key];
           });
           post.repost_of = orig;
-          post.reposted_from = (orig as any).posted_by || null;
+          post.reposted_from = orig?.posted_by || null;
         }
       }
       return post;
     });
   },
 
-  async enrichRepostsAndStats(posts: any[], currentUserId: string | number) {
+  async enrichRepostsAndStats(
+    posts: Post[],
+    currentUserId: string | number
+  ): Promise<Post[]> {
     const withReposts = await this.populateRepostData(posts, currentUserId);
     await this.enrichPostsWithStats(withReposts, currentUserId);
     const originalIds = withReposts
@@ -234,21 +213,17 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         (id): id is string | number =>
           typeof id === "string" || typeof id === "number"
       );
-
     if (originalIds.length) {
       const uniqueIds: (string | number)[] = Array.from(new Set(originalIds));
       const originals = await strapi.entityService.findMany("api::post.post", {
         filters: { id: { $in: uniqueIds } },
         fields: ["id"],
       });
-
       await this.enrichPostsWithStats(originals, currentUserId);
-
       const statsMap = new Map<string | number, PostStats>(
         originals.map((o) => [o.id, o as PostStats])
       );
-
-      for (const post of withReposts)
+      for (const post of withReposts) {
         if (post.repost_of && statsMap.has(post.repost_of.id)) {
           const stats = statsMap.get(post.repost_of.id)!;
           post.original_stats = {
@@ -260,9 +235,11 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
             dislikes_count: stats.dislikes_count ?? 0,
           };
         }
+      }
     }
     return withReposts;
   },
+
   async mapSubcategoriesToPosts(posts: any[]) {
     const categoryIds = [
       ...new Set(
@@ -275,7 +252,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       ),
     ];
     if (!categoryIds.length) return new Map();
-
     const allSubcats = await strapi.entityService.findMany(
       "api::subcategory.subcategory",
       {
@@ -284,7 +260,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         pagination: { limit: -1 },
       }
     );
-
     const map = new Map();
     for (const sub of allSubcats) {
       const catId = (sub as any).category?.id;
@@ -299,10 +274,8 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     const usersToProcess = posts
       .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
       .filter(Boolean);
-
     const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
     const allMedia = posts.flatMap((p) => p.media || []).filter(Boolean);
-
     const [optimizedMediaArray, followStatusMap] = await Promise.all([
       this.getOptimisedFileData(allMedia),
       strapi
@@ -310,7 +283,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         .getFollowStatusForUsers(currentUserId, allUserIds),
       this.enrichUsersWithOptimizedProfilePictures(usersToProcess),
     ]);
-
     const optimizedMediaMap = new Map(
       (optimizedMediaArray || []).map((m) => [m.id, m])
     );

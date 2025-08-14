@@ -200,7 +200,7 @@ export default factories.createCoreController(
         });
       }
     },
-
+    //actor image,post at least one media,pin comment service,reaction,follow-request,repost
     async getFriends(ctx) {
       const { user: currentUser } = ctx.state;
       const { userId } = ctx.params;
@@ -230,24 +230,18 @@ export default factories.createCoreController(
           ]);
 
         const followingIds = new Set(
-          followingEntries
-            .map((entry: any) => entry.subject?.id)
-            .filter(Boolean)
+          followingEntries.map((e: any) => e.subject?.id).filter(Boolean)
         );
         const followerIds = new Set(
-          followerEntries
-            .map((entry: any) => entry.follower?.id)
-            .filter(Boolean)
+          followerEntries.map((e: any) => e.follower?.id).filter(Boolean)
         );
         const hiddenUserIds = new Set(
-          hiddenStoryEntries
-            .map((entry: any) => entry.target?.id)
-            .filter(Boolean)
+          hiddenStoryEntries.map((e: any) => e.target?.id).filter(Boolean)
         );
 
         const friendIds = [...followingIds].filter((id) => followerIds.has(id));
 
-        if (friendIds.length === 0)
+        if (friendIds.length === 0) {
           return ctx.send({
             data: [],
             meta: {
@@ -259,6 +253,7 @@ export default factories.createCoreController(
               },
             },
           });
+        }
 
         const closeFriendEntries = await strapi.entityService.findMany(
           "api::following.following",
@@ -271,10 +266,9 @@ export default factories.createCoreController(
             populate: { subject: { fields: ["id"] } },
           }
         );
+
         const closeFriendIds = new Set(
-          closeFriendEntries
-            .map((entry: any) => entry.subject?.id)
-            .filter(Boolean)
+          closeFriendEntries.map((e: any) => e.subject?.id).filter(Boolean)
         );
 
         const userFilters: any = { id: { $in: friendIds } };
@@ -284,15 +278,23 @@ export default factories.createCoreController(
             { name: { $containsi: query } },
           ];
 
-        const users = await strapi.entityService.findMany(
-          "plugin::users-permissions.user",
-          {
+        const [users, usersWithStories] = await Promise.all([
+          strapi.entityService.findMany("plugin::users-permissions.user", {
             filters: userFilters,
             populate: { profile_picture: true },
             start: (Number(page) - 1) * Number(pagination_size),
             limit: Number(pagination_size),
-          }
-        );
+          }),
+          strapi.entityService.findMany("api::post.post", {
+            filters: {
+              posted_by: { id: { $in: friendIds } },
+              post_type: "story",
+              createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+            },
+            fields: ["id"],
+            populate: { posted_by: { fields: ["id"] } },
+          }),
+        ]);
 
         if (users.length > 0)
           await Promise.all([
@@ -308,10 +310,17 @@ export default factories.createCoreController(
               .enrichUsersWithOptimizedProfilePictures(users),
           ]);
 
+        const hasStoriesSet = new Set(
+          usersWithStories
+            .map((story: any) => story.posted_by?.id)
+            .filter(Boolean)
+        );
+
         const finalUsers = users.map((user) => ({
           ...user,
           is_close_friend: closeFriendIds.has(user.id),
           is_story_hidden: hiddenUserIds.has(user.id),
+          has_stories: hasStoriesSet.has(user.id), // ✅ new flag
         }));
 
         const count = await strapi.entityService.count(
@@ -365,19 +374,13 @@ export default factories.createCoreController(
           ]);
 
         const followingIds = new Set(
-          followingEntries
-            .map((entry: any) => entry.subject?.id)
-            .filter(Boolean)
+          followingEntries.map((e: any) => e.subject?.id).filter(Boolean)
         );
         const followerIds = new Set(
-          followerEntries
-            .map((entry: any) => entry.follower?.id)
-            .filter(Boolean)
+          followerEntries.map((e: any) => e.follower?.id).filter(Boolean)
         );
         const hiddenUserIds = new Set(
-          hiddenStoryEntries
-            .map((entry: any) => entry.target?.id)
-            .filter(Boolean)
+          hiddenStoryEntries.map((e: any) => e.target?.id).filter(Boolean)
         );
 
         const friendIds = [...followingIds].filter((id) => followerIds.has(id));
@@ -407,29 +410,36 @@ export default factories.createCoreController(
           }
         );
         const closeFriendIds = new Set(
-          closeFriendEntries
-            .map((entry: any) => entry.subject?.id)
-            .filter(Boolean)
+          closeFriendEntries.map((e: any) => e.subject?.id).filter(Boolean)
         );
 
         const userFilters: any = { id: { $in: friendIds } };
-        if (query)
+        if (query) {
           userFilters.$or = [
             { username: { $containsi: query } },
             { name: { $containsi: query } },
           ];
+        }
 
-        const users = await strapi.entityService.findMany(
-          "plugin::users-permissions.user",
-          {
+        const [users, usersWithStories] = await Promise.all([
+          strapi.entityService.findMany("plugin::users-permissions.user", {
             filters: userFilters,
             populate: { profile_picture: true },
             start: (Number(page) - 1) * Number(pagination_size),
             limit: Number(pagination_size),
-          }
-        );
+          }),
+          strapi.entityService.findMany("api::post.post", {
+            filters: {
+              posted_by: { id: { $in: friendIds } },
+              post_type: "story",
+              createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+            },
+            fields: ["id"],
+            populate: { posted_by: { fields: ["id"] } },
+          }),
+        ]);
 
-        if (users.length > 0)
+        if (users.length > 0) {
           await Promise.all([
             strapi
               .service("api::following.following")
@@ -442,11 +452,19 @@ export default factories.createCoreController(
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures(users),
           ]);
+        }
+
+        const hasStoriesSet = new Set(
+          usersWithStories
+            .map((story: any) => story.posted_by?.id)
+            .filter(Boolean)
+        );
 
         const finalUsers = users.map((user) => ({
           ...user,
           is_close_friend: closeFriendIds.has(user.id),
           is_story_hidden: hiddenUserIds.has(user.id),
+          has_stories: hasStoriesSet.has(user.id), // ✅ integrated flag
         }));
 
         const count = await strapi.entityService.count(
@@ -470,7 +488,6 @@ export default factories.createCoreController(
         return ctx.internalServerError("Error fetching friends", { error });
       }
     },
-
     async getUserFollowing(ctx) {
       try {
         const { user: currentUser } = ctx.state;
