@@ -6,6 +6,7 @@ import { factories } from "@strapi/strapi";
 
 export default factories.createCoreController(
   "api::tag-link.tag-link",
+
   // Custom controller logic goes here
   ({ strapi }) => ({
     async searchNavigation(ctx) {
@@ -166,6 +167,7 @@ export default factories.createCoreController(
             total: 0,
           },
         },
+
       });
     },
   })

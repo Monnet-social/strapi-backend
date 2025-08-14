@@ -250,9 +250,7 @@ export default factories.createCoreController(
         "api::comment.comment",
         {
           filters: { id: comment_id },
-          populate: {
-            post: { populate: { posted_by: true, commented_by: true } },
-          },
+          populate: { post: { populate: { posted_by: true } } },
           limit: 1,
         }
       );
@@ -282,36 +280,6 @@ export default factories.createCoreController(
       await strapi.entityService.update("api::comment.comment", comment_id, {
         data: { pinned: true },
       });
-
-      if (comment[0].post?.id) {
-        const actorUserName =
-          ctx.state.user.username || ctx.state.user.name || "a user";
-        if (
-          comment[0].post.id &&
-          comment[0].post?.posted_by?.fcm_token?.length > 0
-        ) {
-          // Notify the post's author about the comment
-          const notificationService = new NotificationService();
-          notificationService.sendNotification(
-            "Your comment was pinned",
-            `Your comment: "${comment[0].content}" was pinned by ${actorUserName}.`,
-            {},
-            comment[0].commented_by?.fcm_token
-          );
-        }
-        await strapi
-          .service("api::notification.notification")
-          .saveNotification(
-            "comment",
-            ctx.state.user.id,
-            comment[0]?.post?.posted_by.id,
-            `Your post: "${comment[0]?.post?.title}" received a comment from ${actorUserName}.`,
-            {
-              comment: comment[0].id,
-              post: comment[0].post.id,
-            }
-          );
-      }
 
       return ctx.send({
         message: "Comment pinned successfully",
@@ -360,6 +328,7 @@ export default factories.createCoreController(
 
       if (!user)
         return ctx.unauthorized("You must be logged in to view comments.");
+
       const userId: number = user.id;
       const postIdNum = Number(postIdParam);
 
@@ -367,20 +336,19 @@ export default factories.createCoreController(
         return ctx.badRequest("A valid Post ID is required.");
 
       try {
-        // --- Fetch post and its repost info
         const post = (await strapi.entityService.findOne(
           "api::post.post",
           postIdNum,
           {
+            fields: ["id", "createdAt", "repost_caption"],
             populate: {
               posted_by: { fields: ["id"] },
               repost_of: {
-                fields: ["id"], // Only primitive fields here. Remove 'posted_by' from fields.
+                fields: ["id"],
                 populate: {
                   posted_by: { fields: ["id", "username", "name"] },
                 },
               },
-              repost_caption: true,
             },
           }
         )) as any;
@@ -393,7 +361,6 @@ export default factories.createCoreController(
           ? String(post.repost_caption).trim()
           : "";
 
-        // --- Get pinned comment (if any)
         const pinnedArr = (await strapi.entityService.findMany(
           "api::comment.comment",
           {
@@ -422,6 +389,7 @@ export default factories.createCoreController(
               userPaths: ["commented_by"],
               currentUserId: userId,
             });
+
           const [replies, likes] = await Promise.all([
             strapi.entityService.count("api::comment.comment", {
               filters: { parent_comment: { id: pinned.id as number } },
@@ -430,6 +398,7 @@ export default factories.createCoreController(
               filters: { comment: { id: pinned.id as number } },
             }),
           ]);
+
           let isLikedByAuthor = false;
           if (postAuthorId) {
             const authorLike = (await strapi.entityService.findMany(
@@ -444,6 +413,7 @@ export default factories.createCoreController(
             )) as any[];
             isLikedByAuthor = authorLike.length > 0;
           }
+
           const userLike = (await strapi.entityService.findMany(
             "api::like.like",
             {
@@ -454,26 +424,28 @@ export default factories.createCoreController(
               limit: 1,
             }
           )) as any[];
+
           if (pinned.commented_by) {
             await strapi
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures([pinned.commented_by]);
           }
+
           pinned.stats = {
             likes,
             replies,
             is_liked: userLike.length > 0,
             is_liked_by_author: isLikedByAuthor,
           };
+          pinned.is_repost_caption = false;
           pinnedBlock = [pinned];
         }
 
-        // --- Inject repost caption block if necessary
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
           repostCaptionBlock = [
             {
-              id: `repost-caption-${post.id}`,
+              id: post.id,
               is_repost_caption: true,
               text: repostCaption,
               user: post.posted_by,
@@ -489,14 +461,12 @@ export default factories.createCoreController(
               userPaths: ["commented_by"],
               currentUserId: userId,
             });
-          if (post.posted_by) {
+          if (post.posted_by)
             await strapi
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures([post.posted_by]);
-          }
         }
 
-        // --- Paginate and load non-pinned comments
         const paginatedComments = (await strapi.entityService.findPage(
           "api::comment.comment",
           {
@@ -521,14 +491,14 @@ export default factories.createCoreController(
           results: [],
           pagination: {},
         };
+
         if (
           !Array.isArray(comments) ||
           (comments.length === 0 &&
             pinnedBlock.length === 0 &&
             repostCaptionBlock.length === 0)
-        ) {
+        )
           return ctx.send({ data: [], meta: { pagination } });
-        }
 
         let finalResponse: any[] = [];
         if (comments.length > 0) {
@@ -578,13 +548,13 @@ export default factories.createCoreController(
                   filters: { comment: { id: comment.id as number } },
                 }),
               ]);
-              if (comment.commented_by) {
+              if (comment.commented_by)
                 await strapi
                   .service("api::post.post")
                   .enrichUsersWithOptimizedProfilePictures([
                     comment.commented_by,
                   ]);
-              }
+
               return {
                 ...comment,
                 stats: {
@@ -593,6 +563,7 @@ export default factories.createCoreController(
                   is_liked: likedCommentIds.has(comment.id),
                   is_liked_by_author: authorLikedCommentIds.has(comment.id),
                 },
+                is_repost_caption: false,
               };
             })
           );
