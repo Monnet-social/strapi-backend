@@ -1,5 +1,6 @@
 import { factories } from "@strapi/strapi";
 import { Context } from "koa";
+import NotificationService from "../../../utils/notification_service";
 
 interface CommentRequestBody {
   post_id: number;
@@ -104,6 +105,96 @@ export default factories.createCoreController(
             },
           }
         );
+
+        if (dataToCreate.repost_of) {
+          const originalComment: any = await strapi.entityService.findMany(
+            "api::comment.comment",
+            {
+              filters: { id: dataToCreate.repost_of },
+              populate: {
+                commented_by: {
+                  fields: ["id", "username", "name", "fcm_token"],
+                },
+              },
+            }
+          );
+          const actorUserName =
+            ctx.state.user.username || ctx.state.user.name || "a user";
+          if (
+            originalComment &&
+            originalComment.length > 0 &&
+            originalComment[0]?.commented_by?.fcm_token?.length > 0
+          ) {
+            // Notify the original comment's author about the repost
+            const notificationService = new NotificationService();
+            notificationService.sendNotification(
+              "Your comment was reposted",
+              `Your comment: "${originalComment[0]?.comment}" was reposted by ${actorUserName}.`,
+              {},
+              originalComment[0]?.commented_by?.fcm_token
+            );
+          }
+        }
+
+        if (dataToCreate?.parent_comment) {
+          const parentComment: any = await strapi.entityService.findMany(
+            "api::comment.comment",
+            {
+              filters: { id: dataToCreate.parent_comment },
+              populate: {
+                commented_by: {
+                  fields: ["id", "username", "name", "fcm_token"],
+                },
+              },
+            }
+          );
+          const actorUserName =
+            ctx.state.user.username || ctx.state.user.name || "a user";
+          if (
+            parentComment &&
+            parentComment.length > 0 &&
+            parentComment[0]?.commented_by?.fcm_token?.length > 0
+          ) {
+            // Notify the parent comment's author about the reply
+            const notificationService = new NotificationService();
+            notificationService.sendNotification(
+              "You received a reply",
+              `Your comment: "${parentComment[0]?.comment}" was replied to by ${actorUserName}.`,
+              {},
+              parentComment[0]?.commented_by?.fcm_token
+            );
+          }
+        }
+
+        if (dataToCreate.post) {
+          const findPost: any = await strapi.entityService.findMany(
+            "api::post.post",
+            {
+              filters: { id: dataToCreate.post },
+              populate: {
+                posted_by: {
+                  fields: ["id", "username", "name", "fcm_token"],
+                },
+              },
+            }
+          );
+          const actorUserName =
+            ctx.state.user.username || ctx.state.user.name || "a user";
+          if (
+            findPost &&
+            findPost.length > 0 &&
+            findPost[0]?.posted_by?.fcm_token?.length > 0
+          ) {
+            // Notify the post's author about the comment
+            const notificationService = new NotificationService();
+            notificationService.sendNotification(
+              "Your post received a comment",
+              `Your post: "${findPost[0]?.title}" received a comment from ${actorUserName}.`,
+              {},
+              findPost[0]?.posted_by?.fcm_token
+            );
+          }
+        }
 
         return ctx.send(newComment);
       } catch (error) {
