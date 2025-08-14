@@ -2,6 +2,7 @@
 
 import FileOptimisationService from "../../../utils/file_optimisation_service";
 import HelperService from "../../../utils/helper_service";
+import NotificationService from "../../../utils/notification_service";
 
 const { createCoreController } = require("@strapi/strapi").factories;
 
@@ -13,14 +14,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     const user = ctx.state.user;
     if (!user)
       return ctx.unauthorized("You must be logged in to create a post.");
-
     const userId = user.id;
-
     try {
       let data = ctx.request.body;
       if (!data)
         return ctx.badRequest("Request body must contain a data object.");
-
       if (!data.repost_of && (!data.title || !data.post_type))
         return ctx.badRequest("Missing required fields. (title, post_type)");
       if (!data.repost_of && data.post_type === "post" && !data.category)
@@ -76,7 +74,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         delete data.share_with_close_friends;
       }
 
-      // Media validation for original posts only (not for reposts)
       if (!data.repost_of && data.media && data.media.length > 0) {
         for (let file_id of data.media) {
           const fileData = await strapi.entityService.findOne(
@@ -104,7 +101,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           return ctx.badRequest("You cannot tag yourself in a post.");
         const users = await strapi.entityService.findMany(
           "plugin::users-permissions.user",
-          { filters: { id: { $in: data.tagged_users } }, fields: ["id"] }
+          {
+            filters: { id: { $in: data.tagged_users } },
+            fields: ["id"],
+          }
         );
         if (users.length !== data.tagged_users.length) {
           const foundIds = users.map((u) => u.id);
@@ -140,19 +140,15 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           data.repost_of,
           { populate: { posted_by: true } }
         );
-
         if (!original) return ctx.badRequest("Original post not found.");
         if (original.posted_by.id === userId)
           return ctx.badRequest("You cannot repost your own post.");
-
         data.repost_of = original.id;
-
         data.reposted_from = original.posted_by.id;
         repostOfData = original;
       }
 
       data.posted_by = userId;
-
       const newPost = await strapi.entityService.create("api::post.post", {
         data,
         populate: {
@@ -172,6 +168,36 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         },
       });
 
+      if (Array.isArray(data.tagged_users) && data.tagged_users.length > 0) {
+        const notificationService = new NotificationService();
+        for (const taggedUserId of data.tagged_users) {
+          const notifMsg = `${user.username} mentioned you in a ${data.post_type === "story" ? "story" : "post"}.`;
+          await notificationService.saveNotification(
+            "mention",
+            userId,
+            taggedUserId,
+            notifMsg,
+            { post: newPost.id }
+          );
+
+          const recipient = await strapi.entityService.findOne(
+            "plugin::users-permissions.user",
+            taggedUserId,
+            {
+              fields: ["fcm_token"],
+            }
+          );
+          if (recipient && recipient.fcm_token) {
+            await notificationService.sendPushNotification(
+              "New Mention",
+              notifMsg,
+              { type: "mention", postId: newPost.id.toString() },
+              recipient.fcm_token
+            );
+          }
+        }
+      }
+
       const responsePost = {
         ...newPost,
         is_repost: !!data.repost_of,
@@ -187,12 +213,8 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           : {}),
       };
 
-      const message =
-        data.post_type === "post" ? "Post created" : "Story added";
-      return ctx.send({
-        post: responsePost,
-        message: `${message} successfully.`,
-      });
+      const msg = data.post_type === "post" ? "Post created" : "Story added";
+      return ctx.send({ post: responsePost, message: `${msg} successfully.` });
     } catch (err) {
       console.error("Create Post Error:", err);
       return ctx.internalServerError(
@@ -201,7 +223,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
-
   async findOneAdmin(ctx) {
     const { id } = ctx.params;
 

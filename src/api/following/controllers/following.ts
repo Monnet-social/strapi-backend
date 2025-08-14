@@ -1,4 +1,5 @@
 import { factories } from "@strapi/strapi";
+import NotificationService from "../../../utils/notification_service";
 
 export default factories.createCoreController(
   "api::following.following",
@@ -48,7 +49,7 @@ export default factories.createCoreController(
         const subjectUser = await strapi.entityService.findOne(
           "plugin::users-permissions.user",
           subjectId,
-          { fields: ["id", "is_public"], populate: ["role"] }
+          { fields: ["id", "is_public", "fcm_token", "username"] }
         );
         if (!subjectUser)
           return ctx.notFound(
@@ -93,6 +94,23 @@ export default factories.createCoreController(
             }
           );
 
+          const notificationService = new NotificationService();
+          const message = `${ctx.state.user.username} wants to follow you.`;
+          await notificationService.saveNotification(
+            "follow_request",
+            userId,
+            subjectId,
+            message
+          );
+
+          if (subjectUser.fcm_token)
+            await notificationService.sendPushNotification(
+              "Follow Request",
+              message,
+              { type: "follow_request", fromUserId: userId.toString() },
+              subjectUser.fcm_token
+            );
+
           return ctx.send({
             message: "Follow request sent successfully.",
             is_following: false,
@@ -107,6 +125,7 @@ export default factories.createCoreController(
         });
       }
     },
+
     async getUserFollowers(ctx) {
       try {
         const { user: currentUser } = ctx.state;
@@ -200,7 +219,7 @@ export default factories.createCoreController(
         });
       }
     },
-    //actor image,post at least one media,pin comment service,reaction,follow-request,repost
+
     async getFriends(ctx) {
       const { user: currentUser } = ctx.state;
       const { userId } = ctx.params;

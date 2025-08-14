@@ -1,4 +1,3 @@
-import { AnyMxRecord } from "dns";
 import HelperService from "../../../utils/helper_service";
 import MesiboService from "../../../utils/mesibo_service";
 module.exports = {
@@ -179,24 +178,35 @@ module.exports = {
         }),
       ]);
 
-      await Promise.all([
-        strapi
-          .service("api::post.post")
-          .enrichUsersWithOptimizedProfilePictures([user]),
-        strapi.service("api::following.following").enrichItemsWithFollowStatus({
-          items: [{ user }],
-          userPaths: ["user"],
-          currentUserId,
-        }),
-      ]);
+      await strapi
+        .service("api::post.post")
+        .enrichUsersWithOptimizedProfilePictures([user]);
 
-      await strapi.entityService.update(
-        "plugin::users-permissions.user",
-        userId,
-        {
-          data: { last_active_at: new Date() },
-        }
-      );
+      await strapi
+        .service("api::following.following")
+        .enrichItemsWithFollowStatus({
+          items: [user],
+          userPaths: [],
+          currentUserId,
+        });
+
+      if (typeof (user as any).is_following === "undefined") {
+        (user as any).is_following =
+          (await strapi.entityService.count("api::following.following", {
+            filters: {
+              follower: { id: currentUserId },
+              subject: { id: userId },
+            },
+          })) > 0;
+      }
+      if (typeof (user as any).is_follower === "undefined")
+        (user as any).is_follower =
+          (await strapi.entityService.count("api::following.following", {
+            filters: {
+              follower: { id: userId },
+              subject: { id: currentUserId },
+            },
+          })) > 0;
 
       const isRequestSent =
         !(user as any).is_following &&
@@ -245,6 +255,12 @@ module.exports = {
         is_self: currentUserId === userId,
       };
 
+      strapi.entityService
+        .update("plugin::users-permissions.user", userId, {
+          data: { last_active_at: new Date() },
+        })
+        .catch(console.error);
+
       return ctx.send(profileData);
     } catch (err) {
       console.error("GetProfile Error:", err);
@@ -253,7 +269,6 @@ module.exports = {
       );
     }
   },
-
   async updateProfile(ctx) {
     const { user } = ctx.state;
     if (!user)
@@ -461,7 +476,7 @@ module.exports = {
 
       await strapi
         .service("api::post.post")
-        .enhanceUserWithOptimizedPictures([updatedUser]);
+        .enrichUsersWithOptimizedProfilePictures([updatedUser]);
 
       delete updatedUser.password;
 
@@ -491,33 +506,6 @@ module.exports = {
         "An error occurred while updating the profile."
       );
     }
-  },
-
-  async updateFCMToken(ctx) {
-    const userId = ctx.state.user.id;
-    const { fcm_token } = ctx.request.body;
-    const updatedUser = await strapi.entityService.update(
-      "plugin::users-permissions.user",
-      userId,
-      {
-        data: { fcm_token },
-      }
-    );
-    return ctx.send({
-      status: 200,
-      message: "Updated FCM token successfully.",
-    });
-  },
-  async getUserFCMToken(ctx) {
-    const userId = ctx.state.user.id;
-    const user = await strapi.entityService.findOne(
-      "plugin::users-permissions.user",
-      userId
-    );
-    return ctx.send({
-      status: 200,
-      fcm_token: user.fcm_token,
-    });
   },
 
   async updateProfilePicture(ctx): Promise<void> {

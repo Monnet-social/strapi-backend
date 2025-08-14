@@ -289,6 +289,44 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     return { optimizedMediaMap, followStatusMap };
   },
 
+  async resolveOriginalPost(postId: number): Promise<any | null> {
+    if (!postId || isNaN(postId)) return null;
+
+    try {
+      let currentPostId = postId;
+      let visitedIds = new Set<number>();
+
+      while (currentPostId && !visitedIds.has(currentPostId)) {
+        visitedIds.add(currentPostId);
+
+        const post = await strapi.entityService.findOne(
+          "api::post.post",
+          currentPostId,
+          {
+            fields: ["id", "title", "description", "createdAt"],
+            populate: {
+              repost_of: { fields: ["id"] },
+              posted_by: { fields: ["id", "username", "name", "fcm_token"] },
+              media: { fields: ["id", "url", "mime"] },
+            },
+          }
+        );
+
+        if (!post) return null;
+
+        if (!(post as any).repost_of) {
+          return post;
+        }
+
+        currentPostId = (post as any).repost_of.id;
+      }
+
+      return null;
+    } catch (err) {
+      strapi.log.error("Error resolving original post:", err);
+      return null;
+    }
+  },
   mapFinalPosts(posts, subMap, optimizedMediaMap, followStatusMap) {
     return posts.map((post) => {
       const postCategoryId = post.category?.id;
