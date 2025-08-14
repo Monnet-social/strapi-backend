@@ -1,6 +1,14 @@
 import { factories } from "@strapi/strapi";
 import FileOptimisationService from "../../../utils/file_optimisation_service";
-
+interface PostStats {
+  id: string | number;
+  likes_count?: number;
+  is_liked?: boolean;
+  dislikes_count?: number;
+  is_disliked?: boolean;
+  comments_count?: number;
+  share_count?: number;
+}
 export default factories.createCoreService("api::post.post", ({ strapi }) => ({
   async getOptimisedFileData(media: any[]) {
     let finalMedia = [];
@@ -136,7 +144,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
   },
 
   async populateRepostData(posts, currentUserId) {
-    if (!posts || posts.length === 0) return posts;
+    if (!posts?.length) return posts;
 
     const repostIds = posts
       .filter((p) => p.repost_of != null)
@@ -148,7 +156,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       })
       .filter(Boolean);
 
-    if (repostIds.length === 0) return posts;
+    if (!repostIds.length) return posts;
 
     const originals = await strapi.entityService.findMany("api::post.post", {
       filters: { id: { $in: repostIds } },
@@ -171,8 +179,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       },
     });
 
-    await this.enrichPostsWithStats(originals, currentUserId);
-
     const originalsMap = new Map(originals.map((o) => [o.id, o]));
 
     const skipKeys = [
@@ -185,6 +191,12 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       "repost_of",
       "reposted_from",
       "repost_caption",
+      "likes_count",
+      "is_liked",
+      "dislikes_count",
+      "is_disliked",
+      "comments_count",
+      "share_count",
     ];
 
     return posts.map((post) => {
@@ -198,6 +210,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         const orig = originalsMap.get(origId);
         if (orig) {
           post.is_repost = true;
+
           Object.keys(orig).forEach((key) => {
             if (!skipKeys.includes(key)) {
               post[key] = orig[key];
@@ -211,12 +224,45 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     });
   },
 
-  async enrichRepostsAndStats(posts, currentUserId) {
+  async enrichRepostsAndStats(posts: any[], currentUserId: string | number) {
     const withReposts = await this.populateRepostData(posts, currentUserId);
     await this.enrichPostsWithStats(withReposts, currentUserId);
+    const originalIds = withReposts
+      .filter((p) => p.repost_of && p.repost_of.id)
+      .map((p) => p.repost_of.id)
+      .filter(
+        (id): id is string | number =>
+          typeof id === "string" || typeof id === "number"
+      );
+
+    if (originalIds.length) {
+      const uniqueIds: (string | number)[] = Array.from(new Set(originalIds));
+      const originals = await strapi.entityService.findMany("api::post.post", {
+        filters: { id: { $in: uniqueIds } },
+        fields: ["id"],
+      });
+
+      await this.enrichPostsWithStats(originals, currentUserId);
+
+      const statsMap = new Map<string | number, PostStats>(
+        originals.map((o) => [o.id, o as PostStats])
+      );
+
+      for (const post of withReposts)
+        if (post.repost_of && statsMap.has(post.repost_of.id)) {
+          const stats = statsMap.get(post.repost_of.id)!;
+          post.original_stats = {
+            likes_count: stats.likes_count ?? 0,
+            comments_count: stats.comments_count ?? 0,
+            share_count: stats.share_count ?? 0,
+            is_liked: !!stats.is_liked,
+            is_disliked: !!stats.is_disliked,
+            dislikes_count: stats.dislikes_count ?? 0,
+          };
+        }
+    }
     return withReposts;
   },
-
   async mapSubcategoriesToPosts(posts: any[]) {
     const categoryIds = [
       ...new Set(
