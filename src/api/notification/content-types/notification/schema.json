@@ -33,6 +33,15 @@
       "type": "relation",
       "relation": "oneToOne",
       "target": "api::comment.comment"
+    },
+    "type": {
+      "type": "enumeration",
+      "enum": [
+        "mention",
+        "follow_request",
+        "reaction",
+        "comment"
+      ]
     }
   }
 }
