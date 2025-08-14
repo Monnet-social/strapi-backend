@@ -145,6 +145,14 @@ module.exports = [
     },
   },
   {
+    method: "PUT",
+    path: "/fcm-token",
+    handler: "authentication.updateFCMToken",
+    config: {
+      prefix: "",
+    },
+  },
+  {
     method: "GET",
     path: "/get-avatar-ring-colors",
     handler: "profile.getAvatarRingColors",
