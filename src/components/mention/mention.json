@@ -1,0 +1,32 @@
+{
+  "collectionName": "components_mention_mentions",
+  "info": {
+    "displayName": "Mention"
+  },
+  "options": {},
+  "attributes": {
+    "start": {
+      "type": "integer",
+      "default": 0,
+      "min": 0
+    },
+    "end": {
+      "type": "integer",
+      "default": 0,
+      "min": 0
+    },
+    "mention_status": {
+      "type": "boolean",
+      "default": true
+    },
+    "username": {
+      "type": "string"
+    },
+    "user": {
+      "type": "relation",
+      "relation": "oneToOne",
+      "target": "plugin::users-permissions.user"
+    }
+  },
+  "config": {}
+}

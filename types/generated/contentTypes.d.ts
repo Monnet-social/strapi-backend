@@ -751,6 +751,50 @@ export interface ApiLikeLike extends Struct.CollectionTypeSchema {
   };
 }
 
+export interface ApiMentionPolicyMentionPolicy
+  extends Struct.CollectionTypeSchema {
+  collectionName: 'mention_policies';
+  info: {
+    displayName: 'Mention Policy';
+    pluralName: 'mention-policies';
+    singularName: 'mention-policy';
+  };
+  options: {
+    draftAndPublish: false;
+  };
+  attributes: {
+    comment_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    > &
+      Schema.Attribute.DefaultTo<'anyone'>;
+    createdAt: Schema.Attribute.DateTime;
+    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    locale: Schema.Attribute.String & Schema.Attribute.Private;
+    localizations: Schema.Attribute.Relation<
+      'oneToMany',
+      'api::mention-policy.mention-policy'
+    > &
+      Schema.Attribute.Private;
+    post_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    > &
+      Schema.Attribute.DefaultTo<'anyone'>;
+    publishedAt: Schema.Attribute.DateTime;
+    story_policy: Schema.Attribute.Enumeration<
+      ['friends', 'followers', 'anyone']
+    > &
+      Schema.Attribute.DefaultTo<'anyone'>;
+    updatedAt: Schema.Attribute.DateTime;
+    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
+      Schema.Attribute.Private;
+    user: Schema.Attribute.Relation<
+      'oneToOne',
+      'plugin::users-permissions.user'
+    >;
+  };
+}
+
 export interface ApiNotificationNotification
   extends Struct.CollectionTypeSchema {
   collectionName: 'notifications';
@@ -1549,6 +1593,7 @@ declare module '@strapi/strapi' {
       'api::following.following': ApiFollowingFollowing;
       'api::hide-story.hide-story': ApiHideStoryHideStory;
       'api::like.like': ApiLikeLike;
+      'api::mention-policy.mention-policy': ApiMentionPolicyMentionPolicy;
       'api::notification.notification': ApiNotificationNotification;
       'api::post-view.post-view': ApiPostViewPostView;
       'api::post.post': ApiPostPost;
