@@ -14,6 +14,8 @@ export default factories.createCoreController(
               requested_for: { id: userId },
               request_status: { $ne: "REJECTED" },
             },
+
+            sort: { createdAt: "desc" },
             populate: {
               requested_by: {
                 fields: [
@@ -28,14 +30,11 @@ export default factories.createCoreController(
             },
           }
         );
+        if (!requests?.length) return ctx.send([]);
 
-        if (!requests || requests.length === 0) return ctx.send([]);
+        const requesterIds = requests.map((r: any) => r.requested_by.id);
 
-        const requesterIds = requests.map(
-          (request: any) => request.requested_by.id
-        );
-
-        const [followBackEntries, outgoingRequestEntries] = await Promise.all([
+        const [followBackEntries, outgoingRequests] = await Promise.all([
           strapi.entityService.findMany("api::following.following", {
             filters: {
               follower: { id: userId },
@@ -43,7 +42,6 @@ export default factories.createCoreController(
             },
             populate: { subject: { fields: ["id"] } },
           }),
-
           strapi.entityService.findMany("api::follow-request.follow-request", {
             filters: {
               requested_by: { id: userId },
@@ -54,54 +52,41 @@ export default factories.createCoreController(
           }),
         ]);
 
-        const usersYouFollowSet = new Set(
-          followBackEntries.map((entry: any) => entry.subject.id)
+        const usersYouFollow = new Set(
+          followBackEntries.map((e: any) => e.subject.id)
+        );
+        const outgoingStatus = new Map(
+          outgoingRequests.map((r: any) => [
+            r.requested_for.id,
+            r.request_status,
+          ])
         );
 
-        const outgoingRequestStatusMap = new Map();
-        for (const req of outgoingRequestEntries) {
-          if ((req as any).requested_for)
-            outgoingRequestStatusMap.set(
-              (req as any).requested_for.id,
-              req.request_status
-            );
-        }
-
-        const usersToEnrich = requests.map(
-          (request: any) => request.requested_by
-        );
-
+        const usersToProcess = requests.map((r: any) => r.requested_by);
         await strapi
           .service("api::post.post")
-          .enrichUsersWithOptimizedProfilePictures(usersToEnrich);
+          .enrichUsersWithOptimizedProfilePictures(usersToProcess);
 
-        const finalResponse = requests.map((request: any) => {
-          const requester = request.requested_by;
-          const iAmFollowing = usersYouFollowSet.has(requester.id);
-          const myRequestStatus = outgoingRequestStatusMap.get(requester.id);
-
+        const final = requests.map((req) => {
+          const by = (req as any).requested_by;
+          const iFollow = usersYouFollow.has(by.id);
+          const myReqStatus = outgoingStatus.get(by.id);
           return {
-            ...request,
+            ...req,
             requested_by: {
-              is_accepted: request.request_status === "ACCEPTED",
-              ...requester,
-              is_following: iAmFollowing,
-              is_request_sent: !iAmFollowing && myRequestStatus === "PENDING",
-              is_my_request_accepted:
-                !iAmFollowing && myRequestStatus === "ACCEPTED",
+              ...by,
+              is_accepted: req.request_status === "ACCEPTED",
+              is_following: iFollow,
+              is_request_sent: !iFollow && myReqStatus === "PENDING",
+              is_my_request_accepted: !iFollow && myReqStatus === "ACCEPTED",
             },
           };
         });
 
-        return ctx.send(finalResponse);
-      } catch (error: unknown) {
+        return ctx.send(final);
+      } catch (error) {
         console.error("Error in getFollowRequests:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : "An unknown error occurred.";
-        return ctx.internalServerError(
-          "An unexpected error occurred while fetching follow requests.",
-          { error: errorMessage }
-        );
+        return ctx.internalServerError("Failed to fetch follow requests.");
       }
     },
 
@@ -111,75 +96,62 @@ export default factories.createCoreController(
         const { requestId, action } = ctx.request.body;
 
         if (!requestId || !action)
-          return ctx.badRequest(
-            "Both 'requestId' and 'action' ('ACCEPT' or 'REJECT') are required."
-          );
-
-        if (action !== "ACCEPT" && action !== "REJECT")
-          return ctx.badRequest(
-            "The 'action' must be either 'ACCEPT' or 'REJECT'."
-          );
+          return ctx.badRequest("Both 'requestId' and 'action' required.");
+        if (!["ACCEPT", "REJECT"].includes(action))
+          return ctx.badRequest("Invalid action. Must be ACCEPT or REJECT.");
 
         const request = await strapi.entityService.findOne(
           "api::follow-request.follow-request",
           requestId,
           { populate: { requested_by: true, requested_for: true } }
         );
-
-        if (!request)
-          return ctx.notFound("The follow request could not be found.");
-
+        if (!request) return ctx.notFound("Request not found.");
         if ((request as any).requested_for.id !== userId)
-          return ctx.unauthorized(
-            "You are not authorized to manage this follow request."
-          );
+          return ctx.unauthorized("Not allowed.");
 
         if (action === "ACCEPT") {
           const requesterId = (request as any).requested_by.id;
-          const [followBackStatus] = await Promise.all([
-            strapi.entityService.count("api::following.following", {
+
+          const already = await strapi.entityService.count(
+            "api::following.following",
+            {
               filters: {
-                follower: { id: userId },
-                subject: { id: requesterId },
+                follower: { id: requesterId },
+                subject: { id: userId },
               },
-            }),
-            strapi.entityService.create("api::following.following", {
+            }
+          );
+          if (!already)
+            await strapi.entityService.create("api::following.following", {
               data: { follower: { id: requesterId }, subject: { id: userId } },
-            }),
-            strapi.entityService.update(
-              "api::follow-request.follow-request",
-              request.id,
-              { data: { request_status: "ACCEPTED" } }
-            ),
-          ]);
+            });
+
+          await strapi.entityService.update(
+            "api::follow-request.follow-request",
+            request.id,
+            { data: { request_status: "ACCEPTED" } }
+          );
 
           return ctx.send({
-            message: "Follow request accepted successfully.",
-            data: {
-              requestId: request.id,
-              is_following: followBackStatus > 0,
-            },
+            message: "Follow request accepted.",
+            data: { requestId, is_following: false },
           });
         } else {
           await strapi.entityService.update(
             "api::follow-request.follow-request",
             request.id,
-            { data: { request_status: "REJECTED" } }
+            {
+              data: { request_status: "REJECTED" },
+            }
           );
-
           return ctx.send({
-            message: "Follow request has been rejected.",
-            data: { requestId: request.id },
+            message: "Follow request rejected.",
+            data: { requestId },
           });
         }
-      } catch (error: unknown) {
+      } catch (error) {
         console.error("Error in manageFollowRequest:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : "An unknown error occurred.";
-        return ctx.internalServerError(
-          "An unexpected error occurred while managing the follow request.",
-          { error: errorMessage }
-        );
+        return ctx.internalServerError("Error managing follow request.");
       }
     },
 
@@ -187,43 +159,39 @@ export default factories.createCoreController(
       try {
         const userId = ctx.state.user.id;
         const { id: requestId } = ctx.params;
-
-        if (!requestId)
-          return ctx.badRequest(
-            "A 'requestId' is required in the request body."
-          );
+        if (!requestId) return ctx.badRequest("Request ID is required.");
 
         const request = await strapi.entityService.findOne(
           "api::follow-request.follow-request",
           requestId,
-          { populate: { requested_for: { fields: ["id"] } } }
+          {
+            populate: {
+              requested_for: { fields: ["id"] },
+              requested_by: { fields: ["id"] },
+            },
+          }
         );
+        if (!request) return ctx.notFound("Request not found.");
 
-        if (!request)
-          return ctx.notFound("The follow request could not be found.");
-
-        if ((request as any).requested_for.id !== userId)
+        if (
+          (request as any).requested_for.id !== userId &&
+          (request as any).requested_by.id !== userId
+        )
           return ctx.unauthorized(
             "You are not authorized to delete this request."
           );
 
-        const deletedRequest = await strapi.entityService.delete(
+        const deleted = await strapi.entityService.delete(
           "api::follow-request.follow-request",
           requestId
         );
-
         return ctx.send({
-          message: "Follow request deleted successfully.",
-          data: { id: deletedRequest.id },
+          message: "Follow request deleted.",
+          data: { id: deleted.id },
         });
-      } catch (error: unknown) {
+      } catch (error) {
         console.error("Error in deleteRequest:", error);
-        const errorMessage =
-          error instanceof Error ? error.message : "An unknown error occurred.";
-        return ctx.internalServerError(
-          "An unexpected error occurred while deleting the follow request.",
-          { error: errorMessage }
-        );
+        return ctx.internalServerError("Error deleting follow request.");
       }
     },
   })

@@ -1,3 +1,4 @@
+import { AnyMxRecord } from "dns";
 import HelperService from "../../../utils/helper_service";
 import MesiboService from "../../../utils/mesibo_service";
 module.exports = {
@@ -252,6 +253,7 @@ module.exports = {
       );
     }
   },
+
   async updateProfile(ctx) {
     const { user } = ctx.state;
     if (!user)
@@ -259,7 +261,7 @@ module.exports = {
 
     const body: any = ctx.request.body;
     const dataToUpdate: any = {};
-    console.log(body, typeof body.name, body.name);
+
     if (body.name !== undefined && body.name !== "") {
       if (typeof body.name !== "string")
         return ctx.badRequest("Name must be a non-empty string.");
@@ -275,12 +277,12 @@ module.exports = {
         typeof body.website !== "string" ||
         !HelperService.WEBSITE_REGEX.test(body.website)
       )
-        return ctx.badRequest("Website must be a non-empty string.");
+        return ctx.badRequest("Website must be a valid URL.");
       dataToUpdate.website = body.website.trim();
     }
     if (body.date_of_birth !== undefined && body.date_of_birth !== "") {
       if (!HelperService.DATE_REGEX.test(body.date_of_birth))
-        return ctx.badRequest("Invalid date format. Please use YYYY-MM-DD.");
+        return ctx.badRequest("Invalid date format. Use YYYY-MM-DD.");
       if (new Date(body.date_of_birth) > new Date())
         return ctx.badRequest("Date of birth cannot be in the future.");
       dataToUpdate.date_of_birth = body.date_of_birth;
@@ -319,53 +321,41 @@ module.exports = {
         );
       dataToUpdate.profile_picture = body.profile_picture_id;
     }
-    if (body.professional_info !== undefined || body.professional_info !== "")
+    if (body.professional_info !== undefined)
       dataToUpdate.professional_info = body.professional_info;
 
     if (
       body.location !== undefined &&
-      body.latitude !== "" &&
-      body.longitude !== "" &&
-      body.address !== "" &&
-      body.zip !== ""
+      body.location !== null &&
+      typeof body.location === "object" &&
+      typeof body.location.latitude === "number" &&
+      typeof body.location.longitude === "number" &&
+      typeof body.location.address === "string" &&
+      typeof body.location.zip === "string"
     ) {
-      if (typeof body.location !== "object" || body.location === null)
-        return ctx.badRequest("Location must be a valid object.");
-
-      const { latitude, longitude, address, zip } = body.location;
-      if (typeof latitude !== "number" || typeof longitude !== "number")
-        return ctx.badRequest("Latitude and longitude must be numbers.");
-
-      if (typeof address !== "string" || typeof zip !== "string")
-        return ctx.badRequest("Address and zip must be strings.");
-
       dataToUpdate.location = body.location;
+    } else if (body.location !== undefined) {
+      return ctx.badRequest(
+        "Location must be a valid object with latitude (number), longitude (number), address (string), and zip (string)."
+      );
     }
 
-    if (body.is_public !== undefined && body.is_public !== "") {
-      if (typeof body.is_public !== "boolean") {
+    if (body.is_public !== undefined) {
+      if (typeof body.is_public !== "boolean")
         return ctx.badRequest(
           "is_public must be a boolean value (true or false)."
         );
-      }
       dataToUpdate.is_public = body.is_public;
     }
-
     if (body.badge !== undefined && body.badge !== "") {
       const allowedBadges = ["verified"];
-      if (
-        typeof body.badge !== "string" ||
-        !allowedBadges.includes(body.badge)
-      ) {
+      if (typeof body.badge !== "string" || !allowedBadges.includes(body.badge))
         return ctx.badRequest(
-          `Invalid badge. Allowed value is: ${allowedBadges.join(", ")}.`
+          `Invalid badge. Allowed values: ${allowedBadges.join(", ")}.`
         );
-      }
       dataToUpdate.badge = body.badge;
     }
-    if (body.gender !== undefined && body.gender !== "") {
-      dataToUpdate.gender = body.gender;
-    }
+    if (body.gender !== undefined) dataToUpdate.gender = body.gender;
 
     if (body.avatar_ring_color !== undefined && body.avatar_ring_color !== "") {
       if (
@@ -378,20 +368,26 @@ module.exports = {
       dataToUpdate.avatar_ring_color = body.avatar_ring_color;
     }
 
-    if (
-      body.play_mature_content !== undefined &&
-      body.play_mature_content !== ""
-    ) {
+    if (body.play_mature_content !== undefined) {
       if (typeof body.play_mature_content !== "boolean")
-        return ctx.badRequest(
-          "play_mature_content must be a boolean value (true or false)."
-        );
+        return ctx.badRequest("play_mature_content must be a boolean.");
       dataToUpdate.play_mature_content = body.play_mature_content;
     }
+
     if (Object.keys(dataToUpdate).length === 0)
       return ctx.badRequest("No valid fields were provided for update.");
 
     try {
+      const currentUserData = await strapi.entityService.findOne(
+        "plugin::users-permissions.user",
+        user.id,
+        {
+          fields: ["is_public"],
+        }
+      );
+      const wasPrivate =
+        currentUserData.is_public === false || !currentUserData.is_public;
+
       const updatedUser = await strapi.entityService.update(
         "plugin::users-permissions.user",
         user.id,
@@ -414,24 +410,67 @@ module.exports = {
             "gender",
             "avatar_ring_color",
             "play_mature_content",
-          ] as any,
+          ],
         }
       );
 
+      if (dataToUpdate.is_public === true && wasPrivate) {
+        const pendingRequests = await strapi.entityService.findMany(
+          "api::follow-request.follow-request",
+          {
+            filters: {
+              requested_for: user.id,
+              request_status: "PENDING",
+            },
+            populate: { requested_by: true },
+            pagination: { start: 0, limit: -1 },
+          }
+        );
+
+        for (const request of pendingRequests) {
+          const requesterId = (request as any).requested_by.id;
+
+          const existingFollowing = await strapi.entityService.count(
+            "api::following.following",
+            {
+              filters: {
+                follower: requesterId,
+                subject: user.id,
+              },
+            }
+          );
+
+          if (existingFollowing === 0) {
+            await strapi.entityService.create("api::following.following", {
+              data: {
+                follower: requesterId,
+                subject: user.id,
+              },
+            });
+          }
+
+          await strapi.entityService.update(
+            "api::follow-request.follow-request",
+            request.id,
+            {
+              data: { request_status: "ACCEPTED" },
+            }
+          );
+        }
+      }
+
       await strapi
         .service("api::post.post")
-        .enrichUsersWithOptimizedProfilePictures([updatedUser]);
+        .enhanceUserWithOptimizedPictures([updatedUser]);
 
       delete updatedUser.password;
 
       let userStories = [];
-      if ((updatedUser as any).is_public) {
-        const twentyFourHoursAgo = new Date(
-          new Date().getTime() - 24 * 60 * 60 * 1000
-        );
+      if (updatedUser.is_public) {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         userStories = await strapi.entityService.findMany("api::post.post", {
           filters: {
-            posted_by: { id: user.id },
+            posted_by: user.id,
             post_type: "story",
             createdAt: { $gte: twentyFourHoursAgo },
           },
@@ -439,15 +478,15 @@ module.exports = {
         });
 
         for (const story of userStories) {
-          (story as any).media = await strapi
+          story.media = await strapi
             .service("api::post.post")
-            .getOptimisedFileData((story as any).media);
+            .getOptimisedFileData(story.media);
         }
       }
 
       return ctx.send({ user: updatedUser, stories: userStories });
     } catch (error) {
-      strapi.log.error("Error in updateProfile controller:", error);
+      strapi.log.error("Error in updateProfile:", error);
       return ctx.internalServerError(
         "An error occurred while updating the profile."
       );

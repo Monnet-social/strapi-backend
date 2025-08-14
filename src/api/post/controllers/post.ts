@@ -1215,27 +1215,43 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
 
       const postFilters = {
         post_type: "post",
-        media: { id: { $notNull: true } },
         posted_by: {
           id: { $notIn: blockedUserIds.length ? blockedUserIds : [-1] },
         },
-        $or: [
-          { share_with: "PUBLIC" },
+        $and: [
           {
-            share_with: "FOLLOWERS",
-            posted_by: {
-              id: { $in: followingIds.length ? followingIds : [-1] },
-            },
-          },
-          {
-            share_with: "CLOSE-FRIENDS",
-            posted_by: {
-              id: {
-                $in: closeFriendAuthorIds.length ? closeFriendAuthorIds : [-1],
+            $or: [
+              {
+                repost_of: { id: { $null: true } },
+                media: { id: { $notNull: true } },
               },
-            },
+              {
+                repost_of: { id: { $notNull: true } },
+              },
+            ],
           },
-          { posted_by: { id: userId } },
+          {
+            $or: [
+              { share_with: "PUBLIC" },
+              {
+                share_with: "FOLLOWERS",
+                posted_by: {
+                  id: { $in: followingIds.length ? followingIds : [-1] },
+                },
+              },
+              {
+                share_with: "CLOSE-FRIENDS",
+                posted_by: {
+                  id: {
+                    $in: closeFriendAuthorIds.length
+                      ? closeFriendAuthorIds
+                      : [-1],
+                  },
+                },
+              },
+              { posted_by: { id: userId } },
+            ],
+          },
         ],
       };
 

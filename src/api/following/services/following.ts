@@ -1,87 +1,74 @@
 export default ({ strapi }: { strapi }) => ({
-  async getFollowRelationships(currentUserId, targetUserIds: any[]) {
-    if (!currentUserId || !targetUserIds || targetUserIds.length === 0)
-      return {
-        iFollowIds: new Set(),
-        followsMeIds: new Set(),
-      };
+  async getFollowRelationships(currentUserId: number, targetUserIds: any[]) {
+    if (!currentUserId || !targetUserIds?.length) {
+      return { iFollowIds: new Set(), followsMeIds: new Set() };
+    }
 
     const [iFollowRelations, followsMeRelations] = await Promise.all([
       strapi.entityService.findMany("api::following.following", {
         filters: {
-          follower: currentUserId,
+          follower: { id: currentUserId },
           subject: { id: { $in: targetUserIds } },
         },
-        populate: { subject: true },
+        populate: { subject: { fields: ["id"] } },
       }),
       strapi.entityService.findMany("api::following.following", {
         filters: {
-          subject: currentUserId,
+          subject: { id: currentUserId },
           follower: { id: { $in: targetUserIds } },
         },
-        populate: { follower: true },
+        populate: { follower: { fields: ["id"] } },
       }),
     ]);
 
     const iFollowIds = new Set(
-      iFollowRelations
-        .filter((rel: any) => rel.subject)
-        .map((rel: any) => rel.subject.id)
+      iFollowRelations.map((rel: any) => rel.subject?.id).filter(Boolean)
     );
     const followsMeIds = new Set(
-      followsMeRelations
-        .filter((rel: any) => rel.follower)
-        .map((rel: any) => rel.follower.id)
+      followsMeRelations.map((rel: any) => rel.follower?.id).filter(Boolean)
     );
 
     return { iFollowIds, followsMeIds };
   },
 
   async enrichItemsWithFollowStatus({ items, userPaths, currentUserId }) {
-    if (
-      !items ||
-      items.length === 0 ||
-      !currentUserId ||
-      !userPaths ||
-      userPaths.length === 0
-    )
-      return;
+    if (!items?.length || !currentUserId || !userPaths?.length) return;
 
-    const allUserIds = new Set<any>();
+    const allUserIds = new Set<number>();
+
     for (const item of items)
       for (const path of userPaths) {
         const usersData = item[path];
-        if (Array.isArray(usersData))
-          usersData.forEach(
-            (user) => user && user.id && allUserIds.add(user.id)
-          );
-        else if (usersData && usersData.id) allUserIds.add(usersData.id);
+        if (Array.isArray(usersData)) {
+          for (const u of usersData) {
+            if (u?.id) allUserIds.add(u.id);
+          }
+        } else if (usersData?.id) allUserIds.add(usersData.id);
       }
 
-    if (allUserIds.size === 0) return;
+    if (!allUserIds.size) return;
 
     const { iFollowIds, followsMeIds } = await this.getFollowRelationships(
       currentUserId,
       Array.from(allUserIds)
     );
 
+    const enrichUser = (u: any) => {
+      if (u?.id) {
+        u.is_following = iFollowIds.has(u.id);
+        u.is_follower = followsMeIds.has(u.id);
+      }
+    };
+
     for (const item of items)
       for (const path of userPaths) {
         const usersData = item[path];
-
-        const enrichUser = (user: any) => {
-          if (user && user.id) {
-            user.is_following = iFollowIds.has(user.id);
-            user.is_follower = followsMeIds.has(user.id);
-          }
-        };
-
         if (Array.isArray(usersData)) usersData.forEach(enrichUser);
         else enrichUser(usersData);
       }
   },
 
-  async getMutualFollowersCount(currentUserId, targetUserId) {
+  async getMutualFollowersCount(currentUserId: number, targetUserId: number) {
     if (!currentUserId || !targetUserId || currentUserId === targetUserId)
       return 0;
 
@@ -95,26 +82,23 @@ export default ({ strapi }: { strapi }) => ({
         populate: { follower: { fields: ["id"] } },
       }),
     ]);
+
     const currentUserFollowingIds = new Set(
-      currentUserFollowing
-        .filter((rel) => rel.subject)
-        .map((rel) => rel.subject.id)
+      currentUserFollowing.map((rel) => rel.subject?.id).filter(Boolean)
     );
-
     const targetUserFollowerIds = new Set(
-      targetUserFollowers
-        .filter((rel) => rel.follower)
-        .map((rel) => rel.follower.id)
+      targetUserFollowers.map((rel) => rel.follower?.id).filter(Boolean)
     );
 
-    const mutuals = [...currentUserFollowingIds].filter((id) =>
-      targetUserFollowerIds.has(id)
-    );
+    let mutualCount = 0;
+    for (const id of currentUserFollowingIds)
+      if (targetUserFollowerIds.has(id)) mutualCount++;
 
-    return mutuals.length;
+    return mutualCount;
   },
+  async getFollowStatusForUsers(currentUserId: number, userIds: number[]) {
+    if (!currentUserId || !userIds?.length) return new Map();
 
-  async getFollowStatusForUsers(currentUserId, userIds) {
     const [followBackEntries, outgoingRequestEntries] = await Promise.all([
       strapi.entityService.findMany("api::following.following", {
         filters: {
@@ -123,7 +107,6 @@ export default ({ strapi }: { strapi }) => ({
         },
         populate: { subject: { fields: ["id"] } },
       }),
-
       strapi.entityService.findMany("api::follow-request.follow-request", {
         filters: {
           requested_by: { id: currentUserId },
@@ -135,26 +118,23 @@ export default ({ strapi }: { strapi }) => ({
     ]);
 
     const usersYouFollowSet = new Set(
-      followBackEntries.map((entry: any) => entry.subject.id)
+      followBackEntries.map((entry: any) => entry.subject?.id).filter(Boolean)
     );
 
-    const outgoingRequestStatusMap = new Map();
-    for (const req of outgoingRequestEntries) {
-      let r: any = req;
-      if (r.requested_for) {
-        outgoingRequestStatusMap.set(r.requested_for.id, req.request_status);
-      }
-    }
+    const outgoingRequestStatusMap = new Map<number, string>();
+    for (const req of outgoingRequestEntries)
+      if (req.requested_for?.id)
+        outgoingRequestStatusMap.set(req.requested_for.id, req.request_status);
 
-    const result = new Map();
-    for (const userId of userIds) {
-      const is_following = usersYouFollowSet.has(userId);
-      const myRequestStatus = outgoingRequestStatusMap.get(userId);
+    const result = new Map<number, any>();
+    for (const uid of userIds) {
+      const is_following = usersYouFollowSet.has(uid);
+      const reqStatus = outgoingRequestStatusMap.get(uid) || null;
 
-      result.set(userId, {
-        is_following: is_following,
-        is_request_sent: !is_following && myRequestStatus === "PENDING",
-        is_my_request_accepted: !is_following && myRequestStatus === "ACCEPTED",
+      result.set(uid, {
+        is_following,
+        is_request_sent: !is_following && reqStatus === "PENDING",
+        is_my_request_accepted: !is_following && reqStatus === "ACCEPTED",
       });
     }
 

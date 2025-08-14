@@ -8,21 +8,14 @@ export default factories.createCoreController(
         const userId = ctx.state.user.id;
         const { subjectId } = ctx.request.body;
 
-        if (!subjectId)
-          return ctx.badRequest(
-            "The 'subjectId' is required in the request body."
-          );
-
+        if (!subjectId) return ctx.badRequest("The 'subjectId' is required.");
         if (userId === subjectId)
-          return ctx.badRequest("You cannot follow or unfollow yourself.");
+          return ctx.badRequest("You cannot follow/unfollow yourself.");
 
         const existingFollow = await strapi.entityService.findMany(
           "api::following.following",
           {
-            filters: {
-              follower: { id: userId },
-              subject: { id: subjectId },
-            },
+            filters: { follower: { id: userId }, subject: { id: subjectId } },
             limit: 1,
           }
         );
@@ -55,24 +48,19 @@ export default factories.createCoreController(
         const subjectUser = await strapi.entityService.findOne(
           "plugin::users-permissions.user",
           subjectId,
-          { populate: ["role"] }
+          { fields: ["id", "is_public"], populate: ["role"] }
         );
-
         if (!subjectUser)
           return ctx.notFound(
             "The user you are trying to follow does not exist."
           );
 
-        const isPublicProfile = subjectUser.is_public !== false;
+        const isPublicProfile = subjectUser.is_public === true;
 
         if (isPublicProfile) {
           await strapi.entityService.create("api::following.following", {
-            data: {
-              follower: userId,
-              subject: subjectId,
-            },
+            data: { follower: userId, subject: subjectId },
           });
-
           return ctx.send({
             message: "Followed successfully.",
             is_following: true,
@@ -81,20 +69,18 @@ export default factories.createCoreController(
           const existingRequest = await strapi.entityService.findMany(
             "api::follow-request.follow-request",
             {
-              filters: {
-                requested_by: userId,
-                requested_for: subjectId,
-              },
+              filters: { requested_by: userId, requested_for: subjectId },
               limit: 1,
             }
           );
 
-          if (existingRequest.length > 0)
+          if (existingRequest.length > 0) {
             return ctx.send({
               request_status: existingRequest[0].request_status,
               is_request_sent: true,
               is_following: false,
             });
+          }
 
           await strapi.entityService.create(
             "api::follow-request.follow-request",
@@ -121,7 +107,6 @@ export default factories.createCoreController(
         });
       }
     },
-
     async getUserFollowers(ctx) {
       try {
         const { user: currentUser } = ctx.state;
