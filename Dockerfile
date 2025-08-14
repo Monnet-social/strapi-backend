@@ -5,8 +5,9 @@ WORKDIR /app
 
 COPY package.json .
 
-RUN yarn
+COPY service-account.json ./
 
+RUN yarn
 
 COPY . .
 
