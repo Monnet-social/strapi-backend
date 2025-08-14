@@ -250,7 +250,9 @@ export default factories.createCoreController(
         "api::comment.comment",
         {
           filters: { id: comment_id },
-          populate: { post: { populate: { posted_by: true } } },
+          populate: {
+            post: { populate: { posted_by: true, commented_by: true } },
+          },
           limit: 1,
         }
       );
@@ -280,6 +282,36 @@ export default factories.createCoreController(
       await strapi.entityService.update("api::comment.comment", comment_id, {
         data: { pinned: true },
       });
+
+      if (comment[0].post?.id) {
+        const actorUserName =
+          ctx.state.user.username || ctx.state.user.name || "a user";
+        if (
+          comment[0].post.id &&
+          comment[0].post?.posted_by?.fcm_token?.length > 0
+        ) {
+          // Notify the post's author about the comment
+          const notificationService = new NotificationService();
+          notificationService.sendNotification(
+            "Your comment was pinned",
+            `Your comment: "${comment[0].content}" was pinned by ${actorUserName}.`,
+            {},
+            comment[0].commented_by?.fcm_token
+          );
+        }
+        await strapi
+          .service("api::notification.notification")
+          .saveNotification(
+            "comment",
+            ctx.state.user.id,
+            comment[0]?.post?.posted_by.id,
+            `Your post: "${comment[0]?.post?.title}" received a comment from ${actorUserName}.`,
+            {
+              comment: comment[0].id,
+              post: comment[0].post.id,
+            }
+          );
+      }
 
       return ctx.send({
         message: "Comment pinned successfully",
