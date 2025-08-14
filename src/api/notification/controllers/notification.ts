@@ -25,6 +25,14 @@ export default factories.createCoreController(
         {
           filters: { user: currentUser.id },
           sort: { createdAt: "desc" },
+          populate: {
+            user: {
+              fields: ["id"],
+            },
+            post: true,
+            actor: { fields: ["id"] },
+            comment: true,
+          },
           start:
             (default_pagination.pagination.page - 1) *
             default_pagination.pagination.pageSize,
