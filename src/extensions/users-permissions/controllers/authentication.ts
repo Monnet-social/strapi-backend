@@ -83,7 +83,7 @@ async function register(ctx) {
     referral_code: fromReferral,
     username,
     gender,
-    tos_accepted, // ignored, accepted later
+    tos_accepted,
   } = ctx.request.body;
 
   const birthDate = date_of_birth ? new Date(date_of_birth) : null;
