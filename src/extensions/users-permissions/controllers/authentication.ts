@@ -90,9 +90,9 @@ async function register(ctx) {
   const today = new Date();
 
   // Core validators
-  if (!email || !password || !date_of_birth || !gender)
+  if (!email || !password || !date_of_birth)
     return ctx.badRequest(
-      "Incomplete fields: email, password, date_of_birth, and gender are required."
+      "Incomplete fields: email, password, date_of_birth, are required."
     );
   if (!HelperService.EMAIL_REGEX.test(email))
     return ctx.badRequest("A valid email address is required.");
@@ -151,7 +151,7 @@ async function register(ctx) {
         );
       }
     }
-
+    let g = !gender ? "" : gender;
     const newUser = await strapi
       .plugin("users-permissions")
       .service("user")
@@ -160,7 +160,7 @@ async function register(ctx) {
         username: validUsername,
         password,
         name,
-        gender,
+        gender: g,
         referral_code,
         referred_by: referredById,
         provider: "local",
