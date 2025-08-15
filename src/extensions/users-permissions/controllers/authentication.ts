@@ -79,26 +79,26 @@ async function register(ctx) {
     email,
     password,
     name,
-    dob,
+    date_of_birth,
     referral_code: fromReferral,
     username,
     gender,
     tos_accepted, // ignored, accepted later
   } = ctx.request.body;
 
-  const birthDate = dob ? new Date(dob) : null;
+  const birthDate = date_of_birth ? new Date(date_of_birth) : null;
   const today = new Date();
 
   // Core validators
-  if (!email || !password || !dob || !gender)
+  if (!email || !password || !date_of_birth || !gender)
     return ctx.badRequest(
-      "Incomplete fields: email, password, dob, and gender are required."
+      "Incomplete fields: email, password, date_of_birth, and gender are required."
     );
   if (!HelperService.EMAIL_REGEX.test(email))
     return ctx.badRequest("A valid email address is required.");
-  if (!HelperService.DATE_REGEX.test(dob))
+  if (!HelperService.DATE_REGEX.test(date_of_birth))
     return ctx.badRequest(
-      "Invalid date format for dob. Please use YYYY-MM-DD."
+      "Invalid date format for date_of_birth. Please use YYYY-MM-DD."
     );
   if (birthDate > today)
     return ctx.badRequest("Date of birth cannot be in the future.");
@@ -168,7 +168,7 @@ async function register(ctx) {
         blocked: false,
         is_email_verified: false,
         role: 1,
-        date_of_birth: dob,
+        date_of_birth,
         tos_accepted: false,
         username_update_required: !validUsername,
       });
