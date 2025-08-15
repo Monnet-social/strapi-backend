@@ -74,52 +74,50 @@ async function login(ctx) {
   }
 }
 
-async function register(ctx: any) {
+async function register(ctx) {
   const {
     email,
     password,
     name,
     dob,
     referral_code: fromReferral,
-    tos_accepted,
     username,
     gender,
+    tos_accepted, // ignored, accepted later
   } = ctx.request.body;
 
-  const birthDate = new Date(dob);
+  const birthDate = dob ? new Date(dob) : null;
   const today = new Date();
 
-  if (
-    !email ||
-    !password ||
-    !dob ||
-    tos_accepted === null ||
-    tos_accepted === undefined
-  )
+  // Core validators
+  if (!email || !password || !dob || !gender)
     return ctx.badRequest(
-      "Incomplete fields: email, password,dob,tos_accepted  are required."
+      "Incomplete fields: email, password, dob, and gender are required."
     );
-  if (!email || !HelperService.EMAIL_REGEX.test(email))
+  if (!HelperService.EMAIL_REGEX.test(email))
     return ctx.badRequest("A valid email address is required.");
-
   if (!HelperService.DATE_REGEX.test(dob))
     return ctx.badRequest(
       "Invalid date format for dob. Please use YYYY-MM-DD."
     );
-  if (!HelperService.USERNAME_REGEX.test(username))
-    return ctx.badRequest(
-      "Invalid username.Must be atleast 4 chars starting with letter and consisting of letters,numbers & undescroes(_)"
-    );
-
   if (birthDate > today)
     return ctx.badRequest("Date of birth cannot be in the future.");
+
+  // If username is passed, validate it
+  let validUsername = null;
+  if (username) {
+    if (!HelperService.USERNAME_REGEX.test(username))
+      return ctx.badRequest(
+        "Invalid username. Must be at least 4 chars starting with letter and consisting of letters, numbers & underscores (_)"
+      );
+    validUsername = username;
+  }
 
   try {
     const existingUsers = await strapi.entityService.findMany(
       "plugin::users-permissions.user",
       { filters: { email } }
     );
-
     if (existingUsers.length > 0)
       return ctx.badRequest(
         "User already exists. Try logging in or resetting your password."
@@ -138,18 +136,14 @@ async function register(ctx: any) {
           limit: 1,
         }
       );
-
       if (referrers.length > 0) {
         const referrer = referrers[0];
         const currentReferralCount = referrer.no_of_referrals || 0;
-
         if (currentReferralCount >= 5)
           return ctx.badRequest(
             "This referral code has reached its maximum limit of 5 uses."
           );
-
         referredById = referrer.id;
-
         await strapi.entityService.update(
           "plugin::users-permissions.user",
           referrer.id,
@@ -163,7 +157,7 @@ async function register(ctx: any) {
       .service("user")
       .add({
         email,
-        username,
+        username: validUsername,
         password,
         name,
         gender,
@@ -175,8 +169,10 @@ async function register(ctx: any) {
         is_email_verified: false,
         role: 1,
         date_of_birth: dob,
-        tos_accepted,
+        tos_accepted: false,
+        username_update_required: !validUsername,
       });
+
     delete newUser.password;
     const token = await strapi
       .plugin("users-permissions")
@@ -184,7 +180,7 @@ async function register(ctx: any) {
       .issue({ id: newUser.id });
 
     const updateMesiboId = await MesiboService.editMesiboUser(newUser.id);
-    console.log("Mesibo ID updated:", updateMesiboId);
+
     return ctx.send({
       jwt: token,
       user: {
