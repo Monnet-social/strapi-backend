@@ -79,32 +79,32 @@ async function register(ctx: any) {
     email,
     password,
     name,
-    date_of_birth,
+    dob,
     referral_code: fromReferral,
     tos_accepted,
     username,
     gender,
   } = ctx.request.body;
 
-  const birthDate = new Date(date_of_birth);
+  const birthDate = new Date(dob);
   const today = new Date();
 
   if (
     !email ||
     !password ||
-    !date_of_birth ||
+    !dob ||
     tos_accepted === null ||
     tos_accepted === undefined
   )
     return ctx.badRequest(
-      "Incomplete fields: email, password,date_of_birth,tos_accepted  are required."
+      "Incomplete fields: email, password,dob,tos_accepted  are required."
     );
   if (!email || !HelperService.EMAIL_REGEX.test(email))
     return ctx.badRequest("A valid email address is required.");
 
-  if (!HelperService.DATE_REGEX.test(date_of_birth))
+  if (!HelperService.DATE_REGEX.test(dob))
     return ctx.badRequest(
-      "Invalid date format for date_of_birth. Please use YYYY-MM-DD."
+      "Invalid date format for dob. Please use YYYY-MM-DD."
     );
   if (!HelperService.USERNAME_REGEX.test(username))
     return ctx.badRequest(
@@ -174,7 +174,7 @@ async function register(ctx: any) {
         blocked: false,
         is_email_verified: false,
         role: 1,
-        date_of_birth,
+        date_of_birth: dob,
         tos_accepted,
       });
     delete newUser.password;
