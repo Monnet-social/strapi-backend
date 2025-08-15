@@ -83,13 +83,11 @@ async function register(ctx) {
     referral_code: fromReferral,
     username,
     gender,
-    tos_accepted,
   } = ctx.request.body;
 
   const birthDate = date_of_birth ? new Date(date_of_birth) : null;
   const today = new Date();
 
-  // Core validators
   if (!email || !password || !date_of_birth)
     return ctx.badRequest(
       "Incomplete fields: email, password, date_of_birth, are required."
@@ -103,7 +101,6 @@ async function register(ctx) {
   if (birthDate > today)
     return ctx.badRequest("Date of birth cannot be in the future.");
 
-  // If username is passed, validate it
   let validUsername = null;
   if (username) {
     if (!HelperService.USERNAME_REGEX.test(username))
