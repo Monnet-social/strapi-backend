@@ -375,7 +375,6 @@ export default factories.createCoreController(
           ? String(post.repost_caption).trim()
           : "";
 
-        // Pinned comments fetch (fields as a string to avoid TS errors)
         const pinnedArr = (await strapi.entityService.findMany(
           "api::comment.comment",
           {
@@ -460,7 +459,6 @@ export default factories.createCoreController(
           pinnedBlock = [shapeCommentData(pinned)];
         }
 
-        // Repost caption as a comment-like object
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
           const postUser = post.posted_by;
@@ -469,7 +467,7 @@ export default factories.createCoreController(
             shapeCommentData(
               {
                 id: post.id,
-                comment: repostCaption,
+                repost_caption: repostCaption,
                 user: postUser,
                 commented_by: postUser,
                 createdAt: post.createdAt,
@@ -502,7 +500,6 @@ export default factories.createCoreController(
           }
         }
 
-        // Paginated regular comments
         const paginatedComments = (await strapi.entityService.findPage(
           "api::comment.comment",
           {
@@ -621,6 +618,7 @@ export default factories.createCoreController(
         );
       }
     },
+
     async likeComment(ctx: Context) {
       const { id: commentId } = ctx.params;
       const { id: userId } = ctx.state.user;
