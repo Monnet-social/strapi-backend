@@ -11,5 +11,14 @@ module.exports = {
         middlewares: [],
       },
     },
+    {
+      method: "PUT",
+      path: "/mention-policy",
+      handler: "mention-policy.updateMentionPolicy",
+      config: {
+        policies: [], // add auth/policies if you need
+        middlewares: [],
+      },
+    },
   ],
 };
