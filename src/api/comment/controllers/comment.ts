@@ -313,6 +313,9 @@ export default factories.createCoreController(
       ): Record<string, any> {
         return {
           id: item.id,
+          comment: isRepostCaption
+            ? item.comment || item.repost_caption || ""
+            : item.comment || "",
           createdAt: item.createdAt,
           commented_by: item.commented_by ?? item.user ?? null,
           repost_caption: isRepostCaption ? item.repost_caption || "" : "",
@@ -337,7 +340,6 @@ export default factories.createCoreController(
           pinned: item.pinned ?? false,
           parent_comment: item.parent_comment ?? null,
           repost_of: item.repost_of ?? null,
-          // Add any other fields your frontend expects here
         };
       }
 
@@ -373,7 +375,7 @@ export default factories.createCoreController(
           ? String(post.repost_caption).trim()
           : "";
 
-        // Fetch pinned comment (top pinned block)
+        // Pinned comments fetch (fields as a string to avoid TS errors)
         const pinnedArr = (await strapi.entityService.findMany(
           "api::comment.comment",
           {
@@ -382,9 +384,10 @@ export default factories.createCoreController(
               parent_comment: { id: { $null: true } },
               pinned: true,
             },
+            fields: "id,comment,createdAt,pinned",
             populate: {
               commented_by: {
-                fields: ["id", "username", "name", "avatar_ring_color"],
+                fields: "id,username,name,avatar_ring_color",
                 populate: { profile_picture: true },
               },
             },
@@ -397,7 +400,6 @@ export default factories.createCoreController(
         if (Array.isArray(pinnedArr) && pinnedArr.length > 0) {
           const pinned = pinnedArr[0];
 
-          // Enrich follow status on pinned comment's user
           await strapi
             .service("api::following.following")
             .enrichItemsWithFollowStatus({
@@ -406,7 +408,6 @@ export default factories.createCoreController(
               currentUserId: userId,
             });
 
-          // Count replies and likes for pinned comment
           const [replies, likes] = await Promise.all([
             strapi.entityService.count("api::comment.comment", {
               filters: { parent_comment: { id: pinned.id as number } },
@@ -431,7 +432,6 @@ export default factories.createCoreController(
             isLikedByAuthor = authorLike.length > 0;
           }
 
-          // Check if current user liked the pinned comment
           const userLike = (await strapi.entityService.findMany(
             "api::like.like",
             {
@@ -443,7 +443,6 @@ export default factories.createCoreController(
             }
           )) as any[];
 
-          // Enrich profile picture for pinned user
           if (pinned.commented_by) {
             await strapi
               .service("api::post.post")
@@ -461,6 +460,7 @@ export default factories.createCoreController(
           pinnedBlock = [shapeCommentData(pinned)];
         }
 
+        // Repost caption as a comment-like object
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
           const postUser = post.posted_by;
@@ -469,11 +469,19 @@ export default factories.createCoreController(
             shapeCommentData(
               {
                 id: post.id,
-                repost_caption: repostCaption,
+                comment: repostCaption,
                 user: postUser,
                 commented_by: postUser,
                 createdAt: post.createdAt,
-                stats: {},
+                stats: {
+                  likes: 0,
+                  replies: 0,
+                  is_liked: false,
+                  is_liked_by_author: false,
+                },
+                pinned: false,
+                parent_comment: null,
+                repost_of: null,
               },
               true
             ),
@@ -487,12 +495,14 @@ export default factories.createCoreController(
               currentUserId: userId,
             });
 
-          if (postUser)
+          if (postUser) {
             await strapi
               .service("api::post.post")
               .enrichUsersWithOptimizedProfilePictures([postUser]);
+          }
         }
 
+        // Paginated regular comments
         const paginatedComments = (await strapi.entityService.findPage(
           "api::comment.comment",
           {
@@ -502,9 +512,10 @@ export default factories.createCoreController(
               pinned: false,
             },
             sort: { createdAt: "desc" },
+            fields: "id,comment,createdAt,pinned",
             populate: {
               commented_by: {
-                fields: ["id", "username", "name", "avatar_ring_color"],
+                fields: "id,username,name,avatar_ring_color",
                 populate: { profile_picture: true },
               },
             },
@@ -519,10 +530,9 @@ export default factories.createCoreController(
         };
 
         if (
-          !Array.isArray(comments) ||
-          (comments.length === 0 &&
-            pinnedBlock.length === 0 &&
-            repostCaptionBlock.length === 0)
+          !Array.isArray(comments) &&
+          pinnedBlock.length === 0 &&
+          repostCaptionBlock.length === 0
         )
           return ctx.send({ data: [], meta: { pagination } });
 
@@ -539,7 +549,6 @@ export default factories.createCoreController(
 
           const commentIds = comments.map((c: any) => c.id as number);
 
-          // Fetch likes from current user and post author
           const [userLikes, authorLikes] = await Promise.all([
             strapi.entityService.findMany("api::like.like", {
               filters: {
