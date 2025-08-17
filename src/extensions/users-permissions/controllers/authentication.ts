@@ -35,6 +35,11 @@ async function login(ctx) {
           "date_of_birth",
           "mesibo_id",
           "mesibo_token",
+
+          "hide_like",
+          "limit_autoplay",
+          "flag_content",
+          "show_category_on_feed",
         ],
         populate: {
           referred_by: {

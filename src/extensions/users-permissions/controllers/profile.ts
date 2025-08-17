@@ -26,6 +26,10 @@ module.exports = {
             "play_mature_content",
             "mesibo_id",
             "mesibo_token",
+            "hide_like",
+            "limit_autoplay",
+            "flag_content",
+            "show_category_on_feed",
           ],
           populate: { profile_picture: true, location: true },
         }
@@ -87,6 +91,10 @@ module.exports = {
         is_public: user.is_public,
         badge: user.badge,
         avatar_ring_color: user.avatar_ring_color,
+        hide_like: user.hide_like,
+        limit_autoplay: user.limit_autoplay,
+        flag_content: user.flag_content,
+        show_category_on_feed: user.show_category_on_feed,
         profile_picture: (user as any).profile_picture,
         is_following: (user as any).is_following,
         is_follower: (user as any).is_follower,
@@ -128,6 +136,10 @@ module.exports = {
             "avatar_ring_color",
             "mesibo_id",
             "mesibo_token",
+            "hide_like",
+            "limit_autoplay",
+            "flag_content",
+            "show_category_on_feed",
           ],
           populate: { profile_picture: true, location: true },
         }
@@ -238,6 +250,10 @@ module.exports = {
         is_public: user.is_public,
         badge: user.badge,
         avatar_ring_color: user.avatar_ring_color,
+        hide_like: user.hide_like,
+        limit_autoplay: user.limit_autoplay,
+        flag_content: user.flag_content,
+        show_category_on_feed: user.show_category_on_feed,
         mesibo_id: user.mesibo_id,
         mesibo_token: user.mesibo_token,
         profile_picture: (user as any).profile_picture,
@@ -389,6 +405,26 @@ module.exports = {
         return ctx.badRequest("play_mature_content must be a boolean.");
       dataToUpdate.play_mature_content = body.play_mature_content;
     }
+    if (body.show_category_on_feed !== undefined) {
+      if (typeof body.show_category_on_feed !== "boolean")
+        return ctx.badRequest("show_category_on_feed must be a boolean.");
+      dataToUpdate.show_category_on_feed = body.show_category_on_feed;
+    }
+    if (body.flag_content !== undefined) {
+      if (typeof body.flag_content !== "boolean")
+        return ctx.badRequest("flag_content must be a boolean.");
+      dataToUpdate.flag_content = body.flag_content;
+    }
+    if (body.limit_autoplay !== undefined) {
+      if (typeof body.limit_autoplay !== "boolean")
+        return ctx.badRequest("limit_autoplay must be a boolean.");
+      dataToUpdate.limit_autoplay = body.limit_autoplay;
+    }
+    if (body.hide_like !== undefined) {
+      if (typeof body.hide_like !== "boolean")
+        return ctx.badRequest("hide_like must be a boolean.");
+      dataToUpdate.hide_like = body.hide_like;
+    }
 
     if (Object.keys(dataToUpdate).length === 0)
       return ctx.badRequest("No valid fields were provided for update.");
@@ -426,6 +462,10 @@ module.exports = {
             "gender",
             "avatar_ring_color",
             "play_mature_content",
+            "hide_like",
+            "limit_autoplay",
+            "flag_content",
+            "show_category_on_feed",
           ],
         }
       );

@@ -1572,12 +1572,15 @@ export interface PluginUsersPermissionsUser
       }>;
     email_otp: Schema.Attribute.String;
     fcm_token: Schema.Attribute.String;
+    flag_content: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     gender: Schema.Attribute.String;
+    hide_like: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     is_email_verified: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
     is_public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     last_active_at: Schema.Attribute.DateTime;
+    limit_autoplay: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
       'oneToMany',
@@ -1612,6 +1615,8 @@ export interface PluginUsersPermissionsUser
       'manyToOne',
       'plugin::users-permissions.role'
     >;
+    show_category_on_feed: Schema.Attribute.Boolean &
+      Schema.Attribute.DefaultTo<true>;
     tos_accepted: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
