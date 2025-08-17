@@ -38,38 +38,6 @@ export default factories.createCoreService(
       content: string,
       type: "story" | "comment" | "post"
     ) {
-      //   const findMentionPolicy = await this.findOrCreateMentionPolicy(userId);
-      //   let policy = "anyone";
-      //   if (type == "story") {
-      //     policy = findMentionPolicy.story_policy;
-      //   } else if (type == "comment") {
-      //     policy = findMentionPolicy.comment_policy;
-      //   } else if (type == "post") {
-      //     policy = findMentionPolicy.post_policy;
-      //   }
-      //   let userFollowers = await strapi.entityService.findMany(
-      //     "api::following.following",
-      //     {
-      //       filters: {
-      //         subject: {
-      //           id: Number(userId),
-      //         },
-      //       },
-      //       fields: ["id"],
-      //     }
-      //   );
-      //   let userCloseFriends = await strapi.entityService.findMany(
-      //     "api::following.following",
-      //     {
-      //       filters: {
-      //         subject: {
-      //           id: Number(userId),
-      //         },
-      //         is_close_friend: true,
-      //       },
-      //       fields: ["id"],
-      //     }
-      //   );
       let finalMention = [];
 
       for (let character of content) {
