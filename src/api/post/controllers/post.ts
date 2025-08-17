@@ -58,6 +58,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
 
       data.posted_by = userId;
+      let mentionData = await strapi
+        .service("api::mention-policy.mention-policy")
+        .mentionUser(userId, data.content, data.post_type);
+      if (mentionData) {
+        data.mentioned_users = mentionData;
+      }
 
       const newPost = await strapi.entityService.create("api::post.post", {
         data,
@@ -67,6 +73,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           category: { fields: ["id", "name"] },
           media: true,
           repost_of: { populate: "*" },
+          mentioned_users: { populate: "*" },
           ...(data.share_with === "CLOSE-FRIENDS" &&
           data.share_with_close_friends
             ? {
