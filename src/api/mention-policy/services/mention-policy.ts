@@ -7,7 +7,7 @@ import { factories } from "@strapi/strapi";
 export default factories.createCoreService(
   "api::mention-policy.mention-policy",
   ({ strapi }) => ({
-    async findOrCreateMentionPolicy(userId: string) {
+    async findOrCreateMentionPolicy(userId) {
       const findMentionPolicy = await strapi.entityService.findMany(
         "api::mention-policy.mention-policy",
         {
@@ -38,38 +38,38 @@ export default factories.createCoreService(
       content: string,
       type: "story" | "comment" | "post"
     ) {
-      const findMentionPolicy = await this.findOrCreateMentionPolicy(userId);
-      let policy = "anyone";
-      if (type == "story") {
-        policy = findMentionPolicy.story_policy;
-      } else if (type == "comment") {
-        policy = findMentionPolicy.comment_policy;
-      } else if (type == "post") {
-        policy = findMentionPolicy.post_policy;
-      }
-      let userFollowers = await strapi.entityService.findMany(
-        "api::following.following",
-        {
-          filters: {
-            subject: {
-              id: Number(userId),
-            },
-          },
-          fields: ["id"],
-        }
-      );
-      let userCloseFriends = await strapi.entityService.findMany(
-        "api::following.following",
-        {
-          filters: {
-            subject: {
-              id: Number(userId),
-            },
-            is_close_friend: true,
-          },
-          fields: ["id"],
-        }
-      );
+      //   const findMentionPolicy = await this.findOrCreateMentionPolicy(userId);
+      //   let policy = "anyone";
+      //   if (type == "story") {
+      //     policy = findMentionPolicy.story_policy;
+      //   } else if (type == "comment") {
+      //     policy = findMentionPolicy.comment_policy;
+      //   } else if (type == "post") {
+      //     policy = findMentionPolicy.post_policy;
+      //   }
+      //   let userFollowers = await strapi.entityService.findMany(
+      //     "api::following.following",
+      //     {
+      //       filters: {
+      //         subject: {
+      //           id: Number(userId),
+      //         },
+      //       },
+      //       fields: ["id"],
+      //     }
+      //   );
+      //   let userCloseFriends = await strapi.entityService.findMany(
+      //     "api::following.following",
+      //     {
+      //       filters: {
+      //         subject: {
+      //           id: Number(userId),
+      //         },
+      //         is_close_friend: true,
+      //       },
+      //       fields: ["id"],
+      //     }
+      //   );
       let finalMention = [];
 
       for (let character of content) {
@@ -90,6 +90,47 @@ export default factories.createCoreService(
               fields: ["id"],
             }
           );
+          let findMentionPolicy = await this.findOrCreateMentionPolicy(
+            findUser[0].id
+          );
+          let policy = "anyone";
+          if (type == "story") {
+            policy = findMentionPolicy.story_policy;
+          } else if (type == "comment") {
+            policy = findMentionPolicy.comment_policy;
+          } else if (type == "post") {
+            policy = findMentionPolicy.post_policy;
+          }
+          let userFollowers = await strapi.entityService.findMany(
+            "api::following.following",
+            {
+              filters: {
+                subject: {
+                  id: Number(findUser[0].id),
+                },
+                follower: {
+                  id: Number(userId),
+                },
+              },
+              fields: ["id"],
+            }
+          );
+          let userCloseFriends = await strapi.entityService.findMany(
+            "api::following.following",
+            {
+              filters: {
+                follower: {
+                  id: Number(findUser[0].id),
+                },
+                subject: {
+                  id: Number(userId),
+                },
+                is_close_friend: true,
+              },
+              fields: ["id"],
+            }
+          );
+
           if (findUser.length > 0) {
             // Check if the user is allowed to be mentioned
             if (

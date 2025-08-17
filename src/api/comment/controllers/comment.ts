@@ -74,6 +74,13 @@ export default factories.createCoreController(
           dataToCreate.repost_of = repost_of_id;
         }
 
+        let mentionData = await strapi
+          .service("api::mention-policy.mention-policy")
+          .mentionUser(userId, comment, "comment");
+        if (mentionData) {
+          dataToCreate.mentioned_users = mentionData;
+        }
+
         const newComment = await strapi.entityService.create(
           "api::comment.comment",
           {
