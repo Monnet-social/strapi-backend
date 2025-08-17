@@ -154,6 +154,22 @@
     },
     "fcm_token": {
       "type": "string"
+    },
+    "show_category_on_feed": {
+      "type": "boolean",
+      "default": true
+    },
+    "flag_content": {
+      "type": "boolean",
+      "default": false
+    },
+    "limit_autoplay": {
+      "type": "boolean",
+      "default": true
+    },
+    "hide_like": {
+      "type": "boolean",
+      "default": false
     }
   }
 }
