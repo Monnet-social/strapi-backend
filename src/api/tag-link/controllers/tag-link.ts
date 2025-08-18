@@ -18,7 +18,7 @@ export default factories.createCoreController(
         default_pagination.pagination.pageSize = pagination_size;
       if (page) default_pagination.pagination.page = page;
 
-      let keyword = ctx.params.keyword;
+      let keyword = (ctx.query.keyword as string) ?? "";
       // type : tags | comments | accounts |posts
       let { type } = ctx.query;
       if (!type) {
@@ -100,7 +100,10 @@ export default factories.createCoreController(
           "plugin::users-permissions.user",
           {
             filters: {
-              username: { $containsi: keyword },
+              $or: [
+                { username: { $containsi: keyword } },
+                { bio: { $containsi: keyword } },
+              ],
             },
             populate: {
               profile_picture: true,
@@ -111,7 +114,10 @@ export default factories.createCoreController(
           "plugin::users-permissions.user",
           {
             filters: {
-              username: { $containsi: keyword },
+              $or: [
+                { username: { $containsi: keyword } },
+                { bio: { $containsi: keyword } },
+              ],
             },
           }
         );
@@ -133,13 +139,19 @@ export default factories.createCoreController(
       if (type == "posts") {
         const results = await strapi.entityService.findMany("api::post.post", {
           filters: {
-            title: { $containsi: keyword },
+            $or: [
+              { title: { $containsi: keyword } },
+              { description: { $containsi: keyword } },
+            ],
           },
           populate: { posted_by: true },
         });
         const count = await strapi.entityService.count("api::post.post", {
           filters: {
-            title: { $containsi: keyword },
+            $or: [
+              { title: { $containsi: keyword } },
+              { description: { $containsi: keyword } },
+            ],
           },
         });
 
@@ -167,7 +179,6 @@ export default factories.createCoreController(
             total: 0,
           },
         },
-
       });
     },
   })

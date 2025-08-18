@@ -1,3 +1,9 @@
 module.exports = {
-  routes: [],
+  routes: [
+    {
+      method: "GET",
+      path: "/search",
+      handler: "tag-link.searchNavigation",
+    },
+  ],
 };
