@@ -500,7 +500,7 @@ async function checkUserStatus(ctx) {
   }
 }
 
-async function checkUsername(ctx: any) {
+async function checkUsername(ctx) {
   const { username } = ctx.query;
 
   if (!username || typeof username !== "string")
@@ -520,8 +520,16 @@ async function checkUsername(ctx: any) {
       message: "Username can only contain letters, numbers, and underscores.",
     });
 
+  if (ctx.state.user && ctx.state.user.username === trimmedUsername) {
+    return ctx.send({
+      available: true,
+      message: "This is your current username.",
+    });
+  }
+
   try {
     const sessionTimeout = new Date(Date.now() - 30 * 60 * 1000);
+    const abandonedTimeout = new Date(Date.now() - 60 * 60 * 1000);
 
     const existingUser = await strapi.entityService.findMany(
       "plugin::users-permissions.user",
@@ -539,11 +547,28 @@ async function checkUsername(ctx: any) {
         limit: 1,
       }
     );
-    if (existingUser.length > 0)
+
+    if (existingUser.length > 0) {
+      const user = existingUser[0];
+      if (
+        user.tos_accepted === false &&
+        new Date(user.createdAt) < abandonedTimeout
+      ) {
+        await strapi.entityService.delete(
+          "plugin::users-permissions.user",
+          user.id
+        );
+
+        return ctx.send({
+          available: true,
+          message: "Username available",
+        });
+      }
       return ctx.send({
         available: false,
         message: "Username unavailable",
       });
+    }
 
     return ctx.send({
       available: true,
@@ -626,6 +651,7 @@ async function getShareImage(ctx) {
     status: 200,
   });
 }
+
 async function generateMesiboToken(ctx) {
   const { new_token } = ctx.params;
   const findUser = await strapi.entityService.findMany(
