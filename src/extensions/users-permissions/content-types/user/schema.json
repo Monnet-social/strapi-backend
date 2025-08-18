@@ -125,7 +125,7 @@
     },
     "is_public": {
       "type": "boolean",
-      "default": true
+      "default": false
     },
     "badge": {
       "type": "enumeration",
@@ -141,7 +141,7 @@
     },
     "play_mature_content": {
       "type": "boolean",
-      "default": true
+      "default": false
     },
     "last_active_at": {
       "type": "datetime"

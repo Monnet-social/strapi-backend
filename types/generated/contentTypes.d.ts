@@ -1578,7 +1578,7 @@ export interface PluginUsersPermissionsUser
     is_email_verified: Schema.Attribute.Boolean &
       Schema.Attribute.Required &
       Schema.Attribute.DefaultTo<false>;
-    is_public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
+    is_public: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<false>;
     last_active_at: Schema.Attribute.DateTime;
     limit_autoplay: Schema.Attribute.Boolean & Schema.Attribute.DefaultTo<true>;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
@@ -1598,7 +1598,7 @@ export interface PluginUsersPermissionsUser
         minLength: 6;
       }>;
     play_mature_content: Schema.Attribute.Boolean &
-      Schema.Attribute.DefaultTo<true>;
+      Schema.Attribute.DefaultTo<false>;
     professional_info: Schema.Attribute.String;
     profile_picture: Schema.Attribute.Media<'images' | 'files'>;
     provider: Schema.Attribute.String;
