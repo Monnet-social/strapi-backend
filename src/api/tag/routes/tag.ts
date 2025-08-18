@@ -5,5 +5,10 @@ module.exports = {
       path: "/tags",
       handler: "tag.getTags",
     },
+    {
+      method: "GET",
+      path: "/search",
+      handler: "tag.searchNavigation",
+    },
   ],
 };
