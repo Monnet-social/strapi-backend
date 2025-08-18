@@ -7,12 +7,8 @@ export default factories.createCoreController(
       const { user: currentUser } = ctx.state;
       const { pagination_size, page } = ctx.query;
 
-      let default_pagination = {
-        pagination: { page: 1, pageSize: 10 },
-      };
-      if (pagination_size)
-        default_pagination.pagination.pageSize = Number(pagination_size);
-      if (page) default_pagination.pagination.page = Number(page);
+      const pageSize = pagination_size ? Number(pagination_size) : 10;
+      const currentPage = page ? Number(page) : 1;
 
       const notifications = await strapi.entityService.findMany(
         "api::notification.notification",
@@ -21,40 +17,33 @@ export default factories.createCoreController(
           sort: { createdAt: "desc" },
           populate: {
             user: {
-              fields: [
-                "id",
-                "username",
-                "name",
-                "avatar_ring_color",
-                "is_public",
-              ],
-              populate: { profile_picture: true },
+              populate: {
+                profile_picture: true,
+              },
             },
             post: {
               populate: {
-                media: { fields: ["id", "url", "mime"] },
+                media: true,
                 repost_of: {
-                  fields: ["title", "id"],
                   populate: {
-                    media: { fields: ["id", "url", "mime"] },
+                    media: true,
                   },
                 },
               },
             },
-
             actor: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
-              populate: { profile_picture: true },
+              populate: {
+                profile_picture: true,
+              },
             },
             comment: true,
           },
-          start:
-            (default_pagination.pagination.page - 1) *
-            default_pagination.pagination.pageSize,
-          limit: default_pagination.pagination.pageSize,
+          start: (currentPage - 1) * pageSize,
+          limit: pageSize,
         }
       );
 
+      // Collect users to enrich profile pictures
       const usersToEnrich: any[] = [];
       notifications.forEach((n: any) => {
         if (n.user) usersToEnrich.push(n.user);
@@ -67,11 +56,41 @@ export default factories.createCoreController(
         .service("api::post.post")
         .enrichUsersWithOptimizedProfilePictures(uniqueUsers);
 
+      // Extract all post IDs for counting
+      const postIds = notifications
+        .map((n: any) => n.post?.id)
+        .filter((id) => !!id);
+
+      // Use existing comment service to get comments count per post
+      const commentCounts = await Promise.all(
+        postIds.map(async (postId) => {
+          const count = await strapi
+            .service("api::comment.comment")
+            .getCommentsCount(postId);
+          return { postId, count };
+        })
+      );
+      const commentCountMap = Object.fromEntries(
+        commentCounts.map(({ postId, count }) => [postId, count])
+      );
+
+      // Use existing like service to get likes count per post
+      const likesCounts = await Promise.all(
+        postIds.map(async (postId) => {
+          const count = await strapi
+            .service("api::like.like")
+            .getLikesCount(postId);
+          return { postId, count };
+        })
+      );
+      const likesCountMap = Object.fromEntries(
+        likesCounts.map(({ postId, count }) => [postId, count])
+      );
+
       for (const n of notifications) {
         const post = (n as any).post;
         if (post) {
           let firstMedia = null;
-
           if (Array.isArray(post.media) && post.media.length > 0) {
             firstMedia = post.media[0];
           } else if (
@@ -79,7 +98,7 @@ export default factories.createCoreController(
             Array.isArray(post.repost_of.media) &&
             post.repost_of.media.length > 0
           ) {
-            firstMedia = post.repost_of.media[0];
+            firstMedia = post.repost_of.media;
           }
 
           if (firstMedia) {
@@ -98,6 +117,9 @@ export default factories.createCoreController(
           } else {
             post.display_title = "";
           }
+
+          post.comments_count = commentCountMap[post.id] || 0;
+          post.likes_count = likesCountMap[post.id] || 0;
         }
       }
 
@@ -112,11 +134,9 @@ export default factories.createCoreController(
         data: notifications,
         meta: {
           pagination: {
-            page: default_pagination.pagination.page,
-            pageSize: default_pagination.pagination.pageSize,
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
+            page: currentPage,
+            pageSize,
+            pageCount: Math.ceil(count / pageSize),
             total: count,
           },
         },
