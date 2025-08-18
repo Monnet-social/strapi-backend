@@ -43,6 +43,7 @@ export default factories.createCoreController(
         }
       );
 
+      // Collect users to enrich profile pictures
       const usersToEnrich: any[] = [];
       notifications.forEach((n: any) => {
         if (n.user) usersToEnrich.push(n.user);
@@ -55,62 +56,67 @@ export default factories.createCoreController(
         .service("api::post.post")
         .enrichUsersWithOptimizedProfilePictures(uniqueUsers);
 
+      // Extract all post IDs for counting
       const postIds = notifications
         .map((n: any) => n.post?.id)
         .filter((id) => !!id);
 
-      const commentRecords = await strapi.entityService.findMany(
-        "api::comment.comment",
-        {
-          filters: { post: { id: { $in: postIds } } },
-          populate: { post: true },
-          limit: 1000,
-        }
+      // Use existing comment service to get comments count per post
+      const commentCounts = await Promise.all(
+        postIds.map(async (postId) => {
+          const count = await strapi
+            .service("api::comment.comment")
+            .getCommentsCount(postId);
+          return { postId, count };
+        })
       );
-      const commentCountMap: Record<string, number> = {};
-      commentRecords.forEach((rec) => {
-        const postId = (rec as any).post?.id;
-        if (postId)
-          commentCountMap[postId] = (commentCountMap[postId] || 0) + 1;
-      });
-      const likeRecords = await strapi.entityService.findMany(
-        "api::like.like",
-        {
-          filters: { post: { id: { $in: postIds } } },
-          populate: { post: true, liked_by: true },
-          limit: 1000,
-        }
+      const commentCountMap = Object.fromEntries(
+        commentCounts.map(({ postId, count }) => [postId, count])
       );
-      const likesCountMap: Record<string, number> = {};
-      likeRecords.forEach((rec) => {
-        const postId = (rec as any).post?.id;
-        if (postId) likesCountMap[postId] = (likesCountMap[postId] || 0) + 1;
-      });
+
+      // Use existing like service to get likes count per post
+      const likesCounts = await Promise.all(
+        postIds.map(async (postId) => {
+          const count = await strapi
+            .service("api::like.like")
+            .getLikesCount(postId);
+          return { postId, count };
+        })
+      );
+      const likesCountMap = Object.fromEntries(
+        likesCounts.map(({ postId, count }) => [postId, count])
+      );
 
       for (const n of notifications) {
         const post = (n as any).post;
         if (post) {
           let firstMedia = null;
-          if (Array.isArray(post.media) && post.media.length > 0)
+          if (Array.isArray(post.media) && post.media.length > 0) {
             firstMedia = post.media[0];
-          else if (
+          } else if (
             post.repost_of &&
             Array.isArray(post.repost_of.media) &&
             post.repost_of.media.length > 0
-          )
-            firstMedia = post.repost_of.media[0];
+          ) {
+            firstMedia = post.repost_of.media;
+          }
 
           if (firstMedia) {
             const [optimized] = await strapi
               .service("api::post.post")
               .getOptimisedFileData([firstMedia]);
             post.first_media = optimized || firstMedia;
-          } else post.first_media = null;
+          } else {
+            post.first_media = null;
+          }
 
-          if (post.repost_of && post.repost_of.title)
+          if (post.repost_of && post.repost_of.title) {
             post.display_title = post.repost_of.title;
-          else if (post.title) post.display_title = post.title;
-          else post.display_title = "";
+          } else if (post.title) {
+            post.display_title = post.title;
+          } else {
+            post.display_title = "";
+          }
 
           post.comments_count = commentCountMap[post.id] || 0;
           post.likes_count = likesCountMap[post.id] || 0;
@@ -119,7 +125,9 @@ export default factories.createCoreController(
 
       const count = await strapi.entityService.count(
         "api::notification.notification",
-        { filters: { user: currentUser.id } }
+        {
+          filters: { user: currentUser.id },
+        }
       );
 
       return ctx.send({
