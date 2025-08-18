@@ -1,5 +1,5 @@
 /**
- *** CRON FORMAT FOR NO FURTHER CONFUSION !!! ***
+ *** CRON FORMAT FOR NO FURTHER CONFUSION  ***
  * | (Minute) | (Hour) | (Day of Month) | (Month) | (Day of Week) |
  * |    0     |   0    |       *        |    *    |      *        |
  **/
