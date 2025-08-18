@@ -57,13 +57,39 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         repostOfData = original;
       }
 
-      data.posted_by = userId;
-      let mentionData = await strapi
-        .service("api::mention-policy.mention-policy")
-        .mentionUser(userId, data.content, data.post_type);
-      if (mentionData) {
-        data.mentioned_users = mentionData;
+      const mentionTexts: string[] = [];
+      if (typeof data.title === "string") mentionTexts.push(data.title);
+      if (typeof data.description === "string")
+        mentionTexts.push(data.description);
+
+      const mentionPromises = mentionTexts.map((text) =>
+        strapi
+          .service("api::mention-policy.mention-policy")
+          .mentionUser(userId, text, data.post_type)
+      );
+      const mentionsFromTextArrays = await Promise.all(mentionPromises);
+      const mentionsFromText = mentionsFromTextArrays.flat();
+
+      const taggedUsers = Array.isArray(data.tagged_users)
+        ? data.tagged_users
+        : [];
+      const taggedUserMentions = taggedUsers.map((id) => ({
+        user: id,
+        username: "",
+        start: null,
+        end: null,
+        mention_status: true,
+      }));
+
+      const allMentionsMap = new Map();
+      for (const mention of [...mentionsFromText, ...taggedUserMentions]) {
+        allMentionsMap.set(mention.user, mention);
       }
+      const finalMentions = Array.from(allMentionsMap.values());
+
+      data.mentioned_users = finalMentions;
+
+      data.posted_by = userId;
 
       const newPost = await strapi.entityService.create("api::post.post", {
         data,
@@ -112,7 +138,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
     }
   },
-
   async findOneAdmin(ctx) {
     const { id } = ctx.params;
 
@@ -973,7 +998,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     if (!targetUserId) return ctx.badRequest("User ID is required");
 
     try {
-      // Fetch the target user's is_public field
       const targetUser = await strapi.entityService.findOne(
         "plugin::users-permissions.user",
         targetUserId,
@@ -985,7 +1009,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         .service("api::post.post")
         .getUserAccessFlags(currentUserId, targetUserId);
 
-      // Allow viewing if public, owner, or following
       const canView = targetUser.is_public || isOwner || isFollowing;
       if (!canView) return ctx.send({ data: [] });
 
@@ -993,7 +1016,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         .service("api::post.post")
         .fetchUserPosts(targetUserId);
 
-      // Now filter post visibility by share_with rules
       const filteredPosts = posts.filter((post) => {
         if (isOwner || post.share_with === "PUBLIC") return true;
         if (post.share_with === "FOLLOWERS") return isFollowing;
