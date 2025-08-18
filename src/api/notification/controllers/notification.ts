@@ -7,12 +7,8 @@ export default factories.createCoreController(
       const { user: currentUser } = ctx.state;
       const { pagination_size, page } = ctx.query;
 
-      let default_pagination = {
-        pagination: { page: 1, pageSize: 10 },
-      };
-      if (pagination_size)
-        default_pagination.pagination.pageSize = Number(pagination_size);
-      if (page) default_pagination.pagination.page = Number(page);
+      const pageSize = pagination_size ? Number(pagination_size) : 10;
+      const currentPage = page ? Number(page) : 1;
 
       const notifications = await strapi.entityService.findMany(
         "api::notification.notification",
@@ -21,37 +17,29 @@ export default factories.createCoreController(
           sort: { createdAt: "desc" },
           populate: {
             user: {
-              fields: [
-                "id",
-                "username",
-                "name",
-                "avatar_ring_color",
-                "is_public",
-              ],
-              populate: { profile_picture: true },
+              populate: {
+                profile_picture: true,
+              },
             },
             post: {
               populate: {
-                media: { fields: ["id", "url", "mime"] },
+                media: true,
                 repost_of: {
-                  fields: ["title", "id"],
                   populate: {
-                    media: { fields: ["id", "url", "mime"] },
+                    media: true,
                   },
                 },
               },
             },
-
             actor: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
-              populate: { profile_picture: true },
+              populate: {
+                profile_picture: true,
+              },
             },
             comment: true,
           },
-          start:
-            (default_pagination.pagination.page - 1) *
-            default_pagination.pagination.pageSize,
-          limit: default_pagination.pagination.pageSize,
+          start: (currentPage - 1) * pageSize,
+          limit: pageSize,
         }
       );
 
@@ -67,56 +55,80 @@ export default factories.createCoreController(
         .service("api::post.post")
         .enrichUsersWithOptimizedProfilePictures(uniqueUsers);
 
+      const postIds = notifications
+        .map((n: any) => n.post?.id)
+        .filter((id) => !!id);
+
+      const commentRecords = await strapi.entityService.findMany(
+        "api::comment.comment",
+        {
+          filters: { post: { id: { $in: postIds } } },
+          populate: { post: true },
+          limit: 1000,
+        }
+      );
+      const commentCountMap: Record<string, number> = {};
+      commentRecords.forEach((rec) => {
+        const postId = (rec as any).post?.id;
+        if (postId)
+          commentCountMap[postId] = (commentCountMap[postId] || 0) + 1;
+      });
+      const likeRecords = await strapi.entityService.findMany(
+        "api::like.like",
+        {
+          filters: { post: { id: { $in: postIds } } },
+          populate: { post: true, liked_by: true },
+          limit: 1000,
+        }
+      );
+      const likesCountMap: Record<string, number> = {};
+      likeRecords.forEach((rec) => {
+        const postId = (rec as any).post?.id;
+        if (postId) likesCountMap[postId] = (likesCountMap[postId] || 0) + 1;
+      });
+
       for (const n of notifications) {
         const post = (n as any).post;
         if (post) {
           let firstMedia = null;
-
-          if (Array.isArray(post.media) && post.media.length > 0) {
+          if (Array.isArray(post.media) && post.media.length > 0)
             firstMedia = post.media[0];
-          } else if (
+          else if (
             post.repost_of &&
             Array.isArray(post.repost_of.media) &&
             post.repost_of.media.length > 0
-          ) {
+          )
             firstMedia = post.repost_of.media[0];
-          }
 
           if (firstMedia) {
             const [optimized] = await strapi
               .service("api::post.post")
               .getOptimisedFileData([firstMedia]);
             post.first_media = optimized || firstMedia;
-          } else {
-            post.first_media = null;
-          }
+          } else post.first_media = null;
 
-          if (post.repost_of && post.repost_of.title) {
+          if (post.repost_of && post.repost_of.title)
             post.display_title = post.repost_of.title;
-          } else if (post.title) {
-            post.display_title = post.title;
-          } else {
-            post.display_title = "";
-          }
+          else if (post.title) post.display_title = post.title;
+          else post.display_title = "";
+
+          post.comments_count = commentCountMap[post.id] || 0;
+          post.likes_count = likesCountMap[post.id] || 0;
         }
       }
 
       const count = await strapi.entityService.count(
         "api::notification.notification",
-        {
-          filters: { user: currentUser.id },
-        }
+        { filters: { user: currentUser.id } }
       );
 
       return ctx.send({
         data: notifications,
         meta: {
           pagination: {
-            page: default_pagination.pagination.page,
-            pageSize: default_pagination.pagination.pageSize,
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
+            page: currentPage,
+            pageSize,
+            pageCount: Math.ceil(count / pageSize),
             total: count,
           },
         },
