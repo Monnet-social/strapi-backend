@@ -10,5 +10,13 @@ module.exports = {
       path: "/search",
       handler: "tag.searchNavigation",
     },
+    {
+      method: "GET",
+      path: "/extract-tags",
+      handler: "tag.assignTags",
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

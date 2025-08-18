@@ -200,4 +200,34 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
       },
     });
   },
+  async assignTags(ctx) {
+    const findProducts = await strapi.entityService.findMany(
+      "api::post.post",
+      {}
+    );
+    for (let i = 0; i < findProducts.length; i++) {
+      const product = findProducts[i];
+      console.log(
+        "Processing product:",
+        product.id,
+        product.title,
+        product.description
+      );
+      if (product.title) {
+        await strapi
+          .service("api::tag.tag")
+          .extractTags(product.title, product.id);
+      }
+      if (product.description) {
+        await strapi.service("api::tag.tag").extractTags(
+          product.description,
+
+          product.id
+        );
+      }
+    }
+    return ctx.send({
+      message: "DONE",
+    });
+  },
 }));
