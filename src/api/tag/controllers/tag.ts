@@ -55,20 +55,16 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
       if (keyword[0] == "#") {
         keyword = keyword.substring(1);
       }
-      const results = await strapi.entityService.findMany(
-        "api::tag-link.tag-link",
-        {
-          filters: {
-            tag: {
-              name: { $containsi: keyword },
-            },
-          },
-          populate: { post: true },
-        }
-      );
-      const count = await strapi.entityService.count("api::tag-link.tag-link", {
+      const results = await strapi.entityService.findMany("api::post.post", {
         filters: {
-          tag: {
+          tags: {
+            name: { $containsi: keyword },
+          },
+        },
+      });
+      const count = await strapi.entityService.count("api::post.post", {
+        filters: {
+          tags: {
             name: { $containsi: keyword },
           },
         },
