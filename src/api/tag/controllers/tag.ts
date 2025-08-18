@@ -201,10 +201,11 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
     });
   },
   async assignTags(ctx) {
-    const findProducts = await strapi.entityService.findMany(
-      "api::post.post",
-      {}
-    );
+    const findProducts = await strapi.entityService.findMany("api::post.post", {
+      filters: {
+        id: 1012,
+      },
+    });
     for (let i = 0; i < findProducts.length; i++) {
       const product = findProducts[i];
       console.log(
