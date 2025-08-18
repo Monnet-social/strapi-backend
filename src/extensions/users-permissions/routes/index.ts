@@ -19,6 +19,14 @@ module.exports = [
   },
   {
     method: "GET",
+    path: "/test-tables",
+    handler: "profile.updateTables",
+    config: {
+      prefix: "",
+    },
+  },
+  {
+    method: "GET",
     path: "/user",
     handler: "authentication.getUser",
     config: {

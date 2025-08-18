@@ -548,6 +548,33 @@ module.exports = {
       );
     }
   },
+  async updateTables(ctx) {
+    const findUsers = await strapi.entityService.findMany(
+      "plugin::users-permissions.user",
+      {}
+    );
+
+    // Perform any necessary updates on the found users
+    for (const user of findUsers) {
+      // Example: Update the user's profile picture
+      console.log("USER", user);
+      await strapi.entityService.update(
+        "plugin::users-permissions.user",
+        user.id,
+        {
+          data: {
+            hide_like: false,
+            limit_autoplay: false,
+            flag_content: false,
+            show_category_on_feed: true,
+          },
+        }
+      );
+    }
+    return ctx.send({
+      message: "Updated user settings successfully.",
+    });
+  },
 
   async updateProfilePicture(ctx): Promise<void> {
     const { user } = ctx.state;
