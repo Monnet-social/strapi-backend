@@ -44,7 +44,7 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
       start: (page - 1) * paginationSize,
       limit: paginationSize,
     };
-
+    console.log("QUERY & PAGINATION OK");
     if (type === "tags") {
       if (keyword.startsWith("#")) keyword = keyword.substring(1);
       const tags = await strapi.entityService.findMany("api::tag.tag", {
@@ -169,13 +169,13 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
             ],
           }
         : {};
-
+      console.log("FILETERS OK");
       const posts = await strapi.entityService.findMany("api::post.post", {
         filters,
         sort: { createdAt: "desc" },
         ...pagination,
       });
-
+      console.log("POSTS OK");
       console.log(`Fetched posts count: ${posts.length}`);
       posts.forEach((p, idx) => {
         if (!p || !p.id) {
@@ -184,17 +184,17 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
       });
 
       const validPosts = posts.filter((p) => p && p.id);
-
+      console.log("VALID POSTS");
       const count = await strapi.entityService.count("api::post.post", {
         filters,
       });
-
+      console.log("COUNT OK");
       const hydratedPosts = await strapi
         .service("api::post.post")
         .preparePosts(validPosts, ctx.state.user ? ctx.state.user.id : null, {
           includeStories: false,
         });
-
+      console.log("HYDRATED POSTS OK");
       return ctx.send({
         data: hydratedPosts,
         meta: {

@@ -201,95 +201,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     });
   },
 
-  async enrichRepostsAndStats(
-    posts: Post[],
-    currentUserId: string | number
-  ): Promise<Post[]> {
-    const withReposts = await this.populateRepostData(posts, currentUserId);
-    await this.enrichPostsWithStats(withReposts, currentUserId);
-    const originalIds = withReposts
-      .filter((p) => p.repost_of && p.repost_of.id)
-      .map((p) => p.repost_of.id)
-      .filter(
-        (id): id is string | number =>
-          typeof id === "string" || typeof id === "number"
-      );
-    if (originalIds.length) {
-      const uniqueIds: (string | number)[] = Array.from(new Set(originalIds));
-      const originals = await strapi.entityService.findMany("api::post.post", {
-        filters: { id: { $in: uniqueIds } },
-        fields: ["id"],
-      });
-      await this.enrichPostsWithStats(originals, currentUserId);
-      const statsMap = new Map<string | number, PostStats>(
-        originals.map((o) => [o.id, o as PostStats])
-      );
-      for (const post of withReposts) {
-        if (post.repost_of && statsMap.has(post.repost_of.id)) {
-          const stats = statsMap.get(post.repost_of.id)!;
-          post.original_stats = {
-            likes_count: stats.likes_count ?? 0,
-            comments_count: stats.comments_count ?? 0,
-            share_count: stats.share_count ?? 0,
-            is_liked: !!stats.is_liked,
-            is_disliked: !!stats.is_disliked,
-            dislikes_count: stats.dislikes_count ?? 0,
-          };
-        }
-      }
-    }
-    return withReposts;
-  },
-
-  async mapSubcategoriesToPosts(posts: any[]) {
-    const categoryIds = [
-      ...new Set(
-        posts
-          .map((p) => p.category?.id)
-          .filter(
-            (id): id is string | number =>
-              typeof id === "string" || typeof id === "number"
-          )
-      ),
-    ];
-    if (!categoryIds.length) return new Map();
-    const allSubcats = await strapi.entityService.findMany(
-      "api::subcategory.subcategory",
-      {
-        filters: { category: { id: { $in: categoryIds } } },
-        populate: { category: true },
-        pagination: { limit: -1 },
-      }
-    );
-    const map = new Map();
-    for (const sub of allSubcats) {
-      const catId = (sub as any).category?.id;
-      if (!catId) continue;
-      if (!map.has(catId)) map.set(catId, []);
-      map.get(catId).push(sub);
-    }
-    return map;
-  },
-
-  async enrichMediaAndFollowStatus(posts, currentUserId) {
-    const usersToProcess = posts
-      .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
-      .filter(Boolean);
-    const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
-    const allMedia = posts.flatMap((p) => p.media || []).filter(Boolean);
-    const [optimizedMediaArray, followStatusMap] = await Promise.all([
-      this.getOptimisedFileData(allMedia),
-      strapi
-        .service("api::following.following")
-        .getFollowStatusForUsers(currentUserId, allUserIds),
-      this.enrichUsersWithOptimizedProfilePictures(usersToProcess),
-    ]);
-    const optimizedMediaMap = new Map(
-      (optimizedMediaArray || []).map((m) => [m.id, m])
-    );
-    return { optimizedMediaMap, followStatusMap };
-  },
-
   async resolveOriginalPost(postId: number): Promise<any | null> {
     if (!postId || isNaN(postId)) return null;
 
@@ -327,26 +238,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       strapi.log.error("Error resolving original post:", err);
       return null;
     }
-  },
-
-  mapFinalPosts(posts, subMap, optimizedMediaMap, followStatusMap) {
-    return posts.map((post) => {
-      const postCategoryId = post.category?.id;
-      return {
-        ...post,
-        subcategories: subMap.get(postCategoryId) || [],
-        is_repost: !!post.repost_of,
-        media: (post.media || []).map((m) => optimizedMediaMap.get(m.id) || m),
-        posted_by: {
-          ...post.posted_by,
-          ...followStatusMap.get(post.posted_by.id),
-        },
-        tagged_users: (post.tagged_users || []).map((user) => ({
-          ...user,
-          ...followStatusMap.get(user.id),
-        })),
-      };
-    });
   },
 
   async preparePostsForResponse(
@@ -390,27 +281,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     }
 
     return posts;
-  },
-
-  /**
-   * ========================
-   * Get Users with Stories
-   * ========================
-   */
-  async getUsersWithStories(userIds) {
-    if (!userIds || !userIds.length) return new Set();
-
-    const stories = await strapi.entityService.findMany("api::post.post", {
-      filters: {
-        posted_by: { id: { $in: userIds } },
-        post_type: "story",
-        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
-      },
-      fields: ["id"],
-      populate: { posted_by: { fields: ["id"] } },
-    });
-
-    return new Set(stories.map((s: any) => s.posted_by?.id).filter(Boolean));
   },
 
   /**
@@ -879,6 +749,157 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     });
   },
 
+  async enrichRepostsAndStats(
+    posts: Post[],
+    currentUserId: string | number
+  ): Promise<Post[]> {
+    const withReposts = await this.populateRepostData(posts, currentUserId);
+    await this.enrichPostsWithStats(withReposts, currentUserId);
+    const originalIds = withReposts
+      .filter((p) => p.repost_of && p.repost_of.id)
+      .map((p) => p.repost_of.id)
+      .filter(
+        (id): id is string | number =>
+          typeof id === "string" || typeof id === "number"
+      );
+    if (originalIds.length) {
+      const uniqueIds: (string | number)[] = Array.from(new Set(originalIds));
+      const originals = await strapi.entityService.findMany("api::post.post", {
+        filters: { id: { $in: uniqueIds } },
+        fields: ["id"],
+      });
+      await this.enrichPostsWithStats(originals, currentUserId);
+      const statsMap = new Map<string | number, PostStats>(
+        originals.map((o) => [o.id, o as PostStats])
+      );
+      for (const post of withReposts) {
+        if (post.repost_of && statsMap.has(post.repost_of.id)) {
+          const stats = statsMap.get(post.repost_of.id)!;
+          post.original_stats = {
+            likes_count: stats.likes_count ?? 0,
+            comments_count: stats.comments_count ?? 0,
+            share_count: stats.share_count ?? 0,
+            is_liked: !!stats.is_liked,
+            is_disliked: !!stats.is_disliked,
+            dislikes_count: stats.dislikes_count ?? 0,
+          };
+        }
+      }
+    }
+    return withReposts;
+  },
+
+  async mapSubcategoriesToPosts(posts: any[]) {
+    const categoryIds = [
+      ...new Set(
+        posts
+          .map((p) => p.category?.id)
+          .filter(
+            (id): id is string | number =>
+              typeof id === "string" || typeof id === "number"
+          )
+      ),
+    ];
+    if (!categoryIds.length) return new Map();
+    const allSubcats = await strapi.entityService.findMany(
+      "api::subcategory.subcategory",
+      {
+        filters: { category: { id: { $in: categoryIds } } },
+        populate: { category: true },
+        pagination: { limit: -1 },
+      }
+    );
+    const map = new Map();
+    for (const sub of allSubcats) {
+      const catId = (sub as any).category?.id;
+      if (!catId) continue;
+      if (!map.has(catId)) map.set(catId, []);
+      map.get(catId).push(sub);
+    }
+    return map;
+  },
+  mapFinalPosts(posts, subMap, optimizedMediaMap, followStatusMap) {
+    return posts
+      .map((post) => {
+        if (!post) {
+          console.error("mapFinalPosts: skipping null post", post);
+          return null;
+        }
+        const postCategoryId = post.category?.id ?? null;
+
+        if (!post.posted_by || !post.posted_by.id) {
+          console.warn(
+            `mapFinalPosts: post ${post.id} missing posted_by or posted_by.id`
+          );
+          // Optionally skip or set default posted_by
+          post.posted_by = post.posted_by || { id: null };
+        }
+
+        return {
+          ...post,
+          subcategories:
+            postCategoryId && subMap.has(postCategoryId)
+              ? subMap.get(postCategoryId)
+              : [],
+          is_repost: !!post.repost_of,
+          media: (post.media || []).map((m) =>
+            m && m.id ? optimizedMediaMap.get(m.id) || m : m
+          ),
+          posted_by: {
+            ...post.posted_by,
+            ...(post.posted_by && post.posted_by.id
+              ? followStatusMap.get(post.posted_by.id)
+              : {}),
+          },
+          tagged_users: (post.tagged_users || [])
+            .filter((u) => u && u.id)
+            .map((user) => ({
+              ...user,
+              ...(user && user.id ? followStatusMap.get(user.id) : {}),
+            })),
+        };
+      })
+      .filter(Boolean);
+  },
+  async enrichMediaAndFollowStatus(posts, currentUserId) {
+    const usersToProcess = posts
+      .flatMap((p) => [p.posted_by, ...(p.tagged_users || [])])
+      .filter(Boolean);
+    const allUserIds = [...new Set(usersToProcess.map((u) => u.id))];
+    const allMedia = posts.flatMap((p) => p.media || []).filter(Boolean);
+    const [optimizedMediaArray, followStatusMap] = await Promise.all([
+      this.getOptimisedFileData(allMedia),
+      strapi
+        .service("api::following.following")
+        .getFollowStatusForUsers(currentUserId, allUserIds),
+      this.enrichUsersWithOptimizedProfilePictures(usersToProcess),
+    ]);
+    const optimizedMediaMap = new Map(
+      (optimizedMediaArray || []).map((m) => [m.id, m])
+    );
+    return { optimizedMediaMap, followStatusMap };
+  },
+
+  /**
+   * ========================
+   * Get Users with Stories
+   * ========================
+   */
+  async getUsersWithStories(userIds) {
+    if (!userIds || !userIds.length) return new Set();
+
+    const stories = await strapi.entityService.findMany("api::post.post", {
+      filters: {
+        posted_by: { id: { $in: userIds } },
+        post_type: "story",
+        createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      fields: ["id"],
+      populate: { posted_by: { fields: ["id"] } },
+    });
+
+    return new Set(stories.map((s: any) => s.posted_by?.id).filter(Boolean));
+  },
   async preparePosts(
     posts: any[],
     currentUserId: number,

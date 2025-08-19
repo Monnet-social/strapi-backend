@@ -983,7 +983,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const enrichedPosts = await strapi
         .service("api::post.post")
         .preparePosts(posts, userId, { includeStories: true });
-
+      enrichedPosts.forEach((p) => {
+        p.hide_like = ctx.state.user.hide_like;
+        p.limit_autoplay = ctx.state.user.limit_autoplay;
+        p.flag_content = ctx.state.user.flag_content;
+        p.show_category_on_feed = ctx.state.user.show_category_on_feed;
+      });
       return ctx.send({
         data: enrichedPosts,
         meta: {
