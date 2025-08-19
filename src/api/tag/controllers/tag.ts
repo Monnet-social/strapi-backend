@@ -34,166 +34,155 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
       },
     });
   },
-
   async searchNavigation(ctx) {
-    const { pagination_size, page } = ctx.query;
-    let default_pagination: any = {
-      pagination: { page: 1, pageSize: 10 },
+    const paginationSize = Number(ctx.query.pagination_size) || 10;
+    const page = Number(ctx.query.page) || 1;
+    let keyword = (ctx.query.keyword as string) || "";
+    const type = (ctx.query.type as string) || "tags";
+
+    const pagination = {
+      start: (page - 1) * paginationSize,
+      limit: paginationSize,
     };
-    if (pagination_size)
-      default_pagination.pagination.pageSize = pagination_size;
-    if (page) default_pagination.pagination.page = page;
 
-    let keyword = (ctx.query.keyword as string) ?? "";
-    // type : tags | comments | accounts |posts
-    let { type } = ctx.query;
-    if (!type) {
-      type = "tags";
-    }
-
-    if (type == "tags") {
-      if (keyword[0] == "#") {
-        keyword = keyword.substring(1);
-      }
-      const results = await strapi.entityService.findMany("api::post.post", {
-        filters: {
-          tags: {
-            name: { $containsi: keyword },
-          },
-        },
+    if (type === "tags") {
+      if (keyword.startsWith("#")) keyword = keyword.substring(1);
+      const tags = await strapi.entityService.findMany("api::tag.tag", {
+        filters: keyword ? { name: { $containsi: keyword } } : {},
+        sort: { post_count: "desc" },
+        ...pagination,
       });
-      const count = await strapi.entityService.count("api::post.post", {
-        filters: {
-          tags: {
-            name: { $containsi: keyword },
-          },
-        },
+      const count = await strapi.entityService.count("api::tag.tag", {
+        filters: keyword ? { name: { $containsi: keyword } } : {},
       });
-
+      const data = tags.map((tag) => ({
+        id: tag.id,
+        name: tag.name,
+        post_count: tag.post_count || 0,
+      }));
       return ctx.send({
-        data: results,
+        data,
         meta: {
           pagination: {
-            page: Number(default_pagination.pagination.page),
-            pageSize: Number(default_pagination.pagination.pageSize),
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
+            page,
+            pageSize: paginationSize,
+            pageCount: Math.ceil(count / paginationSize),
             total: count,
           },
         },
       });
     }
-    if (type == "comments") {
+
+    if (type === "comments") {
+      const filters = keyword ? { comment: { $containsi: keyword } } : {};
       const results = await strapi.entityService.findMany(
         "api::comment.comment",
         {
-          filters: {
-            comment: { $containsi: keyword },
-          },
+          filters,
           populate: { post: true },
+          ...pagination,
         }
       );
       const count = await strapi.entityService.count("api::comment.comment", {
-        filters: {
-          comment: { $containsi: keyword },
-        },
+        filters,
       });
-
       return ctx.send({
         data: results,
         meta: {
           pagination: {
-            page: Number(default_pagination.pagination.page),
-            pageSize: Number(default_pagination.pagination.pageSize),
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
+            page,
+            pageSize: paginationSize,
+            pageCount: Math.ceil(count / paginationSize),
             total: count,
           },
         },
       });
     }
-    if (type == "accounts") {
-      const results = await strapi.entityService.findMany(
-        "plugin::users-permissions.user",
-        {
-          filters: {
+
+    if (type === "accounts") {
+      const filters = keyword
+        ? {
             $or: [
               { username: { $containsi: keyword } },
               { bio: { $containsi: keyword } },
             ],
-          },
-          populate: {
-            profile_picture: true,
-          },
+          }
+        : {};
+      const results = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        {
+          filters,
+          populate: { profile_picture: true },
+          ...pagination,
         }
       );
       const count = await strapi.entityService.count(
         "plugin::users-permissions.user",
         {
-          filters: {
-            $or: [
-              { username: { $containsi: keyword } },
-              { bio: { $containsi: keyword } },
-            ],
-          },
+          filters,
         }
       );
-
       return ctx.send({
         data: results,
         meta: {
           pagination: {
-            page: Number(default_pagination.pagination.page),
-            pageSize: Number(default_pagination.pagination.pageSize),
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
+            page,
+            pageSize: paginationSize,
+            pageCount: Math.ceil(count / paginationSize),
             total: count,
           },
         },
       });
     }
-    if (type == "posts") {
-      const results = await strapi.entityService.findMany("api::post.post", {
-        filters: {
-          $or: [
-            { title: { $containsi: keyword } },
-            { description: { $containsi: keyword } },
-          ],
-        },
-        populate: { posted_by: true },
+
+    if (type === "posts") {
+      const filters = keyword
+        ? {
+            $or: [
+              { title: { $containsi: keyword } },
+              { description: { $containsi: keyword } },
+            ],
+          }
+        : {};
+
+      const posts = await strapi.entityService.findMany("api::post.post", {
+        filters,
+        sort: { createdAt: "desc" },
+        ...pagination,
       });
+
+      // Filter out invalid posts before processing
+      const validPosts = posts.filter((post) => post && post.id);
+
       const count = await strapi.entityService.count("api::post.post", {
-        filters: {
-          $or: [
-            { title: { $containsi: keyword } },
-            { description: { $containsi: keyword } },
-          ],
-        },
+        filters,
       });
 
+      const hydratedPosts = await strapi
+        .service("api::post.post")
+        .preparePosts(validPosts, ctx.state.user ? ctx.state.user.id : null, {
+          includeStories: false,
+        });
+
       return ctx.send({
-        data: results,
+        data: hydratedPosts,
         meta: {
           pagination: {
-            page: Number(default_pagination.pagination.page),
-            pageSize: Number(default_pagination.pagination.pageSize),
-            pageCount: Math.ceil(
-              count / default_pagination.pagination.pageSize
-            ),
+            page,
+            pageSize: paginationSize,
+            pageCount: Math.ceil(count / paginationSize),
             total: count,
           },
         },
       });
     }
+
     return ctx.send({
       data: [],
       meta: {
         pagination: {
-          page: Number(default_pagination.pagination.page),
-          pageSize: Number(default_pagination.pagination.pageSize),
+          page,
+          pageSize: paginationSize,
           pageCount: 0,
           total: 0,
         },
@@ -201,10 +190,11 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
     });
   },
   async assignTags(ctx) {
-    const findProducts = await strapi.entityService.findMany(
-      "api::post.post",
-      {}
-    );
+    const findProducts = await strapi.entityService.findMany("api::post.post", {
+      filters: {
+        id: 1012,
+      },
+    });
     for (let i = 0; i < findProducts.length; i++) {
       const product = findProducts[i];
       console.log(
