@@ -43,7 +43,6 @@ export default factories.createCoreController(
         }
       );
 
-      // Collect users to enrich profile pictures
       const usersToEnrich: any[] = [];
       notifications.forEach((n: any) => {
         if (n.user) usersToEnrich.push(n.user);
@@ -61,7 +60,6 @@ export default factories.createCoreController(
         .map((n: any) => n.post?.id)
         .filter((id) => !!id);
 
-      // Use existing comment service to get comments count per post
       const commentCounts = await Promise.all(
         postIds.map(async (postId) => {
           const count = await strapi
@@ -74,7 +72,6 @@ export default factories.createCoreController(
         commentCounts.map(({ postId, count }) => [postId, count])
       );
 
-      // Use existing like service to get likes count per post
       const likesCounts = await Promise.all(
         postIds.map(async (postId) => {
           const count = await strapi

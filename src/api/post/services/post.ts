@@ -349,11 +349,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     });
   },
 
-  /**
-   * ==============================
-   * Common Post Enrichment Pipeline
-   * ==============================
-   */
   async preparePostsForResponse(
     posts,
     currentUserId,

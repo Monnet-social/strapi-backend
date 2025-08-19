@@ -108,7 +108,8 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
             ],
           }
         : {};
-      const results = await strapi.entityService.findMany(
+
+      const users = await strapi.entityService.findMany(
         "plugin::users-permissions.user",
         {
           filters,
@@ -116,14 +117,38 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
           ...pagination,
         }
       );
+
       const count = await strapi.entityService.count(
         "plugin::users-permissions.user",
         {
           filters,
         }
       );
+
+      const currentUserId = ctx.state.user?.id;
+      let enrichedUsers = users;
+
+      if (currentUserId) {
+        const followStatusMap = await strapi
+          .service("api::following.following")
+          .getFollowStatusForUsers(
+            currentUserId,
+            users.map((u) => u.id)
+          );
+
+        enrichedUsers = users.map((user) => ({
+          ...user,
+          is_follower: followStatusMap.get(user.id)?.is_follower || false,
+          is_following: followStatusMap.get(user.id)?.is_following || false,
+          is_request_sent:
+            followStatusMap.get(user.id)?.is_request_sent || false,
+          is_my_request_accepted:
+            followStatusMap.get(user.id)?.is_my_request_accepted || false,
+        }));
+      }
+
       return ctx.send({
-        data: results,
+        data: enrichedUsers,
         meta: {
           pagination: {
             page,
@@ -151,8 +176,14 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
         ...pagination,
       });
 
-      // Filter out invalid posts before processing
-      const validPosts = posts.filter((post) => post && post.id);
+      console.log(`Fetched posts count: ${posts.length}`);
+      posts.forEach((p, idx) => {
+        if (!p || !p.id) {
+          console.error(`Invalid post at index ${idx}:`, p);
+        }
+      });
+
+      const validPosts = posts.filter((p) => p && p.id);
 
       const count = await strapi.entityService.count("api::post.post", {
         filters,

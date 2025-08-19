@@ -270,6 +270,7 @@ export default factories.createCoreController(
         ctx.internalServerError(e.message);
       }
     },
+
     async updateMentionPolicy(ctx) {
       const userId = ctx.state.user.id;
 
