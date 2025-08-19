@@ -42,13 +42,12 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }
       }
 
+      // Use resolveOriginalPost service for reposts
       let repostOfData = null;
       if (data.repost_of) {
-        const original = await strapi.entityService.findOne(
-          "api::post.post",
-          data.repost_of,
-          { populate: { posted_by: true } }
-        );
+        const original = await strapi
+          .service("api::post.post")
+          .resolveOriginalPost(data.repost_of);
         if (!original) return ctx.badRequest("Original post not found.");
         if (original.posted_by.id === userId)
           return ctx.badRequest("You cannot repost your own post.");
@@ -61,7 +60,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       if (typeof data.title === "string") mentionTexts.push(data.title);
       if (typeof data.description === "string")
         mentionTexts.push(data.description);
-
       const mentionPromises = mentionTexts.map((text) =>
         strapi
           .service("api::mention-policy.mention-policy")
@@ -85,12 +83,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       for (const mention of [...mentionsFromText, ...taggedUserMentions]) {
         allMentionsMap.set(mention.user, mention);
       }
-      const finalMentions = Array.from(allMentionsMap.values());
-
-      data.mentioned_users = finalMentions;
-
+      data.mentioned_users = Array.from(allMentionsMap.values());
       data.posted_by = userId;
 
+      // Create the post first
       const newPost = await strapi.entityService.create("api::post.post", {
         data,
         populate: {
@@ -110,6 +106,18 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             : {}),
         },
       });
+
+      // Extract tags from title & description, then update post
+      if (typeof data.title === "string") {
+        await strapi
+          .service("api::tag.tag")
+          .extractTags(data.title, newPost.id);
+      }
+      if (typeof data.description === "string") {
+        await strapi
+          .service("api::tag.tag")
+          .extractTags(data.description, newPost.id);
+      }
 
       await strapi
         .service("api::post.post")

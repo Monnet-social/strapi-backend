@@ -921,6 +921,7 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
       'oneToMany',
       'plugin::users-permissions.user'
     >;
+    tags: Schema.Attribute.Relation<'oneToMany', 'api::tag.tag'>;
     title: Schema.Attribute.String;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
@@ -1026,36 +1027,6 @@ export interface ApiSubcategorySubcategory extends Struct.CollectionTypeSchema {
       Schema.Attribute.Private;
     name: Schema.Attribute.String;
     publishedAt: Schema.Attribute.DateTime;
-    updatedAt: Schema.Attribute.DateTime;
-    updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-  };
-}
-
-export interface ApiTagLinkTagLink extends Struct.CollectionTypeSchema {
-  collectionName: 'tag_links';
-  info: {
-    displayName: 'Tag Link';
-    pluralName: 'tag-links';
-    singularName: 'tag-link';
-  };
-  options: {
-    draftAndPublish: false;
-  };
-  attributes: {
-    comment: Schema.Attribute.Relation<'oneToOne', 'api::comment.comment'>;
-    createdAt: Schema.Attribute.DateTime;
-    createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
-      Schema.Attribute.Private;
-    locale: Schema.Attribute.String & Schema.Attribute.Private;
-    localizations: Schema.Attribute.Relation<
-      'oneToMany',
-      'api::tag-link.tag-link'
-    > &
-      Schema.Attribute.Private;
-    post: Schema.Attribute.Relation<'oneToOne', 'api::post.post'>;
-    publishedAt: Schema.Attribute.DateTime;
-    tag: Schema.Attribute.Relation<'oneToOne', 'api::tag.tag'>;
     updatedAt: Schema.Attribute.DateTime;
     updatedBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
@@ -1660,7 +1631,6 @@ declare module '@strapi/strapi' {
       'api::report.report': ApiReportReport;
       'api::share.share': ApiShareShare;
       'api::subcategory.subcategory': ApiSubcategorySubcategory;
-      'api::tag-link.tag-link': ApiTagLinkTagLink;
       'api::tag.tag': ApiTagTag;
       'plugin::content-releases.release': PluginContentReleasesRelease;
       'plugin::content-releases.release-action': PluginContentReleasesReleaseAction;
