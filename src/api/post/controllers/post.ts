@@ -21,6 +21,38 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       if (!data)
         return ctx.badRequest("Request body must contain a data object.");
 
+      // Normalize mentioned_users from tagged_users if tagged_users present
+      if (
+        data.tagged_users &&
+        Array.isArray(data.tagged_users) &&
+        data.tagged_users.length > 0
+      ) {
+        if (typeof data.tagged_users[0] === "number") {
+          data.mentioned_users = data.tagged_users
+            .filter((id) => id !== null && id !== undefined)
+            .map((userId) => ({
+              user: userId,
+              username: "",
+              start: 0,
+              end: 0,
+              mention_status: true,
+            }));
+        } else {
+          data.mentioned_users = data.tagged_users.filter((m) => m && m.user);
+        }
+      } else if (
+        !data.mentioned_users ||
+        !Array.isArray(data.mentioned_users)
+      ) {
+        data.mentioned_users = [];
+      } else {
+        // Also filter invalid mention objects in mentioned_users
+        data.mentioned_users = data.mentioned_users.filter(
+          (m) => m && m.user !== undefined && m.user !== null
+        );
+      }
+
+      // Validate other fields
       await strapi
         .service("api::post.post")
         .validateCloseFriendsList(
@@ -31,7 +63,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       await strapi.service("api::post.post").validateMediaFiles(data.media);
       await strapi.service("api::post.post").validateCategory(data.category);
 
-      const mentionedUserIds = (data.mentioned_users || []).map((m) => m.user);
+      // Extract valid mentioned user IDs for validation
+      const mentionedUserIds = data.mentioned_users.map((m) => m.user);
+
       if (mentionedUserIds.length) {
         await strapi
           .service("api::post.post")
@@ -59,6 +93,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         repostOfData = original;
       }
 
+      // Extract mentions automatically from title & description text
       const mentionTexts = [];
       if (typeof data.title === "string") mentionTexts.push(data.title);
       if (typeof data.description === "string")
@@ -70,58 +105,37 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
       const mentionsFromTextArrays = await Promise.all(mentionPromises);
       const mentionsFromText = mentionsFromTextArrays.flat();
-      if (
-        data.mentioned_users &&
-        data.mentioned_users.length > 0 &&
-        typeof data.mentioned_users === "number"
-      ) {
-        data.mentioned_users = data.mentioned_users.map((userId) => ({
-          user: userId,
-          username: "",
-          start: 0,
-          end: 0,
-          mention_status: true,
-        }));
-      }
-      const allMentionsMap = new Map();
-      for (const mention of [
-        ...mentionsFromText,
-        ...(data.mentioned_users || []),
-      ])
-        allMentionsMap.set(mention.user, mention);
 
+      // Merge automated mentions with normalized mentioned_users - filter valid
+      const allMentionsMap = new Map();
+      for (const mention of [...mentionsFromText, ...data.mentioned_users]) {
+        if (mention && mention.user !== null && mention.user !== undefined) {
+          allMentionsMap.set(mention.user, mention);
+        }
+      }
       data.mentioned_users = Array.from(allMentionsMap.values());
 
       data.posted_by = userId;
 
-      // Create post with mentioned_users component
+      // Create post with shallow populate only
       const newPost = await strapi.entityService.create("api::post.post", {
         data,
         populate: {
-          posted_by: { fields: ["id", "username", "name"] },
-          category: { fields: ["id", "name"] },
+          posted_by: true,
+          category: true,
           media: true,
-          repost_of: { populate: "*" },
-          mentioned_users: {
-            populate: {
-              user: {
-                fields: ["id", "username", "name", "profile_picture"],
-                populate: { profile_picture: true },
-              },
-            },
-          },
+          repost_of: true,
+          mentioned_users: true,
           ...(data.share_with === "CLOSE-FRIENDS" &&
           data.share_with_close_friends
             ? {
-                share_with_close_friends: {
-                  fields: ["id", "username", "name"],
-                },
+                share_with_close_friends: true,
               }
             : {}),
         },
       });
 
-      // Extract tags from title & description
+      // Extract tags asynchronously
       if (typeof data.title === "string") {
         await strapi
           .service("api::tag.tag")
@@ -133,6 +147,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           .extractTags(data.description, newPost.id);
       }
 
+      // Send notifications to mentioned users
       await strapi.service("api::post.post").notifyMentionsInPost(
         data.mentioned_users.map((m) => m.user),
         user,
@@ -140,9 +155,42 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         data.post_type
       );
 
-      // Compose final response post object
+      // Fetch fully populated post including nested profile_picture
+      const populatedPost = await strapi.entityService.findOne(
+        "api::post.post",
+        newPost.id,
+        {
+          populate: {
+            posted_by: {
+              fields: ["id", "username", "name"],
+              populate: { profile_picture: true },
+            },
+            category: true,
+            media: true,
+            repost_of: true,
+            mentioned_users: {
+              populate: {
+                user: {
+                  fields: ["id", "username", "name"],
+                  populate: { profile_picture: true },
+                },
+              },
+            },
+            ...(data.share_with === "CLOSE-FRIENDS" &&
+            data.share_with_close_friends
+              ? {
+                  share_with_close_friends: {
+                    fields: ["id", "username", "name"],
+                  },
+                }
+              : {}),
+          },
+        }
+      );
+
+      // Final response with repost info if applicable
       const responsePost = {
-        ...newPost,
+        ...populatedPost,
         is_repost: !!data.repost_of,
         ...(repostOfData
           ? { reposted_from: repostOfData.posted_by, repost_of: repostOfData }
