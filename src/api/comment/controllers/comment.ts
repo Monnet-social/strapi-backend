@@ -521,6 +521,7 @@ export default factories.createCoreController(
           "api::comment.comment",
           commentId
         );
+        //tes
         if (!comment) return ctx.notFound("Comment not found.");
 
         const existingLike = await strapi.entityService.findMany(
