@@ -77,9 +77,7 @@ export default factories.createCoreController(
         let mentionData = await strapi
           .service("api::mention-policy.mention-policy")
           .mentionUser(userId, comment, "comment");
-        if (mentionData) {
-          dataToCreate.mentioned_users = mentionData;
-        }
+        if (mentionData) dataToCreate.mentioned_users = mentionData;
 
         const newComment = await strapi.entityService.create(
           "api::comment.comment",
@@ -96,9 +94,31 @@ export default factories.createCoreController(
         );
 
         const notificationUtil = new NotificationService();
+        const actorUserName =
+          ctx.state.user.username || ctx.state.user.name || "a user";
+
+        if (dataToCreate.mentioned_users?.length) {
+          for (const mention of dataToCreate.mentioned_users) {
+            if (mention.user && mention.user !== userId) {
+              const mentionedUser = await strapi.entityService.findOne(
+                "plugin::users-permissions.user",
+                mention.user
+              );
+              const tokens = mentionedUser?.fcm_token ?? [];
+              await notificationUtil.notifyMention(
+                userId,
+                mention.user,
+                (newComment as any).id,
+                post_id,
+                actorUserName,
+                tokens[0]
+              );
+            }
+          }
+        }
 
         if (dataToCreate.repost_of) {
-          const originalComment: any = await strapi.entityService.findMany(
+          const originalComments = await strapi.entityService.findMany(
             "api::comment.comment",
             {
               filters: { id: dataToCreate.repost_of },
@@ -108,36 +128,24 @@ export default factories.createCoreController(
                 },
                 post: { fields: ["id"] },
               },
+              limit: 1,
             }
           );
-          const actorUserName =
-            ctx.state.user.username || ctx.state.user.name || "a user";
-
-          if (originalComment?.[0]?.commented_by?.fcm_token?.length > 0) {
-            await notificationUtil.sendPushNotification(
-              "Your comment was reposted",
-              `Your comment: "${originalComment[0]?.comment}" was reposted by ${actorUserName}.`,
-              {},
-              originalComment[0].commented_by.fcm_token
+          const origComment = originalComments[0];
+          if ((origComment as any)?.commented_by?.fcm_token?.length) {
+            await notificationUtil.notifyRepost(
+              userId,
+              (origComment as any).commented_by.id,
+              (newComment as any).id,
+              post_id,
+              actorUserName,
+              (origComment as any).commented_by.fcm_token
             );
           }
-
-          await strapi
-            .service("api::notification.notification")
-            .saveNotification(
-              "repost",
-              ctx.state.user.id,
-              originalComment[0]?.commented_by.id,
-              `Your comment: "${originalComment[0]?.comment}" was reposted by ${actorUserName}.`,
-              {
-                comment: originalComment[0].id,
-                post: originalComment[0]?.post.id,
-              }
-            );
         }
 
         if (dataToCreate.parent_comment) {
-          const parentComment: any = await strapi.entityService.findMany(
+          const parentComments = await strapi.entityService.findMany(
             "api::comment.comment",
             {
               filters: { id: dataToCreate.parent_comment },
@@ -146,29 +154,20 @@ export default factories.createCoreController(
                   fields: ["id", "username", "name", "fcm_token"],
                 },
               },
+              limit: 1,
             }
           );
-          const actorUserName =
-            ctx.state.user.username || ctx.state.user.name || "a user";
-
-          if (parentComment?.[0]?.commented_by?.fcm_token?.length > 0) {
-            await notificationUtil.sendPushNotification(
-              "You received a reply",
-              `Your comment: "${parentComment[0]?.comment}" was replied to by ${actorUserName}.`,
-              {},
-              parentComment[0].commented_by.fcm_token
+          const parentComment = parentComments[0];
+          if ((parentComment as any)?.commented_by?.fcm_token?.length) {
+            await notificationUtil.notifyReply(
+              userId,
+              (parentComment as any).commented_by.id,
+              (newComment as any).id,
+              post_id,
+              actorUserName,
+              (parentComment as any).commented_by.fcm_token
             );
           }
-
-          await strapi
-            .service("api::notification.notification")
-            .saveNotification(
-              "reply",
-              ctx.state.user.id,
-              parentComment[0]?.commented_by.id,
-              `Your comment: "${parentComment[0]?.comment}" was replied to by ${actorUserName}.`,
-              { comment: parentComment[0].id, post: parentComment[0]?.post.id }
-            );
         }
 
         if (dataToCreate.post) {
@@ -176,38 +175,24 @@ export default factories.createCoreController(
           const postRecord = await postService.resolveOriginalPost(
             dataToCreate.post
           );
-
           if (postRecord) {
-            const actorUserName =
-              ctx.state.user.username || ctx.state.user.name || "a user";
-            const notifyTitle = postRecord.title || "";
-            const notifyDescription = postRecord.description || "";
-
-            if (postRecord.posted_by?.fcm_token?.length > 0) {
-              await notificationUtil.sendPushNotification(
-                "Your post received a comment",
-                `Your post: "${notifyTitle}" received a comment from ${actorUserName}.`,
-                {},
-                postRecord.posted_by.fcm_token
-              );
-            }
-
-            await strapi
-              .service("api::notification.notification")
-              .saveNotification(
-                "comment",
-                ctx.state.user.id,
-                postRecord.posted_by.id,
-                `Your post: "${notifyTitle}" received a comment from ${actorUserName}.`,
-                { comment: newComment.id, post: postRecord.id }
-              );
+            const tokens = postRecord.posted_by?.fcm_token ?? [];
+            await notificationUtil.notifyComment(
+              userId,
+              postRecord.posted_by.id,
+              (newComment as any).id,
+              postRecord.id,
+              actorUserName,
+              tokens,
+              postRecord.title ?? ""
+            );
 
             (newComment as any).original_post_details = {
               id: postRecord.id,
-              title: notifyTitle,
-              description: notifyDescription,
-              posted_by: postRecord.posted_by || null,
-              media: postRecord.media || [],
+              title: postRecord.title,
+              description: postRecord.description,
+              posted_by: postRecord.posted_by,
+              media: postRecord.media,
             };
           }
         }
