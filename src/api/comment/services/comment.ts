@@ -25,6 +25,14 @@ export default factories.createCoreService(
               fields: ["id", "username", "name", "avatar_ring_color"],
               populate: { profile_picture: true },
             },
+            mentioned_users: {
+              populate: {
+                user: {
+                  fields: ["id", "username", "name", "avatar_ring_color"],
+                  populate: { profile_picture: true },
+                },
+              },
+            },
           },
         }
       );
@@ -32,7 +40,7 @@ export default factories.createCoreService(
       if (topLevelComments.length === 0) return [];
 
       const finalComments = await Promise.all(
-        topLevelComments.map(async (comment) => {
+        topLevelComments.map(async (comment: any) => {
           const repliesCount = await strapi.entityService.count(
             "api::comment.comment",
             { filters: { parent_comment: { id: comment.id } } }
@@ -42,6 +50,14 @@ export default factories.createCoreService(
             "api::like.like",
             { filters: { comment: { id: comment.id } } }
           );
+          let finalList = [];
+          for (let i = 0; i < comment?.mentioned_users?.length; i++) {
+            const status = comment.mentioned_users[i].mention_status;
+            if (status) {
+              finalList.push(comment.mentioned_users[i]);
+            }
+          }
+          comment.mentioned_users = finalList;
 
           return {
             ...comment,
