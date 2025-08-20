@@ -323,6 +323,7 @@ export default factories.createCoreController(
           comment: isRepostCaption
             ? item.comment || item.repost_caption || ""
             : item.comment || "",
+          mentioned_users: item.mentioned_users || [],
           createdAt: item.createdAt,
           commented_by: item.commented_by ?? item.user ?? null,
           repost_caption: isRepostCaption ? item.repost_caption || "" : "",
@@ -395,6 +396,14 @@ export default factories.createCoreController(
               commented_by: {
                 fields: "id,username,name,avatar_ring_color",
                 populate: { profile_picture: true },
+              },
+              mentioned_users: {
+                populate: {
+                  user: {
+                    fields: ["id", "username", "name", "avatar_ring_color"],
+                    populate: { profile_picture: true },
+                  },
+                },
               },
             },
             limit: 1,
@@ -518,6 +527,14 @@ export default factories.createCoreController(
             sort: { createdAt: "desc" },
             fields: "id,comment,createdAt,pinned",
             populate: {
+              mentioned_users: {
+                populate: {
+                  user: {
+                    fields: ["id", "username", "name", "avatar_ring_color"],
+                    populate: { profile_picture: true },
+                  },
+                },
+              },
               commented_by: {
                 fields: "id,username,name,avatar_ring_color",
                 populate: { profile_picture: true },
@@ -581,6 +598,20 @@ export default factories.createCoreController(
 
           finalResponse = await Promise.all(
             comments.map(async (comment: any) => {
+              console.log(
+                "Processing comment:",
+                comment.id,
+                comment.mentioned_users
+              );
+              let finalList = [];
+              for (let i = 0; i < comment?.mentioned_users?.length; i++) {
+                const status = comment.mentioned_users[i].mention_status;
+                if (status) {
+                  finalList.push(comment.mentioned_users[i]);
+                }
+              }
+              comment.mentioned_users = finalList;
+
               const [replies, likes] = await Promise.all([
                 strapi.entityService.count("api::comment.comment", {
                   filters: { parent_comment: { id: comment.id as number } },
