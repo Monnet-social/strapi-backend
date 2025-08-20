@@ -5,9 +5,8 @@ export default class NotificationService {
   static FIREBASE_APP = null;
 
   constructor() {
-    if (!NotificationService.FIREBASE_APP) {
+    if (!NotificationService.FIREBASE_APP)
       NotificationService.FIREBASE_APP = initializeApp();
-    }
   }
 
   async sendPushNotification(
@@ -43,10 +42,10 @@ export default class NotificationService {
 
   async saveNotification(
     type:
+      | "comment"
       | "mention"
       | "follow_request"
       | "reaction"
-      | "comment"
       | "repost"
       | "reply",
     actorId: number,
@@ -54,28 +53,127 @@ export default class NotificationService {
     message: string,
     extraData: { post?: number; comment?: number; original_post?: number } = {}
   ) {
-    try {
-      const data: any = {
-        type,
-        actor: actorId,
-        user: receiverId,
-        message,
-      };
-      if (extraData.post) data.post = extraData.post;
-      if (extraData.comment) data.comment = extraData.comment;
-      // Add any additional custom fields into a json field if necessary
+    const data: any = {
+      type,
+      actor: actorId,
+      user: receiverId,
+      message,
+    };
+    if (extraData.post) data.post = extraData.post;
+    if (extraData.comment) data.comment = extraData.comment;
+    // Add any additional customizations as needed
 
+    try {
       const created = await strapi.entityService.create(
         "api::notification.notification",
         {
           data,
         }
       );
-      console.log("Notification record created:", created.id);
+      console.log("Notification created:", created.id);
       return created;
     } catch (error) {
       console.error("Error creating notification record:", error);
       throw error;
+    }
+  }
+
+  /* Notification handlers */
+  async notifyMention(
+    actor: number,
+    mentionedUser: number,
+    commentId: number,
+    postId: number,
+    actorName: string,
+    fcm_token: string
+  ) {
+    const message = `${actorName} mentioned you in a comment.`;
+    await this.saveNotification("mention", actor, mentionedUser, message, {
+      comment: commentId,
+      post: postId,
+    });
+    if (fcm_token) {
+      await this.sendPushNotification("New Mention", message, {}, fcm_token);
+    }
+  }
+
+  async notifyRepost(
+    actor: number,
+    targetUser: number,
+    commentId: number,
+    postId: number,
+    actorName: string,
+    fcm_token: string
+  ) {
+    const message = `${actorName} reposted your comment.`;
+    await this.saveNotification("repost", actor, targetUser, message, {
+      comment: commentId,
+      post: postId,
+    });
+    if (fcm_token) {
+      await this.sendPushNotification(
+        "Comment Reposted",
+        message,
+        {},
+        fcm_token
+      );
+    }
+  }
+
+  async notifyReply(
+    actor: number,
+    targetUser: number,
+    commentId: number,
+    postId: number,
+    actorName: string,
+    fcm_token: string
+  ) {
+    const message = `${actorName} replied to your comment.`;
+    await this.saveNotification("reply", actor, targetUser, message, {
+      comment: commentId,
+      post: postId,
+    });
+    if (fcm_token) {
+      await this.sendPushNotification("New Reply", message, {}, fcm_token);
+    }
+  }
+
+  async notifyComment(
+    actor: number,
+    targetUser: number,
+    commentId: number,
+    postId: number,
+    actorName: string,
+    fcm_token: string,
+    postTitle: string
+  ) {
+    const message = `${actorName} commented on your post: ${postTitle}`;
+    await this.saveNotification("comment", actor, targetUser, message, {
+      comment: commentId,
+      post: postId,
+    });
+    if (fcm_token) {
+      await this.sendPushNotification("New Comment", message, {}, fcm_token);
+    }
+  }
+
+  async notifyFollow(
+    actor: number,
+    targetUser: number,
+    actorName: string,
+    fcm_token: string,
+    data: Record<string, any> = {}
+  ) {
+    const message = `${actorName} started following you.`;
+    await this.saveNotification(
+      "follow_request",
+      actor,
+      targetUser,
+      message,
+      data
+    );
+    if (fcm_token) {
+      await this.sendPushNotification("New Follower", message, {}, fcm_token);
     }
   }
 
@@ -92,9 +190,9 @@ export default class NotificationService {
       "plugin::users-permissions.user",
       user.id,
       {
-        data: { fcm_token: "" },
+        data: { fcm_token: null },
       }
     );
-    console.log("Removed invalid FCM token for user:", user.id);
+    console.log(`Removed invalid FCM token for user ${user.id}`);
   }
 }
