@@ -163,31 +163,18 @@ module.exports = {
         followRequestCount,
         activeStoriesCount,
       ] = await Promise.all([
-        strapi.entityService.count("api::post.post", {
-          filters: { posted_by: { id: userId }, post_type: "post" },
-        }),
-        strapi.entityService.count("api::following.following", {
-          filters: { subject: { id: userId } },
-        }),
-        strapi.entityService.count("api::following.following", {
-          filters: { follower: { id: userId } },
-        }),
+        strapi.service("api::following.following").getPostsCount(userId),
+        strapi.service("api::following.following").getFollowersCount(userId),
+        strapi.service("api::following.following").getFollowingCount(userId),
         strapi
           .service("api::following.following")
           .getMutualFollowersCount(currentUserId, userId),
-        strapi.entityService.count("api::follow-request.follow-request", {
-          filters: {
-            requested_by: { id: currentUserId },
-            requested_for: { id: userId },
-          },
-        }),
-        strapi.entityService.count("api::post.post", {
-          filters: {
-            posted_by: { id: userId },
-            post_type: "story",
-            createdAt: { $gte: twentyFourHoursAgo },
-          },
-        }),
+        strapi
+          .service("api::following.following")
+          .getFollowRequestCount(currentUserId, userId),
+        strapi
+          .service("api::following.following")
+          .getActiveStoriesCount(userId, twentyFourHoursAgo),
       ]);
 
       await strapi

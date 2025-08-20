@@ -140,4 +140,36 @@ export default ({ strapi }: { strapi }) => ({
 
     return result;
   },
+
+  getFollowersCount: async (userId: number) =>
+    strapi.entityService.count("api::following.following", {
+      filters: { subject: { id: userId } },
+    }),
+
+  getFollowingCount: async (userId: number) =>
+    strapi.entityService.count("api::following.following", {
+      filters: { follower: { id: userId } },
+    }),
+
+  getFollowRequestCount: async (currentUserId: number, targetUserId: number) =>
+    strapi.entityService.count("api::follow-request.follow-request", {
+      filters: {
+        requested_by: { id: currentUserId },
+        requested_for: { id: targetUserId },
+      },
+    }),
+
+  getActiveStoriesCount: async (userId: number, sinceDate: Date) =>
+    strapi.entityService.count("api::post.post", {
+      filters: {
+        posted_by: { id: userId },
+        post_type: "story",
+        createdAt: { $gte: sinceDate },
+      },
+    }),
+
+  getPostsCount: async (userId: number) =>
+    strapi.entityService.count("api::post.post", {
+      filters: { posted_by: { id: userId }, post_type: "post" },
+    }),
 });
