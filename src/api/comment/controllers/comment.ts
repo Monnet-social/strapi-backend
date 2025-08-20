@@ -302,30 +302,46 @@ export default factories.createCoreController(
     async getCommentsByPostId(ctx: any) {
       const { post_id: postIdParam } = ctx.params as { post_id?: string };
       const { user } = ctx.state as { user?: { id: number } };
-      const { page: pageParam = "1", pageSize: pageSizeParam = "10" } =
-        ctx.query as Record<string, string | undefined>;
+      const { page = "1", pageSize = "10" } = ctx.query as Record<
+        string,
+        string
+      >;
 
-      if (!user)
-        return ctx.unauthorized("You must be logged in to view comments.");
+      if (!user) return ctx.unauthorized("You must be logged in.");
 
-      const userId: number = user.id;
-      const postIdNum = Number(postIdParam);
-
-      if (!postIdNum || isNaN(postIdNum))
-        return ctx.badRequest("A valid Post ID is required.");
+      const userId = user.id;
+      const postId = Number(postIdParam);
+      if (!postId || isNaN(postId)) return ctx.badRequest("Invalid Post ID.");
 
       function shapeCommentData(
         item: any,
         isRepostCaption = false
       ): Record<string, any> {
+        // Get valid mentions
+        let mentions = Array.isArray(item.mentioned_users)
+          ? item.mentioned_users.filter((mu: any) => mu.mention_status === true)
+          : [];
+
+        // Always include at least one default mention object if mentions is empty
+        if (!mentions.length) {
+          mentions = [
+            {
+              mention_status: false, // default custom flag
+              username: "",
+              user: null,
+              start: null,
+              end: null,
+            },
+          ];
+        }
+
         return {
           id: item.id,
           comment: isRepostCaption
             ? item.comment || item.repost_caption || ""
             : item.comment || "",
-          mentioned_users: item.mentioned_users || [],
+          mentioned_users: mentions,
           createdAt: item.createdAt,
-          commented_by: item.commented_by ?? item.user ?? null,
           repost_caption: isRepostCaption ? item.repost_caption || "" : "",
           is_repost_caption: isRepostCaption,
           stats: item.stats || {
@@ -335,26 +351,32 @@ export default factories.createCoreController(
             is_liked_by_author: false,
           },
           user: item.user ?? item.commented_by ?? null,
-          username: item.commented_by?.username ?? item.user?.username ?? null,
-          name: item.commented_by?.name ?? item.user?.name ?? null,
+          username:
+            item.username ||
+            item.user?.username ||
+            item.commented_by?.username ||
+            null,
+          name: item.name || item.user?.name || item.commented_by?.name || null,
           avatar_ring_color:
-            item.commented_by?.avatar_ring_color ??
-            item.user?.avatar_ring_color ??
+            item.avatar_ring_color ||
+            item.user?.avatar_ring_color ||
+            item.commented_by?.avatar_ring_color ||
             "",
           profile_picture:
-            item.commented_by?.profile_picture ??
-            item.user?.profile_picture ??
+            item.profile_picture ||
+            item.user?.profile_picture ||
+            item.commented_by?.profile_picture ||
             null,
           pinned: item.pinned ?? false,
-          parent_comment: item.parent_comment ?? null,
+          parent: item.parent_comment ?? null,
           repost_of: item.repost_of ?? null,
         };
       }
 
       try {
-        const post = (await strapi.entityService.findOne(
+        const post = await strapi.entityService.findOne(
           "api::post.post",
-          postIdNum,
+          postId,
           {
             fields: ["id", "createdAt", "repost_caption"],
             populate: {
@@ -373,28 +395,25 @@ export default factories.createCoreController(
               },
             },
           }
-        )) as any;
+        );
 
         if (!post) return ctx.notFound("Post not found");
 
-        const postAuthorId: number | undefined = post.posted_by?.id;
-        const isRepost: boolean = !!post.repost_of;
-        const repostCaption: string = post.repost_caption
-          ? String(post.repost_caption).trim()
-          : "";
+        const isRepost = !!(post as any).repost_of;
+        const repostCaption = post.repost_caption?.trim() || "";
 
-        const pinnedArr = (await strapi.entityService.findMany(
+        const pinnedComments = await strapi.entityService.findMany(
           "api::comment.comment",
           {
             filters: {
-              post: { id: postIdNum },
-              parent_comment: { id: { $null: true } },
+              post: { id: postId },
+              parent_comment: null,
               pinned: true,
             },
-            fields: "id,comment,createdAt,pinned",
+            fields: ["id", "comment", "createdAt", "pinned"],
             populate: {
               commented_by: {
-                fields: "id,username,name,avatar_ring_color",
+                fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
               },
               mentioned_users: {
@@ -408,84 +427,22 @@ export default factories.createCoreController(
             },
             limit: 1,
           }
-        )) as any[];
+        );
 
-        let pinnedBlock: any[] = [];
-
-        if (Array.isArray(pinnedArr) && pinnedArr.length > 0) {
-          const pinned = pinnedArr[0];
-
-          await strapi
-            .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: [pinned],
-              userPaths: ["commented_by"],
-              currentUserId: userId,
-            });
-
-          const [replies, likes] = await Promise.all([
-            strapi.entityService.count("api::comment.comment", {
-              filters: { parent_comment: { id: pinned.id as number } },
-            }),
-            strapi.entityService.count("api::like.like", {
-              filters: { comment: { id: pinned.id as number } },
-            }),
-          ]);
-
-          let isLikedByAuthor = false;
-          if (postAuthorId) {
-            const authorLike = (await strapi.entityService.findMany(
-              "api::like.like",
-              {
-                filters: {
-                  comment: { id: pinned.id as number },
-                  liked_by: { id: postAuthorId },
-                },
-                limit: 1,
-              }
-            )) as any[];
-            isLikedByAuthor = authorLike.length > 0;
-          }
-
-          const userLike = (await strapi.entityService.findMany(
-            "api::like.like",
-            {
-              filters: {
-                liked_by: { id: userId },
-                comment: { id: pinned.id as number },
-              },
-              limit: 1,
-            }
-          )) as any[];
-
-          if (pinned.commented_by) {
-            await strapi
-              .service("api::post.post")
-              .enrichUsersWithOptimizedProfilePictures([pinned.commented_by]);
-          }
-
-          pinned.stats = {
-            likes,
-            replies,
-            is_liked: userLike.length > 0,
-            is_liked_by_author: isLikedByAuthor,
-          };
-          pinned.is_repost_caption = false;
-
-          pinnedBlock = [shapeCommentData(pinned)];
-        }
+        const pinnedBlock = pinnedComments.map((item: any) =>
+          shapeCommentData(item)
+        );
 
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
-          const postUser = post.posted_by;
-
+          const repostUser = (post as any).posted_by;
           repostCaptionBlock = [
             shapeCommentData(
               {
                 id: post.id,
-                repost_caption: repostCaption,
-                user: postUser,
-                commented_by: postUser,
+                comment: repostCaption,
+                user: repostUser,
+                commented_by: repostUser,
                 createdAt: post.createdAt,
                 stats: {
                   likes: 0,
@@ -493,40 +450,28 @@ export default factories.createCoreController(
                   is_liked: false,
                   is_liked_by_author: false,
                 },
-                pinned: false,
-                parent_comment: null,
-                repost_of: null,
+                mentioned_users: [],
               },
               true
             ),
           ];
-
-          await strapi
-            .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: repostCaptionBlock,
-              userPaths: ["commented_by"],
-              currentUserId: userId,
-            });
-
-          if (postUser) {
-            await strapi
-              .service("api::post.post")
-              .enrichUsersWithOptimizedProfilePictures([postUser]);
-          }
         }
 
-        const paginatedComments = (await strapi.entityService.findPage(
+        const paginatedComments = await strapi.entityService.findPage(
           "api::comment.comment",
           {
             filters: {
-              post: { id: postIdNum },
-              parent_comment: { id: { $null: true } },
+              post: { id: postId },
+              parent_comment: null,
               pinned: false,
             },
             sort: { createdAt: "desc" },
-            fields: "id,comment,createdAt,pinned",
+            fields: ["id", "comment", "createdAt", "pinned"],
             populate: {
+              commented_by: {
+                fields: ["id", "username", "name", "avatar_ring_color"],
+                populate: { profile_picture: true },
+              },
               mentioned_users: {
                 populate: {
                   user: {
@@ -535,128 +480,33 @@ export default factories.createCoreController(
                   },
                 },
               },
-              commented_by: {
-                fields: "id,username,name,avatar_ring_color",
-                populate: { profile_picture: true },
-              },
             },
-            page: Number(pageParam),
-            pageSize: Number(pageSizeParam),
+            page: Number(page) || 1,
+            pageSize: Number(pageSize) || 10,
           }
-        )) as { results: any[]; pagination: any };
+        );
 
         const { results: comments, pagination } = paginatedComments || {
           results: [],
           pagination: {},
         };
 
-        if (
-          !Array.isArray(comments) &&
-          pinnedBlock.length === 0 &&
-          repostCaptionBlock.length === 0
-        )
-          return ctx.send({ data: [], meta: { pagination } });
-
-        let finalResponse: any[] = [];
-
-        if (comments.length > 0) {
-          await strapi
-            .service("api::following.following")
-            .enrichItemsWithFollowStatus({
-              items: comments,
-              userPaths: ["commented_by"],
-              currentUserId: userId,
-            });
-
-          const commentIds = comments.map((c: any) => c.id as number);
-
-          const [userLikes, authorLikes] = await Promise.all([
-            strapi.entityService.findMany("api::like.like", {
-              filters: {
-                liked_by: { id: userId },
-                comment: { id: { $in: commentIds } },
-              },
-              populate: { comment: { fields: ["id"] } },
-            }) as Promise<any[]>,
-            postAuthorId
-              ? (strapi.entityService.findMany("api::like.like", {
-                  filters: {
-                    liked_by: { id: postAuthorId },
-                    comment: { id: { $in: commentIds } },
-                  },
-                  populate: { comment: { fields: ["id"] } },
-                }) as Promise<any[]>)
-              : Promise.resolve([] as any[]),
-          ]);
-
-          const likedCommentIds = new Set(
-            userLikes.map((like: any) => like.comment?.id).filter(Boolean)
-          );
-          const authorLikedCommentIds = new Set(
-            authorLikes.map((like: any) => like.comment?.id).filter(Boolean)
-          );
-
-          finalResponse = await Promise.all(
-            comments.map(async (comment: any) => {
-              console.log(
-                "Processing comment:",
-                comment.id,
-                comment.mentioned_users
-              );
-              let finalList = [];
-              for (let i = 0; i < comment?.mentioned_users?.length; i++) {
-                const status = comment.mentioned_users[i].mention_status;
-                if (status) {
-                  finalList.push(comment.mentioned_users[i]);
-                }
-              }
-              comment.mentioned_users = finalList;
-
-              const [replies, likes] = await Promise.all([
-                strapi.entityService.count("api::comment.comment", {
-                  filters: { parent_comment: { id: comment.id as number } },
-                }),
-                strapi.entityService.count("api::like.like", {
-                  filters: { comment: { id: comment.id as number } },
-                }),
-              ]);
-
-              if (comment.commented_by) {
-                await strapi
-                  .service("api::post.post")
-                  .enrichUsersWithOptimizedProfilePictures([
-                    comment.commented_by,
-                  ]);
-              }
-
-              return shapeCommentData({
-                ...comment,
-                stats: {
-                  likes,
-                  replies,
-                  is_liked: likedCommentIds.has(comment.id),
-                  is_liked_by_author: authorLikedCommentIds.has(comment.id),
-                },
-              });
-            })
-          );
-        }
-
-        const topBlock = [...pinnedBlock, ...repostCaptionBlock];
-        const data =
-          Number(pageParam) === 1
-            ? [...topBlock, ...finalResponse]
-            : finalResponse;
-
-        return ctx.send({ data, meta: { pagination } });
-      } catch (error: any) {
-        strapi.log.error("Error fetching post comments:", error);
-        return ctx.internalServerError(
-          "An error occurred while fetching comments."
+        const enrichedComments = (comments || []).map((item: any) =>
+          shapeCommentData(item)
         );
+
+        const response = [
+          ...pinnedBlock,
+          ...repostCaptionBlock,
+          ...enrichedComments,
+        ];
+
+        return ctx.send({ data: response, meta: { pagination } });
+      } catch (error) {
+        ctx.log.error("Error fetching comments:", error);
+        return ctx.internalServerError("Error retrieving comments.");
       }
     },
-
     async likeComment(ctx: Context) {
       const { id: commentId } = ctx.params;
       const { id: userId } = ctx.state.user;
