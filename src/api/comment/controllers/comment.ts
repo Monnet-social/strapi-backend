@@ -664,7 +664,7 @@ export default factories.createCoreController(
 
         const postAuthorId = (parentComment as any).post?.posted_by?.id;
 
-        const paginatedReplies = await strapi.entityService.findPage(
+        const paginatedReplies: any = await strapi.entityService.findPage(
           "api::comment.comment",
           {
             filters: { parent_comment: { id: parentCommentId } },
@@ -673,6 +673,14 @@ export default factories.createCoreController(
               commented_by: {
                 fields: ["id", "username", "name", "avatar_ring_color"],
                 populate: { profile_picture: true },
+              },
+              mentioned_users: {
+                populate: {
+                  user: {
+                    fields: ["id", "username", "name", "avatar_ring_color"],
+                    populate: { profile_picture: true },
+                  },
+                },
               },
             },
             page: Number(page),
@@ -687,6 +695,14 @@ export default factories.createCoreController(
 
         const authorsMap = new Map();
         replies.forEach((reply) => {
+          let finalList = [];
+          for (let i = 0; i < replies?.mentioned_users?.length; i++) {
+            const status = replies.mentioned_users[i].mention_status;
+            if (status) {
+              finalList.push(replies.mentioned_users[i]);
+            }
+          }
+          replies.mentioned_users = finalList;
           if (reply.commented_by)
             authorsMap.set(reply.commented_by.id, reply.commented_by);
         });
