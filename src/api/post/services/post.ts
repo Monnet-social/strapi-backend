@@ -399,23 +399,23 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
    * Notify Mentions in a Post
    * ===========================
    */
-  async notifyMentionsInPost(taggedUserIds, actorUser, postId, postType) {
-    if (!Array.isArray(taggedUserIds) || !taggedUserIds.length) return;
+  async notifyMentionsInPost(mentionedUserIds, actorUser, postId, postType) {
+    if (!Array.isArray(mentionedUserIds) || !mentionedUserIds.length) return;
 
-    for (const taggedUserId of taggedUserIds) {
+    for (const userId of mentionedUserIds) {
       const notifMsg = `${actorUser.username} mentioned you in a ${postType === "story" ? "story" : "post"}.`;
       const notificationService = new NotificationService();
       await notificationService.saveNotification(
         "mention",
         actorUser.id,
-        taggedUserId,
+        userId,
         notifMsg,
         { post: postId }
       );
 
       const recipient = await strapi.entityService.findOne(
         "plugin::users-permissions.user",
-        taggedUserId,
+        userId,
         {
           fields: ["fcm_token"],
         }
@@ -431,7 +431,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       }
     }
   },
-
   /**
    * ===============================
    * Prepare Single Post for Response
@@ -456,14 +455,20 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       ...followStatusMap.get(postEntity.posted_by.id),
     };
 
-    postEntity.tagged_users = (postEntity.tagged_users || []).map((u) => ({
-      ...u,
-      ...followStatusMap.get(u.id),
-    }));
+    postEntity.mentioned_users = (postEntity.mentioned_users || []).map(
+      (mention) => ({
+        ...mention,
+        user: {
+          ...mention.user,
+          ...followStatusMap.get(mention.user?.id),
+        },
+      })
+    );
+
+    delete postEntity.tagged_users;
 
     return postEntity;
   },
-
   /**
    * ================
    * Enrich Stories
@@ -825,13 +830,13 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
           console.error("mapFinalPosts: skipping null post", post);
           return null;
         }
+
         const postCategoryId = post.category?.id ?? null;
 
         if (!post.posted_by || !post.posted_by.id) {
           console.warn(
             `mapFinalPosts: post ${post.id} missing posted_by or posted_by.id`
           );
-          // Optionally skip or set default posted_by
           post.posted_by = post.posted_by || { id: null };
         }
 
@@ -851,12 +856,25 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
               ? followStatusMap.get(post.posted_by.id)
               : {}),
           },
-          tagged_users: (post.tagged_users || [])
-            .filter((u) => u && u.id)
-            .map((user) => ({
-              ...user,
-              ...(user && user.id ? followStatusMap.get(user.id) : {}),
-            })),
+
+          // Remove tagged_users mapping:
+          // tagged_users: (post.tagged_users || [])
+          //   .filter((u) => u && u.id)
+          //   .map((user) => ({
+          //     ...user,
+          //     ...(user && user.id ? followStatusMap.get(user.id) : {}),
+          //   })),
+
+          // New mentioned_users mapping (hydrate nested user with follow status):
+          mentioned_users: (post.mentioned_users || []).map((mention) => ({
+            ...mention,
+            user: {
+              ...mention.user,
+              ...(mention.user && mention.user.id
+                ? followStatusMap.get(mention.user.id)
+                : {}),
+            },
+          })),
         };
       })
       .filter(Boolean);

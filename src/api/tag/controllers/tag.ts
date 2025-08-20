@@ -169,32 +169,39 @@ export default factories.createCoreController("api::tag.tag", ({ strapi }) => ({
             ],
           }
         : {};
-      console.log("FILETERS OK");
-      const posts = await strapi.entityService.findMany("api::post.post", {
+
+      // Fetch posts with all appropriate relations populated, just like in feed
+      const postsRaw = await strapi.entityService.findMany("api::post.post", {
         filters,
         sort: { createdAt: "desc" },
-        ...pagination,
+        populate: {
+          posted_by: {
+            fields: ["id", "username", "name", "avatar_ring_color"],
+            populate: { profile_picture: true },
+          },
+          category: true,
+          tagged_users: {
+            fields: ["id", "username", "name", "avatar_ring_color"],
+            populate: { profile_picture: true },
+          },
+          media: true,
+          repost_of: true,
+        },
+        start: (page - 1) * paginationSize,
+        limit: paginationSize,
       });
-      console.log("POSTS OK");
-      console.log(`Fetched posts count: ${posts.length}`);
-      posts.forEach((p, idx) => {
-        if (!p || !p.id) {
-          console.error(`Invalid post at index ${idx}:`, p);
-        }
-      });
-
-      const validPosts = posts.filter((p) => p && p.id);
-      console.log("VALID POSTS");
       const count = await strapi.entityService.count("api::post.post", {
         filters,
       });
-      console.log("COUNT OK");
+
+      const validPosts = postsRaw.filter((p) => p && p.id);
+
       const hydratedPosts = await strapi
         .service("api::post.post")
         .preparePosts(validPosts, ctx.state.user ? ctx.state.user.id : null, {
           includeStories: false,
         });
-      console.log("HYDRATED POSTS OK");
+
       return ctx.send({
         data: hydratedPosts,
         meta: {

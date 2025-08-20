@@ -30,9 +30,13 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         );
       await strapi.service("api::post.post").validateMediaFiles(data.media);
       await strapi.service("api::post.post").validateCategory(data.category);
-      await strapi
-        .service("api::post.post")
-        .validateTaggedUsers(data.tagged_users, userId);
+
+      const mentionedUserIds = (data.mentioned_users || []).map((m) => m.user);
+      if (mentionedUserIds.length) {
+        await strapi
+          .service("api::post.post")
+          .validateTaggedUsers(mentionedUserIds, userId);
+      }
 
       if (data.location?.address) {
         const geo = await HelperService.geocodeAddress(data.location.address);
@@ -42,7 +46,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         }
       }
 
-      // Use resolveOriginalPost service for reposts
       let repostOfData = null;
       if (data.repost_of) {
         const original = await strapi
@@ -56,7 +59,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         repostOfData = original;
       }
 
-      const mentionTexts: string[] = [];
+      const mentionTexts = [];
       if (typeof data.title === "string") mentionTexts.push(data.title);
       if (typeof data.description === "string")
         mentionTexts.push(data.description);
@@ -67,35 +70,46 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       );
       const mentionsFromTextArrays = await Promise.all(mentionPromises);
       const mentionsFromText = mentionsFromTextArrays.flat();
-
-      const taggedUsers = Array.isArray(data.tagged_users)
-        ? data.tagged_users
-        : [];
-      const taggedUserMentions = taggedUsers.map((id) => ({
-        user: id,
-        username: "",
-        start: null,
-        end: null,
-        mention_status: true,
-      }));
-
-      const allMentionsMap = new Map();
-      for (const mention of [...mentionsFromText, ...taggedUserMentions]) {
-        allMentionsMap.set(mention.user, mention);
+      if (
+        data.mentioned_users &&
+        data.mentioned_users.length > 0 &&
+        typeof data.mentioned_users === "number"
+      ) {
+        data.mentioned_users = data.mentioned_users.map((userId) => ({
+          user: userId,
+          username: "",
+          start: 0,
+          end: 0,
+          mention_status: true,
+        }));
       }
+      const allMentionsMap = new Map();
+      for (const mention of [
+        ...mentionsFromText,
+        ...(data.mentioned_users || []),
+      ])
+        allMentionsMap.set(mention.user, mention);
+
       data.mentioned_users = Array.from(allMentionsMap.values());
+
       data.posted_by = userId;
 
-      // Create the post first
+      // Create post with mentioned_users component
       const newPost = await strapi.entityService.create("api::post.post", {
         data,
         populate: {
           posted_by: { fields: ["id", "username", "name"] },
-          tagged_users: { fields: ["id", "username", "name"] },
           category: { fields: ["id", "name"] },
           media: true,
           repost_of: { populate: "*" },
-          mentioned_users: { populate: "*" },
+          mentioned_users: {
+            populate: {
+              user: {
+                fields: ["id", "username", "name", "profile_picture"],
+                populate: { profile_picture: true },
+              },
+            },
+          },
           ...(data.share_with === "CLOSE-FRIENDS" &&
           data.share_with_close_friends
             ? {
@@ -107,7 +121,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         },
       });
 
-      // Extract tags from title & description, then update post
+      // Extract tags from title & description
       if (typeof data.title === "string") {
         await strapi
           .service("api::tag.tag")
@@ -119,15 +133,14 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           .extractTags(data.description, newPost.id);
       }
 
-      await strapi
-        .service("api::post.post")
-        .notifyMentionsInPost(
-          data.tagged_users,
-          user,
-          newPost.id,
-          data.post_type
-        );
+      await strapi.service("api::post.post").notifyMentionsInPost(
+        data.mentioned_users.map((m) => m.user),
+        user,
+        newPost.id,
+        data.post_type
+      );
 
+      // Compose final response post object
       const responsePost = {
         ...newPost,
         is_repost: !!data.repost_of,
@@ -983,12 +996,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const enrichedPosts = await strapi
         .service("api::post.post")
         .preparePosts(posts, userId, { includeStories: true });
-      enrichedPosts.forEach((p) => {
-        p.hide_like = ctx.state.user.hide_like;
-        p.limit_autoplay = ctx.state.user.limit_autoplay;
-        p.flag_content = ctx.state.user.flag_content;
-        p.show_category_on_feed = ctx.state.user.show_category_on_feed;
-      });
+
       return ctx.send({
         data: enrichedPosts,
         meta: {
