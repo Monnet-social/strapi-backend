@@ -5,7 +5,6 @@ import HelperService from "../../../utils/helper_service";
 import NotificationService from "../../../utils/notification_service";
 
 const { createCoreController } = require("@strapi/strapi").factories;
-
 module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   //================================================================
   // CORE POST CONTROLLERS
