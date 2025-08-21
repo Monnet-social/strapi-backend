@@ -111,5 +111,55 @@ export default factories.createCoreService(
 
       return finalMention;
     },
+
+    async isMentionAllowed(
+      currentUserId: any,
+      mentionedUserId: any,
+      policy: string
+    ): Promise<boolean> {
+      if (policy === "anyone") return true;
+
+      if (currentUserId === mentionedUserId) return true;
+
+      if (policy === "followers") {
+        const isFollower = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: currentUserId,
+              subject: mentionedUserId,
+            },
+            limit: 1,
+          }
+        );
+        return isFollower.length > 0;
+      }
+
+      if (policy === "friends") {
+        const isCloseFriend = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              $or: [
+                {
+                  subject: currentUserId,
+                  follower: mentionedUserId,
+                  is_close_friend: true,
+                },
+                {
+                  subject: mentionedUserId,
+                  follower: currentUserId,
+                  is_close_friend: true,
+                },
+              ],
+            },
+            limit: 1,
+          }
+        );
+        return isCloseFriend.length > 0;
+      }
+
+      return false;
+    },
   })
 );

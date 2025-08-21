@@ -297,17 +297,34 @@ export default factories.createCoreController(
       const userId = user.id;
       const postId = Number(postIdParam);
       if (!postId || isNaN(postId)) return ctx.badRequest("Invalid Post ID.");
+      const mentionPolicyService = strapi.service(
+        "api::mention-policy.mention-policy"
+      );
 
-      function shapeCommentData(
+      // Function to determine if mention is allowed
+      async function enrichMentionWithPolicy(mention: any) {
+        const policy = mention.comment_policy || "anyone";
+        const mentionedUserId = mention.user?.id || mention.user;
+
+        // If no mentioned user ID, deny access
+        if (!mentionedUserId) return { ...mention, is_allowed: false };
+
+        const allowed = await mentionPolicyService.isMentionAllowed(
+          userId,
+          mentionedUserId,
+          policy
+        );
+
+        return { ...mention, is_allowed: allowed };
+      }
+      async function shapeCommentData(
         item: any,
         isRepostCaption = false
-      ): Record<string, any> {
-        // Get valid mentions
+      ): Promise<Record<string, any>> {
         let mentions = Array.isArray(item.mentioned_users)
           ? item.mentioned_users.filter((mu: any) => mu.mention_status === true)
           : [];
 
-        // Always include at least one default mention object if mentions is empty
         if (!mentions.length) {
           mentions = [
             {
@@ -316,8 +333,16 @@ export default factories.createCoreController(
               user: null,
               start: null,
               end: null,
+              is_allowed: true,
             },
           ];
+        } else {
+          const enrichedMentions = [];
+          for (const mention of mentions) {
+            const enriched = await enrichMentionWithPolicy(mention);
+            enrichedMentions.push(enriched);
+          }
+          mentions = enrichedMentions;
         }
 
         return {
@@ -357,7 +382,6 @@ export default factories.createCoreController(
           repost_of: item.repost_of ?? null,
         };
       }
-
       try {
         const post = await strapi.entityService.findOne(
           "api::post.post",
@@ -476,8 +500,8 @@ export default factories.createCoreController(
           pagination: {},
         };
 
-        const enrichedComments = (comments || []).map((item: any) =>
-          shapeCommentData(item)
+        const enrichedComments = await Promise.all(
+          (comments || []).map((item: any) => shapeCommentData(item))
         );
 
         const response = [
