@@ -335,7 +335,7 @@ export default factories.createCoreController(
             is_liked: false,
             is_liked_by_author: false,
           },
-          user: item.user ?? item.commented_by ?? null,
+          author: item.user ?? item.commented_by ?? null,
           username:
             item.username ||
             item.user?.username ||
