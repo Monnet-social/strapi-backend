@@ -19,29 +19,17 @@
     "comment_policy": {
       "type": "enumeration",
       "default": "anyone",
-      "enum": [
-        "friends",
-        "followers",
-        "anyone"
-      ]
+      "enum": ["friends", "followers", "anyone", "no_one"]
     },
     "story_policy": {
       "type": "enumeration",
       "default": "anyone",
-      "enum": [
-        "friends",
-        "followers",
-        "anyone"
-      ]
+      "enum": ["friends", "followers", "anyone", "no_one"]
     },
     "post_policy": {
       "type": "enumeration",
       "default": "anyone",
-      "enum": [
-        "friends",
-        "followers",
-        "anyone"
-      ]
+      "enum": ["friends", "followers", "anyone", "no_one"]
     }
   }
 }
