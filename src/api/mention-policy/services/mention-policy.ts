@@ -6,10 +6,14 @@ export default factories.createCoreService(
     async findOrCreateMentionPolicy(userId) {
       const findMentionPolicy = await strapi.entityService.findMany(
         "api::mention-policy.mention-policy",
-        { filters: { user: userId } }
+        { filters: { user: { id: Number(userId) } } }
       );
+      console.log("Mention Policy:", findMentionPolicy, userId);
 
-      if (findMentionPolicy.length > 0) return findMentionPolicy[0];
+      if (findMentionPolicy.length > 0) {
+        console.log("TEST", findMentionPolicy[0]);
+        return findMentionPolicy[0];
+      }
       const findUser = await strapi.entityService.findMany(
         "plugin::users-permissions.user",
         { filters: { id: userId } }
