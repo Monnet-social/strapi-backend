@@ -50,7 +50,9 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           (m) => m && m.user !== undefined && m.user !== null
         );
       }
-
+      if (data.share_with === "PUBLIC") {
+        data.share_with_close_friends = [];
+      }
       // Validate other fields
       await strapi
         .service("api::post.post")
