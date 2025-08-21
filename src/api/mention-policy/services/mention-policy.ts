@@ -6,7 +6,7 @@ export default factories.createCoreService(
     async findOrCreateMentionPolicy(userId) {
       const findMentionPolicy = await strapi.entityService.findMany(
         "api::mention-policy.mention-policy",
-        { filters: { user: { id: Number(userId) } } }
+        { filters: { user: userId } }
       );
       console.log("Mention Policy:", findMentionPolicy, userId);
 

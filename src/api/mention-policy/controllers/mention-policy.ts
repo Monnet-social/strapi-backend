@@ -295,5 +295,16 @@ export default factories.createCoreController(
         message: "Updated mention policy successfully!",
       });
     },
+    async getMentionPolicy(ctx) {
+      const userId = ctx.state.user.id;
+
+      let findMentionPolicy = await strapi
+        .service("api::mention-policy.mention-policy")
+        .findOrCreateMentionPolicy(userId);
+
+      return ctx.send({
+        mention_policy: findMentionPolicy,
+      });
+    },
   })
 );

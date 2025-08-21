@@ -20,5 +20,14 @@ module.exports = {
         middlewares: [],
       },
     },
+    {
+      method: "GET",
+      path: "/mention-policy",
+      handler: "mention-policy.getMentionPolicy",
+      config: {
+        policies: [], // add auth/policies if you need
+        middlewares: [],
+      },
+    },
   ],
 };
