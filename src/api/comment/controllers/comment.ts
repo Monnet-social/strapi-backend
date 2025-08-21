@@ -297,6 +297,7 @@ export default factories.createCoreController(
       const userId = user.id;
       const postId = Number(postIdParam);
       if (!postId || isNaN(postId)) return ctx.badRequest("Invalid Post ID.");
+
       const mentionPolicyService = strapi.service(
         "api::mention-policy.mention-policy"
       );
@@ -317,6 +318,7 @@ export default factories.createCoreController(
 
         return { ...mention, is_allowed: allowed };
       }
+
       async function shapeCommentData(
         item: any,
         isRepostCaption = false
@@ -345,6 +347,9 @@ export default factories.createCoreController(
           mentions = enrichedMentions;
         }
 
+        const author = item.user || item.commented_by || null;
+        const profilePic = author?.profile_picture || null;
+
         return {
           id: item.id,
           comment: isRepostCaption
@@ -360,28 +365,28 @@ export default factories.createCoreController(
             is_liked: false,
             is_liked_by_author: false,
           },
-          author: item.user ?? item.commented_by ?? null,
-          username:
-            item.username ||
-            item.user?.username ||
-            item.commented_by?.username ||
-            null,
-          name: item.name || item.user?.name || item.commented_by?.name || null,
-          avatar_ring_color:
-            item.avatar_ring_color ||
-            item.user?.avatar_ring_color ||
-            item.commented_by?.avatar_ring_color ||
-            "",
-          profile_picture:
-            item.profile_picture ||
-            item.user?.profile_picture ||
-            item.commented_by?.profile_picture ||
-            null,
+          author: author
+            ? {
+                id: author.id,
+                username: author.username,
+                name: author.name,
+                avatar_ring_color: author.avatar_ring_color,
+                profile_picture: profilePic
+                  ? {
+                      id: profilePic.id,
+                      url: profilePic.url,
+                      formats: profilePic.formats || null,
+                      alternativeText: profilePic.alternativeText || null,
+                    }
+                  : null,
+              }
+            : null,
           pinned: item.pinned ?? false,
           parent: item.parent_comment ?? null,
           repost_of: item.repost_of ?? null,
         };
       }
+
       try {
         const post = await strapi.entityService.findOne(
           "api::post.post",
@@ -435,35 +440,37 @@ export default factories.createCoreController(
               },
             },
             limit: 1,
+            sort: { createdAt: "desc" },
           }
         );
 
-        const pinnedBlock = pinnedComments.map((item: any) =>
-          shapeCommentData(item)
+        const pinnedBlock = await Promise.all(
+          pinnedComments.map((item) => shapeCommentData(item))
         );
-
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
           const repostUser = (post as any).posted_by;
-          repostCaptionBlock = [
-            shapeCommentData(
-              {
-                id: post.id,
-                comment: repostCaption,
-                user: repostUser,
-                commented_by: repostUser,
-                createdAt: post.createdAt,
-                stats: {
-                  likes: 0,
-                  replies: 0,
-                  is_liked: false,
-                  is_liked_by_author: false,
-                },
-                mentioned_users: [],
+          const block = await shapeCommentData(
+            {
+              id: post.id,
+              comment: repostCaption,
+              user: repostUser,
+              commented_by: repostUser,
+              createdAt: post.createdAt,
+              stats: {
+                likes: 0,
+                replies: 0,
+                is_liked: false,
+                is_liked_by_author: false,
               },
-              true
-            ),
-          ];
+              mentioned_users: [],
+              pinned: false,
+              parent_comment: null,
+              repost_of: null,
+            },
+            true
+          );
+          repostCaptionBlock = [block];
         }
 
         const paginatedComments = await strapi.entityService.findPage(
@@ -490,18 +497,16 @@ export default factories.createCoreController(
                 },
               },
             },
-            page: Number(page) || 1,
-            pageSize: Number(pageSize) || 10,
+            page: Number(page),
+            pageSize: Number(pageSize),
           }
         );
 
-        const { results: comments, pagination } = paginatedComments || {
-          results: [],
-          pagination: {},
-        };
+        const comments = paginatedComments.results || [];
+        const pagination = paginatedComments.pagination || {};
 
         const enrichedComments = await Promise.all(
-          (comments || []).map((item: any) => shapeCommentData(item))
+          comments.map((item) => shapeCommentData(item))
         );
 
         const response = [
