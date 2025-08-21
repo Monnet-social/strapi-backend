@@ -455,6 +455,13 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       ...followStatusMap.get(postEntity.posted_by.id),
     };
 
+    postEntity.tagged_users = (postEntity.tagged_users || [])
+      .filter((u) => u && u.id)
+      .map((user) => ({
+        ...user,
+        ...(user && user.id ? followStatusMap.get(user.id) : {}),
+      }));
+
     postEntity.mentioned_users = (postEntity.mentioned_users || []).map(
       (mention) => ({
         ...mention,
@@ -465,7 +472,7 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       })
     );
 
-    delete postEntity.tagged_users;
+    // delete postEntity.tagged_users;
 
     return postEntity;
   },
@@ -858,12 +865,12 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
           },
 
           // Remove tagged_users mapping:
-          // tagged_users: (post.tagged_users || [])
-          //   .filter((u) => u && u.id)
-          //   .map((user) => ({
-          //     ...user,
-          //     ...(user && user.id ? followStatusMap.get(user.id) : {}),
-          //   })),
+          tagged_users: (post.tagged_users || [])
+            .filter((u) => u && u.id)
+            .map((user) => ({
+              ...user,
+              ...(user && user.id ? followStatusMap.get(user.id) : {}),
+            })),
 
           // New mentioned_users mapping (hydrate nested user with follow status):
           mentioned_users: (post.mentioned_users || []).map((mention) => ({
