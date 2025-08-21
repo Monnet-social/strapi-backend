@@ -311,7 +311,7 @@ export default factories.createCoreController(
         if (!mentions.length) {
           mentions = [
             {
-              mention_status: false, // default custom flag
+              mention_status: false,
               username: "",
               user: null,
               start: null,
