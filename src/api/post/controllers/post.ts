@@ -10,278 +10,200 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
   //================================================================
   // CORE POST CONTROLLERS
   //================================================================
-  async commentPost(ctx: any) {
-    const userId = ctx.state.user?.id;
-    if (!userId) return ctx.unauthorized("You must be logged in to comment.");
-
-    const body = ctx.request.body as {
-      post_id: number;
-      comment: string;
-      parent_comment_id?: number;
-      repost_of_id?: number;
-      mentioned_users?: any[];
-    };
-
-    const {
-      post_id,
-      comment,
-      parent_comment_id,
-      repost_of_id,
-      mentioned_users,
-    } = body;
-
-    if (!post_id || isNaN(post_id))
-      return ctx.badRequest('A valid "post_id" is required.');
-    if (!comment || typeof comment !== "string" || comment.trim().length === 0)
-      return ctx.badRequest("Comment text cannot be empty.");
-
-    const dataToCreate: any = {
-      post: post_id,
-      commented_by: userId,
-      comment: comment.trim(),
-    };
+  async create(ctx) {
+    const user = ctx.state.user;
+    if (!user)
+      return ctx.unauthorized("You must be logged in to create a post.");
+    const userId = user.id;
 
     try {
-      // Validate post existence
-      const postExists = await strapi.entityService.findOne(
-        "api::post.post",
-        post_id
-      );
-      if (!postExists)
-        return ctx.notFound(
-          "The post you are trying to comment on does not exist."
-        );
+      let data = ctx.request.body;
+      if (!data)
+        return ctx.badRequest("Request body must contain a data object.");
 
-      // Parent comment validation for replies
-      if (parent_comment_id) {
-        if (isNaN(parent_comment_id))
-          return ctx.badRequest("parent_comment_id must be a number.");
-        const parentComment = await strapi.entityService.findOne(
-          "api::comment.comment",
-          parent_comment_id,
-          {
-            populate: { post: { fields: ["id"] } },
-          }
-        );
-        if (!parentComment)
-          return ctx.notFound(
-            "The comment you are replying to does not exist."
-          );
-        if ((parentComment as any).post?.id !== Number(post_id))
-          return ctx.badRequest(
-            "The parent comment does not belong to this post."
-          );
-        dataToCreate.parent_comment = parent_comment_id;
-      }
-
-      // Repost validation
-      if (repost_of_id) {
-        if (isNaN(repost_of_id))
-          return ctx.badRequest("repost_of_id must be a number.");
-        const originalComment = await strapi.entityService.findOne(
-          "api::comment.comment",
-          repost_of_id
-        );
-        if (!originalComment)
-          return ctx.notFound(
-            "The comment you are trying to repost does not exist."
-          );
-        dataToCreate.repost_of = repost_of_id;
-      }
-
-      // Extract mentions from comment text using the mention policy service
-      const mentionService = strapi.service(
-        "api::mention-policy.mention-policy"
-      );
-      let mentionDataFromText: any[] = [];
-      if (comment) {
-        mentionDataFromText = await mentionService.mentionUser(
-          userId,
-          comment,
-          "comment"
-        );
-      }
-
-      // Merge mentions from front-end with extracted mentionData
-      if (mentioned_users && Array.isArray(mentioned_users)) {
-        const combinedMentionsMap = new Map();
-        (mentionDataFromText || []).forEach((m) =>
-          combinedMentionsMap.set(m.user, m)
-        );
-        mentioned_users.forEach((m) => {
-          if (m && m.user !== undefined && m.user !== null) {
-            combinedMentionsMap.set(m.user, m);
-          }
-        });
-        dataToCreate.mentioned_users = Array.from(combinedMentionsMap.values());
+      // Normalize mentioned_users from tagged_users if tagged_users present
+      if (
+        data.tagged_users &&
+        Array.isArray(data.tagged_users) &&
+        data.tagged_users.length > 0
+      ) {
+        if (typeof data.tagged_users[0] === "number") {
+          data.mentioned_users = data.tagged_users
+            .filter((id) => id !== null && id !== undefined)
+            .map((userId) => ({
+              user: userId,
+              username: "",
+              start: 0,
+              end: 0,
+              mention_status: true,
+            }));
+        } else {
+          data.mentioned_users = data.tagged_users.filter((m) => m && m.user);
+        }
+      } else if (
+        !data.mentioned_users ||
+        !Array.isArray(data.mentioned_users)
+      ) {
+        data.mentioned_users = [];
       } else {
-        dataToCreate.mentioned_users = mentionDataFromText || [];
+        // Also filter invalid mention objects in mentioned_users
+        data.mentioned_users = data.mentioned_users.filter(
+          (m) => m && m.user !== undefined && m.user !== null
+        );
       }
 
-      // Create comment
-      const newComment = await strapi.entityService.create(
-        "api::comment.comment",
+      // Validate other fields
+      await strapi
+        .service("api::post.post")
+        .validateCloseFriendsList(
+          data.share_with,
+          data.share_with_close_friends,
+          userId
+        );
+      await strapi.service("api::post.post").validateMediaFiles(data.media);
+      await strapi.service("api::post.post").validateCategory(data.category);
+
+      // Extract valid mentioned user IDs for validation
+      const mentionedUserIds = data.mentioned_users.map((m) => m.user);
+
+      if (mentionedUserIds.length) {
+        await strapi
+          .service("api::post.post")
+          .validateTaggedUsers(mentionedUserIds, userId);
+      }
+
+      if (data.location?.address) {
+        const geo = await HelperService.geocodeAddress(data.location.address);
+        if (geo) {
+          data.location.latitude = geo.latitude;
+          data.location.longitude = geo.longitude;
+        }
+      }
+
+      let repostOfData = null;
+      if (data.repost_of) {
+        const original = await strapi
+          .service("api::post.post")
+          .resolveOriginalPost(data.repost_of);
+        if (!original) return ctx.badRequest("Original post not found.");
+        if (original.posted_by.id === userId)
+          return ctx.badRequest("You cannot repost your own post.");
+        data.repost_of = original.id;
+        data.reposted_from = original.posted_by.id;
+        repostOfData = original;
+      }
+
+      // Extract mentions automatically from title & description text
+      const mentionTexts = [];
+      if (typeof data.title === "string") mentionTexts.push(data.title);
+      if (typeof data.description === "string")
+        mentionTexts.push(data.description);
+      const mentionPromises = mentionTexts.map((text) =>
+        strapi
+          .service("api::mention-policy.mention-policy")
+          .mentionUser(userId, text, data.post_type)
+      );
+      const mentionsFromTextArrays = await Promise.all(mentionPromises);
+      const mentionsFromText = mentionsFromTextArrays.flat();
+
+      // Merge automated mentions with normalized mentioned_users - filter valid
+      const allMentionsMap = new Map();
+      for (const mention of [...mentionsFromText, ...data.mentioned_users]) {
+        if (mention && mention.user !== null && mention.user !== undefined) {
+          allMentionsMap.set(mention.user, mention);
+        }
+      }
+      data.mentioned_users = Array.from(allMentionsMap.values());
+
+      data.posted_by = userId;
+
+      // Create post with shallow populate only
+      const newPost = await strapi.entityService.create("api::post.post", {
+        data,
+        populate: {
+          posted_by: true,
+          category: true,
+          media: true,
+          repost_of: true,
+          mentioned_users: true,
+          ...(data.share_with === "CLOSE-FRIENDS" &&
+          data.share_with_close_friends
+            ? {
+                share_with_close_friends: true,
+              }
+            : {}),
+        },
+      });
+
+      // Extract tags asynchronously
+      if (typeof data.title === "string") {
+        await strapi
+          .service("api::tag.tag")
+          .extractTags(data.title, newPost.id);
+      }
+      if (typeof data.description === "string") {
+        await strapi
+          .service("api::tag.tag")
+          .extractTags(data.description, newPost.id);
+      }
+
+      // Send notifications to mentioned users
+      await strapi.service("api::post.post").notifyMentionsInPost(
+        data.mentioned_users.map((m) => m.user),
+        user,
+        newPost.id,
+        data.post_type
+      );
+
+      // Fetch fully populated post including nested profile_picture
+      const populatedPost = await strapi.entityService.findOne(
+        "api::post.post",
+        newPost.id,
         {
-          data: dataToCreate,
           populate: {
-            commented_by: {
-              fields: ["id", "username", "name", "avatar_ring_color"],
+            posted_by: {
+              fields: ["id", "username", "name"],
               populate: { profile_picture: true },
             },
-            repost_of: { fields: ["id", "comment"] },
+            category: true,
+            media: true,
+            repost_of: true,
+            mentioned_users: {
+              populate: {
+                user: {
+                  fields: ["id", "username", "name"],
+                  populate: { profile_picture: true },
+                },
+              },
+            },
+            ...(data.share_with === "CLOSE-FRIENDS" &&
+            data.share_with_close_friends
+              ? {
+                  share_with_close_friends: {
+                    fields: ["id", "username", "name"],
+                  },
+                }
+              : {}),
           },
         }
       );
 
-      // Notification service instance
-      const notificationUtil = new NotificationService();
+      // Final response with repost info if applicable
+      const responsePost = {
+        ...populatedPost,
+        is_repost: !!data.repost_of,
+        ...(repostOfData
+          ? { reposted_from: repostOfData.posted_by, repost_of: repostOfData }
+          : {}),
+      };
 
-      // Notifications for mentioned users
-      for (const mention of dataToCreate.mentioned_users || []) {
-        if (mention.user && mention.user !== userId) {
-          const mentionedUser = await strapi.entityService.findOne(
-            "plugin::users-permissions.user",
-            mention.user
-          );
-          if (mentionedUser?.fcm_token?.length > 0) {
-            await notificationUtil.sendPushNotification(
-              "You were mentioned in a comment",
-              `${ctx.state.user.username || ctx.state.user.name || "Someone"} mentioned you in a comment.`,
-              {},
-              mentionedUser.fcm_token
-            );
-          }
-          await strapi
-            .service("api::notification.notification")
-            .saveNotification(
-              "mention",
-              userId,
-              mention.user,
-              `${ctx.state.user.username || ctx.state.user.name || "Someone"} mentioned you in a comment.`,
-              { comment: newComment.id, post: post_id }
-            );
-        }
-      }
-
-      // Notifications for repost
-      if (dataToCreate.repost_of) {
-        const originalComment: any = await strapi.entityService.findMany(
-          "api::comment.comment",
-          {
-            filters: { id: dataToCreate.repost_of },
-            populate: {
-              commented_by: { fields: ["id", "username", "name", "fcm_token"] },
-              post: { fields: ["id"] },
-            },
-          }
-        );
-        const actorUserName =
-          ctx.state.user.username || ctx.state.user.name || "a user";
-
-        if (originalComment?.[0]?.commented_by?.fcm_token?.length > 0) {
-          await notificationUtil.sendPushNotification(
-            "Your comment was reposted",
-            `Your comment: "${originalComment[0]?.comment}" was reposted by ${actorUserName}.`,
-            {},
-            originalComment[0].commented_by.fcm_token
-          );
-        }
-
-        await strapi
-          .service("api::notification.notification")
-          .saveNotification(
-            "repost",
-            ctx.state.user.id,
-            originalComment[0]?.commented_by.id,
-            `Your comment: "${originalComment[0]?.comment}" was reposted by ${actorUserName}.`,
-            {
-              comment: originalComment[0].id,
-              post: originalComment[0]?.post.id,
-            }
-          );
-      }
-
-      // Notifications for replies
-      if (dataToCreate.parent_comment) {
-        const parentComment: any = await strapi.entityService.findMany(
-          "api::comment.comment",
-          {
-            filters: { id: dataToCreate.parent_comment },
-            populate: {
-              commented_by: { fields: ["id", "username", "name", "fcm_token"] },
-            },
-          }
-        );
-        const actorUserName =
-          ctx.state.user.username || ctx.state.user.name || "a user";
-
-        if (parentComment?.[0]?.commented_by?.fcm_token?.length > 0) {
-          await notificationUtil.sendPushNotification(
-            "You received a reply",
-            `Your comment: "${parentComment[0]?.comment}" was replied to by ${actorUserName}.`,
-            {},
-            parentComment[0].commented_by.fcm_token
-          );
-        }
-
-        await strapi
-          .service("api::notification.notification")
-          .saveNotification(
-            "reply",
-            ctx.state.user.id,
-            parentComment[0]?.commented_by.id,
-            `Your comment: "${parentComment[0]?.comment}" was replied to by ${actorUserName}.`,
-            { comment: parentComment[0].id, post: parentComment[0]?.post.id }
-          );
-      }
-
-      // Notifications for post author
-      if (dataToCreate.post) {
-        const postService = strapi.service("api::post.post");
-        const postRecord = await postService.resolveOriginalPost(
-          dataToCreate.post
-        );
-
-        if (postRecord) {
-          const actorUserName =
-            ctx.state.user.username || ctx.state.user.name || "a user";
-          const notifyTitle = postRecord.title || "";
-          const notifyDescription = postRecord.description || "";
-
-          if (postRecord.posted_by?.fcm_token?.length > 0) {
-            await notificationUtil.sendPushNotification(
-              "Your post received a comment",
-              `Your post: "${notifyTitle}" received a comment from ${actorUserName}.`,
-              {},
-              postRecord.posted_by.fcm_token
-            );
-          }
-
-          await strapi
-            .service("api::notification.notification")
-            .saveNotification(
-              "comment",
-              ctx.state.user.id,
-              postRecord.posted_by.id,
-              `Your post: "${notifyTitle}" received a comment from ${actorUserName}.`,
-              { comment: newComment.id, post: postRecord.id }
-            );
-
-          (newComment as any).original_post_details = {
-            id: postRecord.id,
-            title: notifyTitle,
-            description: notifyDescription,
-            posted_by: postRecord.posted_by || null,
-            media: postRecord.media || [],
-          };
-        }
-      }
-
-      return ctx.send(newComment);
-    } catch (error) {
-      strapi.log.error("Error creating comment/reply:", error);
+      const msg = data.post_type === "post" ? "Post created" : "Story added";
+      return ctx.send({ post: responsePost, message: `${msg} successfully.` });
+    } catch (err) {
+      console.error("Create Post Error:", err);
       return ctx.internalServerError(
-        "An error occurred while posting your comment."
+        "An unexpected error occurred while creating the post.",
+        { details: err.message }
       );
     }
   },
