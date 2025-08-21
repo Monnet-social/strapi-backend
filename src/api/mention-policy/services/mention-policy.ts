@@ -10,15 +10,19 @@ export default factories.createCoreService(
       );
 
       if (findMentionPolicy.length > 0) return findMentionPolicy[0];
+      const findUser = await strapi.entityService.findMany(
+        "plugin::users-permissions.user",
+        { filters: { id: userId } }
+      );
 
       return await strapi.entityService.create(
         "api::mention-policy.mention-policy",
         {
           data: {
             user: userId,
-            comment_policy: "anyone",
-            story_policy: "anyone",
-            post_policy: "anyone",
+            comment_policy: findUser[0]?.is_public ? "anyone" : "no_one",
+            story_policy: findUser[0]?.is_public ? "anyone" : "no_one",
+            post_policy: findUser[0]?.is_public ? "anyone" : "no_one",
           },
         }
       );
