@@ -280,6 +280,7 @@ export default factories.createCoreController(
         .findOrCreateMentionPolicy(userId);
 
       let mentionId = findMentionPolicy.id;
+      console.log("Mention ID:", mentionId, mentionPolicyBody);
 
       const updateMentionPolicy = await strapi.entityService.update(
         "api::mention-policy.mention-policy",
@@ -292,6 +293,17 @@ export default factories.createCoreController(
       );
       return ctx.send({
         message: "Updated mention policy successfully!",
+      });
+    },
+    async getMentionPolicy(ctx) {
+      const userId = ctx.state.user.id;
+
+      let findMentionPolicy = await strapi
+        .service("api::mention-policy.mention-policy")
+        .findOrCreateMentionPolicy(userId);
+
+      return ctx.send({
+        mention_policy: findMentionPolicy,
       });
     },
   })
