@@ -319,12 +319,9 @@ export default factories.createCoreController(
         return { ...mention, is_allowed: allowed };
       }
 
-      async function shapeCommentData(
-        item: any,
-        isRepostCaption = false
-      ): Promise<Record<string, any>> {
+      async function shapeCommentData(item, isRepostCaption = false) {
         let mentions = Array.isArray(item.mentioned_users)
-          ? item.mentioned_users.filter((mu: any) => mu.mention_status === true)
+          ? item.mentioned_users.filter((m) => m.mention_status === true)
           : [];
 
         if (!mentions.length) {
@@ -338,40 +335,46 @@ export default factories.createCoreController(
               is_allowed: true,
             },
           ];
-        } else {
-          const enrichedMentions = [];
-          for (const mention of mentions) {
-            const enriched = await enrichMentionWithPolicy(mention);
-            enrichedMentions.push(enriched);
-          }
-          mentions = enrichedMentions;
         }
 
-        const author = item.user || item.commented_by || null;
-        const profilePic = author?.profile_picture || null;
+        const enrichedMentions = [];
+        for (const mention of mentions) {
+          const enriched = await enrichMentionWithPolicy(mention);
+          enrichedMentions.push({
+            id: mention.id,
+            username: mention.username,
+            user: mention.user,
+            start: mention.start,
+            end: mention.end,
+            isAllowed: enriched.is_allowed, // Note camelCase here to match Dart usage
+          });
+        }
+
+        const author = item.user ?? item.commented_by ?? null;
+        const profilePic = author?.profile_picture ?? null;
 
         return {
           id: item.id,
           comment: isRepostCaption
             ? item.comment || item.repost_caption || ""
             : item.comment || "",
-          mentioned_users: mentions,
+          mentionedUsers: enrichedMentions, // camelCase
           createdAt: item.createdAt,
-          repost_caption: isRepostCaption ? item.repost_caption || "" : "",
-          is_repost_caption: isRepostCaption,
-          stats: item.stats || {
-            likes: 0,
-            replies: 0,
-            is_liked: false,
-            is_liked_by_author: false,
+          repostCaption: isRepostCaption ? item.repost_caption || "" : "", // camelCase
+          isRepostCaption: isRepostCaption, // camelCase
+          stats: {
+            likes: item.stats?.likes ?? 0,
+            replies: item.stats?.replies ?? 0,
+            isLiked: item.stats?.is_liked ?? false,
+            isLikedByAuthor: item.stats?.is_liked_by_author ?? false,
           },
           author: author
             ? {
                 id: author.id,
                 username: author.username,
                 name: author.name,
-                avatar_ring_color: author.avatar_ring_color,
-                profile_picture: profilePic
+                avatarRingColor: author.avatar_ring_color, // camelCase if your Dart expects so
+                profilePicture: profilePic
                   ? {
                       id: profilePic.id,
                       url: profilePic.url,
@@ -383,7 +386,7 @@ export default factories.createCoreController(
             : null,
           pinned: item.pinned ?? false,
           parent: item.parent_comment ?? null,
-          repost_of: item.repost_of ?? null,
+          repostOf: item.repost_of ?? null, // camelCase
         };
       }
 
@@ -412,7 +415,7 @@ export default factories.createCoreController(
         );
 
         if (!post) return ctx.notFound("Post not found");
-
+        console.log("REPOST", post);
         const isRepost = !!(post as any).repost_of;
         const repostCaption = post.repost_caption?.trim() || "";
 
@@ -453,7 +456,8 @@ export default factories.createCoreController(
           const block = await shapeCommentData(
             {
               id: post.id,
-              comment: repostCaption,
+              comment: "",
+              repost_caption: repostCaption,
               user: repostUser,
               commented_by: repostUser,
               createdAt: post.createdAt,
@@ -470,6 +474,7 @@ export default factories.createCoreController(
             },
             true
           );
+
           repostCaptionBlock = [block];
         }
 
