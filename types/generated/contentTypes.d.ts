@@ -765,7 +765,7 @@ export interface ApiMentionPolicyMentionPolicy
   };
   attributes: {
     comment_policy: Schema.Attribute.Enumeration<
-      ['friends', 'followers', 'anyone']
+      ['friends', 'followers', 'anyone', 'no_one']
     > &
       Schema.Attribute.DefaultTo<'anyone'>;
     createdAt: Schema.Attribute.DateTime;
@@ -778,12 +778,12 @@ export interface ApiMentionPolicyMentionPolicy
     > &
       Schema.Attribute.Private;
     post_policy: Schema.Attribute.Enumeration<
-      ['friends', 'followers', 'anyone']
+      ['friends', 'followers', 'anyone', 'no_one']
     > &
       Schema.Attribute.DefaultTo<'anyone'>;
     publishedAt: Schema.Attribute.DateTime;
     story_policy: Schema.Attribute.Enumeration<
-      ['friends', 'followers', 'anyone']
+      ['friends', 'followers', 'anyone', 'no_one']
     > &
       Schema.Attribute.DefaultTo<'anyone'>;
     updatedAt: Schema.Attribute.DateTime;
