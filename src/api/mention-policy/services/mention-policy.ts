@@ -31,95 +31,91 @@ export default factories.createCoreService(
         }
       );
     },
-
     async mentionUser(
       userId: string,
       content: string,
-      type: "story" | "comment" | "post"
+      type: "story" | "comment" | "post" | "bio"
     ) {
       if (typeof content !== "string")
         throw new TypeError("content must be a string");
 
-      let finalMention = [];
+      const finalMention = [];
+      const mentionRegex = /@([\w_]+)/g;
+      let match;
 
-      for (let i = 0; i < content.length; i++) {
-        if (content[i] === "@") {
-          let allowTagging = false;
-          const restOfContent = content.slice(i + 1);
-          const username = restOfContent.split(" ")[0] || "";
+      while ((match = mentionRegex.exec(content)) !== null) {
+        const username = match[1];
+        const start = match.index;
+        const end = start + username.length + 1;
+        const findUser = await strapi.entityService.findMany(
+          "plugin::users-permissions.user",
+          {
+            filters: { username: { $eqi: username } },
+            fields: ["id"],
+            limit: 1,
+          }
+        );
 
-          if (!username) continue;
+        if (findUser.length === 0) continue;
 
-          const findUser = await strapi.entityService.findMany(
-            "plugin::users-permissions.user",
-            {
-              filters: { username: { $eq: username } },
-              fields: ["id"],
-              limit: 1,
-            }
-          );
+        const foundUserId = findUser[0].id;
 
-          if (findUser.length === 0) continue;
+        const findMentionPolicy =
+          await this.findOrCreateMentionPolicy(foundUserId);
 
-          const findMentionPolicy = await this.findOrCreateMentionPolicy(
-            findUser[0].id
-          );
+        let policy = "anyone";
 
-          let policy = "anyone";
-          if (type === "story") policy = findMentionPolicy.story_policy;
-          else if (type === "comment")
-            policy = findMentionPolicy.comment_policy;
-          else if (type === "post") policy = findMentionPolicy.post_policy;
+        if (type === "bio") policy = "anyone";
+        else if (type === "story") policy = findMentionPolicy.story_policy;
+        else if (type === "comment") policy = findMentionPolicy.comment_policy;
+        else if (type === "post") policy = findMentionPolicy.post_policy;
 
-          const userFollowers = await strapi.entityService.findMany(
-            "api::following.following",
-            {
-              filters: {
-                subject: { id: Number(findUser[0].id) },
-                follower: { id: Number(userId) },
-              },
-              fields: ["id"],
-              limit: 1,
-            }
-          );
+        const userFollowers = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              subject: { id: Number(foundUserId) },
+              follower: { id: Number(userId) },
+            },
+            fields: ["id"],
+            limit: 1,
+          }
+        );
 
-          const userCloseFriends = await strapi.entityService.findMany(
-            "api::following.following",
-            {
-              filters: {
-                follower: { id: Number(findUser[0].id) },
-                subject: { id: Number(userId) },
-                is_close_friend: true,
-              },
-              fields: ["id"],
-              limit: 1,
-            }
-          );
+        const userCloseFriends = await strapi.entityService.findMany(
+          "api::following.following",
+          {
+            filters: {
+              follower: { id: Number(foundUserId) },
+              subject: { id: Number(userId) },
+              is_close_friend: true,
+            },
+            fields: ["id"],
+            limit: 1,
+          }
+        );
 
-          if (
-            policy === "anyone" ||
-            (policy === "friends" &&
-              userCloseFriends.some(
-                (friend) => friend.id === findUser[0].id
-              )) ||
-            (policy === "followers" &&
-              userFollowers.some((follower) => follower.id === findUser[0].id))
-          )
-            allowTagging = true;
+        let allowTagging = false;
 
-          finalMention.push({
-            user: findUser[0].id,
-            username,
-            start: i,
-            end: i + 1 + username.length,
-            mention_status: allowTagging,
-          });
+        if (
+          policy === "anyone" ||
+          (policy === "friends" && userCloseFriends.length > 0) ||
+          (policy === "followers" && userFollowers.length > 0)
+        ) {
+          allowTagging = true;
         }
+
+        finalMention.push({
+          user: foundUserId,
+          username,
+          start,
+          end,
+          mention_status: allowTagging,
+        });
       }
 
       return finalMention;
     },
-
     async isMentionAllowed(
       currentUserId: any,
       mentionedUserId: any,

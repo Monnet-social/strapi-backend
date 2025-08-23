@@ -284,6 +284,247 @@ export default factories.createCoreController(
       });
     },
 
+    // async getCommentsByPostId(ctx: any) {
+    //   const { post_id: postIdParam } = ctx.params as { post_id?: string };
+    //   const { user } = ctx.state as { user?: { id: number } };
+    //   const { page = "1", pageSize = "10" } = ctx.query as Record<
+    //     string,
+    //     string
+    //   >;
+
+    //   if (!user) return ctx.unauthorized("You must be logged in.");
+
+    //   const userId = user.id;
+    //   const postId = Number(postIdParam);
+    //   if (!postId || isNaN(postId)) return ctx.badRequest("Invalid Post ID.");
+
+    //   const mentionPolicyService = strapi.service(
+    //     "api::mention-policy.mention-policy"
+    //   );
+
+    //   async function enrichMentionWithPolicy(mention: any) {
+    //     const policy = mention.comment_policy || "anyone";
+    //     const mentionedUserId = mention.user?.id || mention.user;
+
+    //     if (!mentionedUserId) return { ...mention, is_allowed: false };
+
+    //     const allowed = await mentionPolicyService.isMentionAllowed(
+    //       userId,
+    //       mentionedUserId,
+    //       policy
+    //     );
+
+    //     return { ...mention, is_allowed: allowed };
+    //   }
+
+    //   async function shapeCommentData(item, isRepostCaption = false) {
+    //     let mentions = Array.isArray(item.mentioned_users)
+    //       ? item.mentioned_users.filter((m) => m.mention_status === true)
+    //       : [];
+
+    //     if (!mentions.length) {
+    //       mentions = [
+    //         {
+    //           mention_status: false,
+    //           username: "",
+    //           user: null,
+    //           start: null,
+    //           end: null,
+    //           is_allowed: true,
+    //         },
+    //       ];
+    //     }
+
+    //     const enrichedMentions = [];
+    //     for (const mention of mentions) {
+    //       const enriched = await enrichMentionWithPolicy(mention);
+    //       enrichedMentions.push({
+    //         id: mention.id,
+    //         username: mention.username,
+    //         user: mention.user,
+    //         start: mention.start,
+    //         end: mention.end,
+    //         isAllowed: enriched.is_allowed, // Note camelCase here to match Dart usage
+    //       });
+    //     }
+
+    //     const author = item.user ?? item.commented_by ?? null;
+    //     const profilePic = author?.profile_picture ?? null;
+
+    //     return {
+    //       id: item.id,
+    //       comment: isRepostCaption
+    //         ? item.comment || item.repost_caption || ""
+    //         : item.comment || "",
+    //       mentionedUsers: enrichedMentions, // camelCase
+    //       createdAt: item.createdAt,
+    //       repostCaption: isRepostCaption ? item.repost_caption || "" : "", // camelCase
+    //       isRepostCaption: isRepostCaption, // camelCase
+    //       stats: {
+    //         likes: item.stats?.likes ?? 0,
+    //         replies: item.stats?.replies ?? 0,
+    //         isLiked: item.stats?.is_liked ?? false,
+    //         isLikedByAuthor: item.stats?.is_liked_by_author ?? false,
+    //       },
+    //       author: author
+    //         ? {
+    //             id: author.id,
+    //             username: author.username,
+    //             name: author.name,
+    //             avatarRingColor: author.avatar_ring_color, // camelCase if your Dart expects so
+    //             profilePicture: profilePic
+    //               ? {
+    //                   id: profilePic.id,
+    //                   url: profilePic.url,
+    //                   formats: profilePic.formats || null,
+    //                   alternativeText: profilePic.alternativeText || null,
+    //                 }
+    //               : null,
+    //           }
+    //         : null,
+    //       pinned: item.pinned ?? false,
+    //       parent: item.parent_comment ?? null,
+    //       repostOf: item.repost_of ?? null, // camelCase
+    //     };
+    //   }
+
+    //   try {
+    //     const post = await strapi.entityService.findOne(
+    //       "api::post.post",
+    //       postId,
+    //       {
+    //         fields: ["id", "createdAt", "repost_caption"],
+    //         populate: {
+    //           posted_by: {
+    //             fields: ["id", "username", "name", "avatar_ring_color"],
+    //             populate: { profile_picture: true },
+    //           },
+    //           repost_of: {
+    //             fields: ["id"],
+    //             populate: {
+    //               posted_by: {
+    //                 fields: ["id", "username", "name", "avatar_ring_color"],
+    //                 populate: { profile_picture: true },
+    //               },
+    //             },
+    //           },
+    //         },
+    //       }
+    //     );
+
+    //     if (!post) return ctx.notFound("Post not found");
+    //     console.log("REPOST", post);
+    //     const isRepost = !!(post as any).repost_of;
+    //     const repostCaption = post.repost_caption?.trim() || "";
+
+    //     const pinnedComments = await strapi.entityService.findMany(
+    //       "api::comment.comment",
+    //       {
+    //         filters: {
+    //           post: { id: postId },
+    //           parent_comment: null,
+    //           pinned: true,
+    //         },
+    //         fields: ["id", "comment", "createdAt", "pinned"],
+    //         populate: {
+    //           commented_by: {
+    //             fields: ["id", "username", "name", "avatar_ring_color"],
+    //             populate: { profile_picture: true },
+    //           },
+    //           mentioned_users: {
+    //             populate: {
+    //               user: {
+    //                 fields: ["id", "username", "name", "avatar_ring_color"],
+    //                 populate: { profile_picture: true },
+    //               },
+    //             },
+    //           },
+    //         },
+    //         limit: 1,
+    //         sort: { createdAt: "desc" },
+    //       }
+    //     );
+
+    //     const pinnedBlock = await Promise.all(
+    //       pinnedComments.map((item) => shapeCommentData(item))
+    //     );
+    //     let repostCaptionBlock: any[] = [];
+    //     if (isRepost && repostCaption) {
+    //       const repostUser = (post as any).posted_by;
+    //       const block = await shapeCommentData(
+    //         {
+    //           id: post.id,
+    //           comment: "",
+    //           repost_caption: repostCaption,
+    //           user: repostUser,
+    //           commented_by: repostUser,
+    //           createdAt: post.createdAt,
+    //           stats: {
+    //             likes: 0,
+    //             replies: 0,
+    //             is_liked: false,
+    //             is_liked_by_author: false,
+    //           },
+    //           mentioned_users: [],
+    //           pinned: false,
+    //           parent_comment: null,
+    //           repost_of: null,
+    //         },
+    //         true
+    //       );
+
+    //       repostCaptionBlock = [block];
+    //     }
+
+    //     const paginatedComments = await strapi.entityService.findPage(
+    //       "api::comment.comment",
+    //       {
+    //         filters: {
+    //           post: { id: postId },
+    //           parent_comment: null,
+    //           pinned: false,
+    //         },
+    //         sort: { createdAt: "desc" },
+    //         fields: ["id", "comment", "createdAt", "pinned"],
+    //         populate: {
+    //           commented_by: {
+    //             fields: ["id", "username", "name", "avatar_ring_color"],
+    //             populate: { profile_picture: true },
+    //           },
+    //           mentioned_users: {
+    //             populate: {
+    //               user: {
+    //                 fields: ["id", "username", "name", "avatar_ring_color"],
+    //                 populate: { profile_picture: true },
+    //               },
+    //             },
+    //           },
+    //         },
+    //         page: Number(page),
+    //         pageSize: Number(pageSize),
+    //       }
+    //     );
+
+    //     const comments = paginatedComments.results || [];
+    //     const pagination = paginatedComments.pagination || {};
+
+    //     const enrichedComments = await Promise.all(
+    //       comments.map((item) => shapeCommentData(item))
+    //     );
+
+    //     const response = [
+    //       ...pinnedBlock,
+    //       ...repostCaptionBlock,
+    //       ...enrichedComments,
+    //     ];
+
+    //     return ctx.send({ data: response, meta: { pagination } });
+    //   } catch (error) {
+    //     ctx.log.error("Error fetching comments:", error);
+    //     return ctx.internalServerError("Error retrieving comments.");
+    //   }
+    // },
+
     async getCommentsByPostId(ctx: any) {
       const { post_id: postIdParam } = ctx.params as { post_id?: string };
       const { user } = ctx.state as { user?: { id: number } };
@@ -301,121 +542,13 @@ export default factories.createCoreController(
       const mentionPolicyService = strapi.service(
         "api::mention-policy.mention-policy"
       );
-
-      // Function to determine if mention is allowed
-      async function enrichMentionWithPolicy(mention: any) {
-        const policy = mention.comment_policy || "anyone";
-        const mentionedUserId = mention.user?.id || mention.user;
-
-        // If no mentioned user ID, deny access
-        if (!mentionedUserId) return { ...mention, is_allowed: false };
-
-        const allowed = await mentionPolicyService.isMentionAllowed(
-          userId,
-          mentionedUserId,
-          policy
-        );
-
-        return { ...mention, is_allowed: allowed };
-      }
-
-      async function shapeCommentData(item, isRepostCaption = false) {
-        let mentions = Array.isArray(item.mentioned_users)
-          ? item.mentioned_users.filter((m) => m.mention_status === true)
-          : [];
-
-        if (!mentions.length) {
-          mentions = [
-            {
-              mention_status: false,
-              username: "",
-              user: null,
-              start: null,
-              end: null,
-              is_allowed: true,
-            },
-          ];
-        }
-
-        const enrichedMentions = [];
-        for (const mention of mentions) {
-          const enriched = await enrichMentionWithPolicy(mention);
-          enrichedMentions.push({
-            id: mention.id,
-            username: mention.username,
-            user: mention.user,
-            start: mention.start,
-            end: mention.end,
-            isAllowed: enriched.is_allowed, // Note camelCase here to match Dart usage
-          });
-        }
-
-        const author = item.user ?? item.commented_by ?? null;
-        const profilePic = author?.profile_picture ?? null;
-
-        return {
-          id: item.id,
-          comment: isRepostCaption
-            ? item.comment || item.repost_caption || ""
-            : item.comment || "",
-          mentionedUsers: enrichedMentions, // camelCase
-          createdAt: item.createdAt,
-          repostCaption: isRepostCaption ? item.repost_caption || "" : "", // camelCase
-          isRepostCaption: isRepostCaption, // camelCase
-          stats: {
-            likes: item.stats?.likes ?? 0,
-            replies: item.stats?.replies ?? 0,
-            isLiked: item.stats?.is_liked ?? false,
-            isLikedByAuthor: item.stats?.is_liked_by_author ?? false,
-          },
-          author: author
-            ? {
-                id: author.id,
-                username: author.username,
-                name: author.name,
-                avatarRingColor: author.avatar_ring_color, // camelCase if your Dart expects so
-                profilePicture: profilePic
-                  ? {
-                      id: profilePic.id,
-                      url: profilePic.url,
-                      formats: profilePic.formats || null,
-                      alternativeText: profilePic.alternativeText || null,
-                    }
-                  : null,
-              }
-            : null,
-          pinned: item.pinned ?? false,
-          parent: item.parent_comment ?? null,
-          repostOf: item.repost_of ?? null, // camelCase
-        };
-      }
+      const commentService = strapi.service("api::comment.comment");
+      const postService = strapi.service("api::post.post");
 
       try {
-        const post = await strapi.entityService.findOne(
-          "api::post.post",
-          postId,
-          {
-            fields: ["id", "createdAt", "repost_caption"],
-            populate: {
-              posted_by: {
-                fields: ["id", "username", "name", "avatar_ring_color"],
-                populate: { profile_picture: true },
-              },
-              repost_of: {
-                fields: ["id"],
-                populate: {
-                  posted_by: {
-                    fields: ["id", "username", "name", "avatar_ring_color"],
-                    populate: { profile_picture: true },
-                  },
-                },
-              },
-            },
-          }
-        );
-
+        const post = await postService.getPost(postId);
         if (!post) return ctx.notFound("Post not found");
-        console.log("REPOST", post);
+
         const isRepost = !!(post as any).repost_of;
         const repostCaption = post.repost_caption?.trim() || "";
 
@@ -446,35 +579,23 @@ export default factories.createCoreController(
             sort: { createdAt: "desc" },
           }
         );
-
         const pinnedBlock = await Promise.all(
-          pinnedComments.map((item) => shapeCommentData(item))
+          pinnedComments.map((item) =>
+            commentService.shapeCommentData(item, userId, mentionPolicyService)
+          )
         );
+
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
           const repostUser = (post as any).posted_by;
-          const block = await shapeCommentData(
-            {
-              id: post.id,
-              comment: "",
-              repost_caption: repostCaption,
-              user: repostUser,
-              commented_by: repostUser,
-              createdAt: post.createdAt,
-              stats: {
-                likes: 0,
-                replies: 0,
-                is_liked: false,
-                is_liked_by_author: false,
-              },
-              mentioned_users: [],
-              pinned: false,
-              parent_comment: null,
-              repost_of: null,
-            },
+          const reposts = await postService.populateRepostData([post]);
+          console.log(reposts);
+          const block = await commentService.shapeCommentData(
+            reposts[0],
+            userId,
+            mentionPolicyService,
             true
           );
-
           repostCaptionBlock = [block];
         }
 
@@ -506,12 +627,13 @@ export default factories.createCoreController(
             pageSize: Number(pageSize),
           }
         );
-
         const comments = paginatedComments.results || [];
         const pagination = paginatedComments.pagination || {};
 
         const enrichedComments = await Promise.all(
-          comments.map((item) => shapeCommentData(item))
+          comments.map((item) =>
+            commentService.shapeCommentData(item, userId, mentionPolicyService)
+          )
         );
 
         const response = [

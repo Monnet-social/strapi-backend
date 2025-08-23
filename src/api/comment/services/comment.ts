@@ -89,5 +89,154 @@ export default factories.createCoreService(
         filters: { comment: { id: { $in: commentIds } } },
       });
     },
+
+    async enrichMentionWithPolicy(mention, userId, mentionPolicyService) {
+      const policy = mention.comment_policy || "anyone";
+      const mentionedUserId = mention.user?.id || mention.user;
+      if (!mentionedUserId) return { ...mention, is_allowed: false };
+
+      const allowed = await mentionPolicyService.isMentionAllowed(
+        userId,
+        mentionedUserId,
+        policy
+      );
+      return { ...mention, is_allowed: allowed };
+    },
+
+    async shapeCommentData(
+      item,
+      userId,
+      mentionPolicyService,
+      isRepostCaption = false
+    ) {
+      let mentions = Array.isArray(item.mentioned_users)
+        ? item.mentioned_users.filter((m) => m.mention_status === true)
+        : [];
+
+      if (!mentions.length) {
+        mentions = [
+          {
+            mention_status: false,
+            username: "",
+            user: null,
+            start: null,
+            end: null,
+            is_allowed: true,
+          },
+        ];
+      }
+
+      const enrichedMentions = [];
+      for (const mention of mentions) {
+        const enriched = await this.enrichMentionWithPolicy(
+          mention,
+          userId,
+          mentionPolicyService
+        );
+        enrichedMentions.push({
+          id: mention.id,
+          username: mention.username,
+          user: mention.user,
+          start: mention.start,
+          end: mention.end,
+          isAllowed: enriched.is_allowed,
+        });
+      }
+
+      const author = item.user ?? item.commented_by ?? null;
+      const profilePic = author?.profile_picture ?? null;
+
+      return {
+        id: item.id,
+        comment: isRepostCaption
+          ? item.comment || item.repost_caption || ""
+          : item.comment || "",
+        mentionedUsers: enrichedMentions,
+        createdAt: item.createdAt,
+        repostCaption: isRepostCaption ? item.repost_caption || "" : "",
+        isRepostCaption,
+        stats: {
+          likes: item.stats?.likes ?? 0,
+          replies: item.stats?.replies ?? 0,
+          isLiked: item.stats?.is_liked ?? false,
+          isLikedByAuthor: item.stats?.is_liked_by_author ?? false,
+        },
+        author: author
+          ? {
+              id: author.id,
+              username: author.username,
+              name: author.name,
+              avatarRingColor: author.avatar_ring_color,
+              profilePicture: profilePic
+                ? {
+                    id: profilePic.id,
+                    url: profilePic.url,
+                    formats: profilePic.formats || null,
+                    alternativeText: profilePic.alternativeText || null,
+                  }
+                : null,
+            }
+          : null,
+        pinned: item.pinned ?? false,
+        parent: item.parent_comment ?? null,
+        repostOf: item.repost_of ?? null,
+      };
+    },
+    async enrichPostMentions(
+      post: any,
+      userId: number,
+      type: "story" | "comment" | "post" = "post"
+    ) {
+      const mentionService = strapi.service(
+        "api::mention-policy.mention-policy"
+      );
+
+      // 1. Extract mentions from title + description text using mentionUser service method
+      const combinedText = `${post.title || ""} ${post.description || ""}`;
+      const mentionsFromText = await mentionService.mentionUser(
+        userId,
+        combinedText,
+        type
+      );
+
+      // 2. Get the existing mentioned_users component array (if any)
+      const componentMentions = Array.isArray(post.mentioned_users)
+        ? post.mentioned_users
+        : [];
+
+      // 3. Determine usernames already included in component mentions to avoid duplicates
+      const componentUsernames = new Set(
+        componentMentions.map((m) => m.username)
+      );
+      const filteredTextMentions = mentionsFromText.filter(
+        (m) => !componentUsernames.has(m.username)
+      );
+
+      // 4. Combine component mentions with newly extracted mentions from text
+      const combinedMentions = [...componentMentions, ...filteredTextMentions];
+
+      // 5. Enrich all mentions with permission 'is_allowed' flag based on policy
+      const enrichedMentions = [];
+      for (const mention of combinedMentions) {
+        const policy = mention.policy || mention.comment_policy || "any";
+        const mentionedUserId = mention.user?.id || mention.user;
+        const isAllowed = await mentionService.isMentionAllowed(
+          userId,
+          mentionedUserId,
+          policy
+        );
+        enrichedMentions.push({
+          ...mention,
+          is_allowed: isAllowed,
+        });
+      }
+      console.log(
+        "COMMENT ENRICHMENTS(IN POST MENTIONS) : \n",
+        enrichedMentions
+      );
+      // 6. Assign enriched mentions back into post
+      post.mentioned_users = enrichedMentions;
+      return post;
+    },
   })
 );

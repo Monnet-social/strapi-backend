@@ -1,5 +1,6 @@
 import HelperService from "../../../utils/helper_service";
 import MesiboService from "../../../utils/mesibo_service";
+import NotificationService from "../../../utils/notification_service";
 module.exports = {
   async getMesiboProfile(ctx) {
     const { mesibo_id } = ctx.params;
@@ -273,13 +274,276 @@ module.exports = {
     }
   },
 
+  // async updateProfile(ctx) {
+  //   const { user } = ctx.state;
+  //   if (!user)
+  //     return ctx.unauthorized("You must be logged in to edit your profile.");
+
+  //   const body: any = ctx.request.body;
+  //   const dataToUpdate: any = {};
+
+  //   if (body.name !== undefined && body.name !== "") {
+  //     if (typeof body.name !== "string")
+  //       return ctx.badRequest("Name must be a non-empty string.");
+  //     dataToUpdate.name = body.name.trim();
+  //   }
+  //   if (body.bio !== undefined && body.bio !== "") {
+  //     if (typeof body.bio !== "string")
+  //       return ctx.badRequest("Bio must be a string.");
+  //     dataToUpdate.bio = body.bio.trim();
+  //   }
+  //   if (body.website !== undefined && body.website !== "") {
+  //     if (
+  //       typeof body.website !== "string" ||
+  //       !HelperService.WEBSITE_REGEX.test(body.website)
+  //     )
+  //       return ctx.badRequest("Website must be a valid URL.");
+  //     dataToUpdate.website = body.website.trim();
+  //   }
+  //   if (body.date_of_birth !== undefined && body.date_of_birth !== "") {
+  //     if (!HelperService.DATE_REGEX.test(body.date_of_birth))
+  //       return ctx.badRequest("Invalid date format. Use YYYY-MM-DD.");
+  //     if (new Date(body.date_of_birth) > new Date())
+  //       return ctx.badRequest("Date of birth cannot be in the future.");
+  //     dataToUpdate.date_of_birth = body.date_of_birth;
+  //   }
+  //   if (body.username !== undefined && body.username !== "") {
+  //     if (!HelperService.USERNAME_REGEX.test(body.username))
+  //       return ctx.badRequest(
+  //         "Username must be 3-20 characters long and can only contain letters, numbers, and underscores."
+  //       );
+  //     const existingUsers = await strapi.entityService.findMany(
+  //       "plugin::users-permissions.user",
+  //       {
+  //         filters: { username: body.username, id: { $ne: user.id } },
+  //       }
+  //     );
+  //     if (existingUsers.length > 0)
+  //       return ctx.conflict("Username is already taken.");
+  //     dataToUpdate.username = body.username;
+  //   }
+  //   if (
+  //     body.profile_picture_id !== undefined &&
+  //     body.profile_picture_id !== ""
+  //   ) {
+  //     if (
+  //       typeof body.profile_picture_id !== "number" ||
+  //       isNaN(body.profile_picture_id)
+  //     )
+  //       return ctx.badRequest("profile_picture_id must be a number.");
+  //     const file = await strapi.entityService.findOne(
+  //       "plugin::upload.file",
+  //       body.profile_picture_id
+  //     );
+  //     if (!file)
+  //       return ctx.notFound(
+  //         "The specified profile picture could not be found."
+  //       );
+  //     dataToUpdate.profile_picture = body.profile_picture_id;
+  //   }
+  //   if (body.professional_info !== undefined)
+  //     dataToUpdate.professional_info = body.professional_info;
+
+  //   if (
+  //     body.location !== undefined &&
+  //     body.location !== null &&
+  //     typeof body.location === "object" &&
+  //     typeof body.location.latitude === "number" &&
+  //     typeof body.location.longitude === "number" &&
+  //     typeof body.location.address === "string" &&
+  //     typeof body.location.zip === "string"
+  //   ) {
+  //     dataToUpdate.location = body.location;
+  //   } else if (body.location !== undefined) {
+  //     return ctx.badRequest(
+  //       "Location must be a valid object with latitude (number), longitude (number), address (string), and zip (string)."
+  //     );
+  //   }
+
+  //   if (body.is_public !== undefined) {
+  //     if (typeof body.is_public !== "boolean")
+  //       return ctx.badRequest(
+  //         "is_public must be a boolean value (true or false)."
+  //       );
+  //     dataToUpdate.is_public = body.is_public;
+  //   }
+  //   if (body.badge !== undefined && body.badge !== "") {
+  //     const allowedBadges = ["verified"];
+  //     if (typeof body.badge !== "string" || !allowedBadges.includes(body.badge))
+  //       return ctx.badRequest(
+  //         `Invalid badge. Allowed values: ${allowedBadges.join(", ")}.`
+  //       );
+  //     dataToUpdate.badge = body.badge;
+  //   }
+  //   if (body.gender !== undefined) dataToUpdate.gender = body.gender;
+
+  //   if (body.avatar_ring_color !== undefined && body.avatar_ring_color !== "") {
+  //     if (
+  //       typeof body.avatar_ring_color !== "string" ||
+  //       !HelperService.HEX_COLOR_REGEX.test(body.avatar_ring_color)
+  //     )
+  //       return ctx.badRequest(
+  //         "Invalid hex color format for avatar_ring_color."
+  //       );
+  //     dataToUpdate.avatar_ring_color = body.avatar_ring_color;
+  //   }
+
+  //   if (body.play_mature_content !== undefined) {
+  //     if (typeof body.play_mature_content !== "boolean")
+  //       return ctx.badRequest("play_mature_content must be a boolean.");
+  //     dataToUpdate.play_mature_content = body.play_mature_content;
+  //   }
+  //   if (body.show_category_on_feed !== undefined) {
+  //     if (typeof body.show_category_on_feed !== "boolean")
+  //       return ctx.badRequest("show_category_on_feed must be a boolean.");
+  //     dataToUpdate.show_category_on_feed = body.show_category_on_feed;
+  //   }
+  //   if (body.flag_content !== undefined) {
+  //     if (typeof body.flag_content !== "boolean")
+  //       return ctx.badRequest("flag_content must be a boolean.");
+  //     dataToUpdate.flag_content = body.flag_content;
+  //   }
+  //   if (body.limit_autoplay !== undefined) {
+  //     if (typeof body.limit_autoplay !== "boolean")
+  //       return ctx.badRequest("limit_autoplay must be a boolean.");
+  //     dataToUpdate.limit_autoplay = body.limit_autoplay;
+  //   }
+  //   if (body.hide_like !== undefined) {
+  //     if (typeof body.hide_like !== "boolean")
+  //       return ctx.badRequest("hide_like must be a boolean.");
+  //     dataToUpdate.hide_like = body.hide_like;
+  //   }
+
+  //   if (Object.keys(dataToUpdate).length === 0)
+  //     return ctx.badRequest("No valid fields were provided for update.");
+
+  //   try {
+  //     const currentUserData = await strapi.entityService.findOne(
+  //       "plugin::users-permissions.user",
+  //       user.id,
+  //       {
+  //         fields: ["is_public"],
+  //       }
+  //     );
+  //     const wasPrivate =
+  //       currentUserData.is_public === false || !currentUserData.is_public;
+
+  //     const updatedUser = await strapi.entityService.update(
+  //       "plugin::users-permissions.user",
+  //       user.id,
+  //       {
+  //         data: dataToUpdate,
+  //         populate: { profile_picture: true, location: true },
+  //         fields: [
+  //           "id",
+  //           "username",
+  //           "email",
+  //           "bio",
+  //           "website",
+  //           "name",
+  //           "is_email_verified",
+  //           "referral_code",
+  //           "date_of_birth",
+  //           "professional_info",
+  //           "is_public",
+  //           "badge",
+  //           "gender",
+  //           "avatar_ring_color",
+  //           "play_mature_content",
+  //           "hide_like",
+  //           "limit_autoplay",
+  //           "flag_content",
+  //           "show_category_on_feed",
+  //         ],
+  //       }
+  //     );
+
+  //     if (dataToUpdate.is_public === true && wasPrivate) {
+  //       const pendingRequests = await strapi.entityService.findMany(
+  //         "api::follow-request.follow-request",
+  //         {
+  //           filters: {
+  //             requested_for: user.id,
+  //             request_status: "PENDING",
+  //           },
+  //           populate: { requested_by: true },
+  //           pagination: { start: 0, limit: -1 },
+  //         }
+  //       );
+
+  //       for (const request of pendingRequests) {
+  //         const requesterId = (request as any).requested_by.id;
+
+  //         const existingFollowing = await strapi.entityService.count(
+  //           "api::following.following",
+  //           {
+  //             filters: {
+  //               follower: requesterId,
+  //               subject: user.id,
+  //             },
+  //           }
+  //         );
+
+  //         if (existingFollowing === 0) {
+  //           await strapi.entityService.create("api::following.following", {
+  //             data: {
+  //               follower: requesterId,
+  //               subject: user.id,
+  //             },
+  //           });
+  //         }
+
+  //         await strapi.entityService.update(
+  //           "api::follow-request.follow-request",
+  //           request.id,
+  //           {
+  //             data: { request_status: "ACCEPTED" },
+  //           }
+  //         );
+  //       }
+  //     }
+
+  //     await strapi
+  //       .service("api::post.post")
+  //       .enrichUsersWithOptimizedProfilePictures([updatedUser]);
+
+  //     delete updatedUser.password;
+
+  //     let userStories = [];
+  //     if (updatedUser.is_public) {
+  //       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  //       userStories = await strapi.entityService.findMany("api::post.post", {
+  //         filters: {
+  //           posted_by: user.id,
+  //           post_type: "story",
+  //           createdAt: { $gte: twentyFourHoursAgo },
+  //         },
+  //         populate: { media: true },
+  //       });
+
+  //       for (const story of userStories) {
+  //         story.media = await strapi
+  //           .service("api::post.post")
+  //           .getOptimisedFileData(story.media);
+  //       }
+  //     }
+
+  //     return ctx.send({ user: updatedUser, stories: userStories });
+  //   } catch (error) {
+  //     strapi.log.error("Error in updateProfile:", error);
+  //     return ctx.internalServerError(
+  //       "An error occurred while updating the profile."
+  //     );
+  //   }
+  // },
   async updateProfile(ctx) {
     const { user } = ctx.state;
     if (!user)
       return ctx.unauthorized("You must be logged in to edit your profile.");
 
-    const body: any = ctx.request.body;
-    const dataToUpdate: any = {};
+    const body = ctx.request.body;
+    const dataToUpdate = {} as any;
+    let bioMentions = [];
 
     if (body.name !== undefined && body.name !== "") {
       if (typeof body.name !== "string")
@@ -290,6 +554,31 @@ module.exports = {
       if (typeof body.bio !== "string")
         return ctx.badRequest("Bio must be a string.");
       dataToUpdate.bio = body.bio.trim();
+
+      // Extract mentions from bio using mentionUser service
+      console.log(dataToUpdate, body.bio);
+      bioMentions = await strapi
+        .service("api::mention-policy.mention-policy")
+        .mentionUser(user.id, dataToUpdate.bio, "bio"); // or "bio" if supported
+      console.log(bioMentions);
+      const notificationService = new NotificationService();
+
+      for (const mention of bioMentions) {
+        const mentionedUserObj = await strapi.entityService.findOne(
+          "plugin::users-permissions.user",
+          mention.user,
+          {
+            fields: ["id", "username", "name", "fcm_token"],
+          }
+        );
+
+        await notificationService.notifyBioMention(
+          user.id,
+          mention.user,
+          user.name || user.username,
+          mentionedUserObj.fcm_token
+        );
+      }
     }
     if (body.website !== undefined && body.website !== "") {
       if (
@@ -527,7 +816,11 @@ module.exports = {
         }
       }
 
-      return ctx.send({ user: updatedUser, stories: userStories });
+      return ctx.send({
+        user: updatedUser,
+        stories: userStories,
+        bio_mentions: bioMentions,
+      });
     } catch (error) {
       strapi.log.error("Error in updateProfile:", error);
       return ctx.internalServerError(

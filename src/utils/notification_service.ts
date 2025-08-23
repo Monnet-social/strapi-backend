@@ -195,4 +195,16 @@ export default class NotificationService {
     );
     console.log(`Removed invalid FCM token for user ${user.id}`);
   }
+  async notifyBioMention(
+    actor: number,
+    mentionedUser: number,
+    actorName: string,
+    fcm_token: string
+  ) {
+    const message = `${actorName} mentioned you in their bio.`;
+    await this.saveNotification("mention", actor, mentionedUser, message, {});
+    if (fcm_token) {
+      await this.sendPushNotification("New Mention", message, {}, fcm_token);
+    }
+  }
 }

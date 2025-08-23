@@ -45,10 +45,23 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       ) {
         data.mentioned_users = [];
       } else {
-        // Also filter invalid mention objects in mentioned_users
-        data.mentioned_users = data.mentioned_users.filter(
-          (m) => m && m.user !== undefined && m.user !== null
-        );
+        if (
+          Array.isArray(data.mentioned_users) &&
+          data.mentioned_users.length > 0
+        ) {
+          // Normalize user IDs to mention objects
+          data.mentioned_users = data.mentioned_users
+            .filter((id) => id !== null && id !== undefined)
+            .map((userId) => ({
+              user: userId,
+              username: "", // Populate if data available
+              start: 0,
+              end: 0,
+              mention_status: true,
+            }));
+        } else {
+          data.mentioned_users = [];
+        }
       }
       if (data.share_with === "PUBLIC") {
         data.share_with_close_friends = [];
@@ -116,9 +129,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       }
       data.mentioned_users = Array.from(allMentionsMap.values());
 
+      console.log(data);
       data.posted_by = userId;
-
-      // Create post with shallow populate only
+      data.is_mature = false;
+      data.is_mature = data.is_mature === true;
+      console.log(data);
       const newPost = await strapi.entityService.create("api::post.post", {
         data,
         populate: {
@@ -1011,9 +1026,220 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
     }
   },
 
+  // async feed(ctx) {
+  //   const { id: userId } = ctx.state.user;
+  //   const { pagination_size, page } = ctx.query;
+  //   const defaultPagination = {
+  //     page: Number(page) || 1,
+  //     pageSize: Number(pagination_size) || 10,
+  //   };
+
+  //   try {
+  //     const { blockList, followingList, closeFriendList } = await strapi
+  //       .service("api::post.post")
+  //       .getUserRelationsData(userId);
+
+  //     const { posts, total } = await strapi
+  //       .service("api::post.post")
+  //       .getFeedPosts(
+  //         userId,
+  //         defaultPagination,
+  //         blockList,
+  //         followingList,
+  //         closeFriendList
+  //       );
+
+  //     if (!posts.length) {
+  //       return ctx.send({
+  //         data: [],
+  //         meta: {
+  //           pagination: { ...defaultPagination, pageCount: 0, total: 0 },
+  //         },
+  //         message: "No posts found",
+  //       });
+  //     }
+
+  //     const enrichedPosts = await strapi
+  //       .service("api::post.post")
+  //       .preparePosts(posts, userId, { includeStories: true });
+
+  //     return ctx.send({
+  //       data: enrichedPosts,
+  //       meta: {
+  //         pagination: {
+  //           ...defaultPagination,
+  //           pageCount: Math.ceil(total / defaultPagination.pageSize),
+  //           total,
+  //         },
+  //       },
+  //       message: "Posts fetched successfully",
+  //     });
+  //   } catch (e) {
+  //     strapi.log.error("feed fetch error", e);
+  //     return ctx.internalServerError("An error occurred fetching feed posts");
+  //   }
+  // },
+  // async findUserPosts(ctx) {
+  //   const { id: targetUserId } = ctx.params;
+  //   const { id: currentUserId } = ctx.state.user;
+  //   if (!targetUserId) return ctx.badRequest("User ID is required");
+
+  //   try {
+  //     const targetUser = await strapi.entityService.findOne(
+  //       "plugin::users-permissions.user",
+  //       targetUserId,
+  //       { fields: ["id", "is_public"] }
+  //     );
+  //     if (!targetUser) return ctx.notFound("Target user not found");
+
+  //     const { isOwner, isFollowing, isCloseFriend } = await strapi
+  //       .service("api::post.post")
+  //       .getUserAccessFlags(currentUserId, targetUserId);
+
+  //     const canView = targetUser.is_public || isOwner || isFollowing;
+  //     if (!canView) return ctx.send({ data: [] });
+
+  //     const posts = await strapi
+  //       .service("api::post.post")
+  //       .fetchUserPosts(targetUserId);
+
+  //     const filteredPosts = posts.filter((post) => {
+  //       if (isOwner || post.share_with === "PUBLIC") return true;
+  //       if (post.share_with === "FOLLOWERS") return isFollowing;
+  //       if (post.share_with === "CLOSE_FRIENDS") return isCloseFriend;
+  //       return false;
+  //     });
+
+  //     if (!filteredPosts.length) return ctx.send({ data: [] });
+
+  //     const enrichedPosts = await strapi
+  //       .service("api::post.post")
+  //       .preparePosts(filteredPosts, currentUserId);
+
+  //     return ctx.send({
+  //       data: enrichedPosts,
+  //       message: "User posts fetched successfully",
+  //     });
+  //   } catch (e) {
+  //     strapi.log.error("findUserPosts error", e);
+  //     return ctx.internalServerError("An error occurred fetching user posts");
+  //   }
+  // },
+
+  // async feed(ctx) {
+  //   const { id: userId, play_mature_content } = ctx.state.user;
+  //   const { pagination_size, page } = ctx.query;
+  //   const playMatureContent = play_mature_content === true;
+  //   const defaultPagination = {
+  //     page: Number(page) || 1,
+  //     pageSize: Number(pagination_size) || 10,
+  //   };
+
+  //   try {
+  //     const { blockList, followingList, closeFriendList } = await strapi
+  //       .service("api::post.post")
+  //       .getUserRelationsData(userId);
+
+  //     const { posts, total } = await strapi
+  //       .service("api::post.post")
+  //       .getFeedPosts(
+  //         userId,
+  //         defaultPagination,
+  //         blockList,
+  //         followingList,
+  //         closeFriendList
+  //       );
+
+  //     // Filter mature content if flag is false
+  //     const filteredPosts = playMatureContent
+  //       ? posts
+  //       : posts.filter((post) => !post.is_mature);
+
+  //     if (!filteredPosts.length) {
+  //       return ctx.send({
+  //         data: [],
+  //         meta: {
+  //           pagination: { ...defaultPagination, pageCount: 0, total: 0 },
+  //         },
+  //         message: "No posts found",
+  //       });
+  //     }
+
+  //     const enrichedPosts = await strapi
+  //       .service("api::post.post")
+  //       .preparePosts(filteredPosts, userId, { includeStories: true });
+
+  //     return ctx.send({
+  //       data: enrichedPosts,
+  //       meta: {
+  //         pagination: {
+  //           ...defaultPagination,
+  //           pageCount: Math.ceil(total / defaultPagination.pageSize),
+  //           total,
+  //         },
+  //       },
+  //       message: "Posts fetched successfully",
+  //     });
+  //   } catch (e) {
+  //     strapi.log.error("feed fetch error", e);
+  //     return ctx.internalServerError("An error occurred fetching feed posts");
+  //   }
+  // },
+
+  // async findUserPosts(ctx) {
+  //   const { id: targetUserId } = ctx.params;
+  //   const { id: currentUserId, play_mature_content } = ctx.state.user;
+  //   const playMatureContent = play_mature_content === true;
+  //   if (!targetUserId) return ctx.badRequest("User ID is required");
+
+  //   try {
+  //     const targetUser = await strapi.entityService.findOne(
+  //       "plugin::users-permissions.user",
+  //       targetUserId,
+  //       { fields: ["id", "is_public"] }
+  //     );
+  //     if (!targetUser) return ctx.notFound("Target user not found");
+
+  //     const { isOwner, isFollowing, isCloseFriend } = await strapi
+  //       .service("api::post.post")
+  //       .getUserAccessFlags(currentUserId, targetUserId);
+
+  //     const canView = targetUser.is_public || isOwner || isFollowing;
+  //     if (!canView) return ctx.send({ data: [] });
+
+  //     const posts = await strapi
+  //       .service("api::post.post")
+  //       .fetchUserPosts(targetUserId);
+
+  //     // Filter posts by share_with and mature content
+  //     const filteredPosts = posts.filter((post) => {
+  //       if (!playMatureContent && post.is_mature) return false;
+
+  //       if (isOwner || post.share_with === "PUBLIC") return true;
+  //       if (post.share_with === "FOLLOWERS") return isFollowing;
+  //       if (post.share_with === "CLOSE_FRIENDS") return isCloseFriend;
+  //       return false;
+  //     });
+
+  //     if (!filteredPosts.length) return ctx.send({ data: [] });
+
+  //     const enrichedPosts = await strapi
+  //       .service("api::post.post")
+  //       .preparePosts(filteredPosts, currentUserId);
+
+  //     return ctx.send({
+  //       data: enrichedPosts,
+  //       message: "User posts fetched successfully",
+  //     });
+  //   } catch (e) {
+  //     strapi.log.error("findUserPosts error", e);
+  //     return ctx.internalServerError("An error occurred fetching user posts");
+  //   }
+  // },
   async feed(ctx) {
-    const { id: userId } = ctx.state.user;
+    const { id: userId, play_mature_content } = ctx.state.user;
     const { pagination_size, page } = ctx.query;
+    const playMatureContent = play_mature_content === true;
     const defaultPagination = {
       page: Number(page) || 1,
       pageSize: Number(pagination_size) || 10,
@@ -1034,7 +1260,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           closeFriendList
         );
 
-      if (!posts.length) {
+      const filteredPosts = playMatureContent
+        ? posts
+        : posts.filter((p) => !p.is_mature);
+
+      if (!filteredPosts.length) {
         return ctx.send({
           data: [],
           meta: {
@@ -1043,13 +1273,25 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
           message: "No posts found",
         });
       }
+      const commentService = strapi.service("api::comment.comment");
+      const enrichedPosts = [];
+      for (const post of filteredPosts) {
+        const enrichedPost = await commentService.enrichPostMentions(
+          post,
+          userId,
+          "post"
+        );
+        enrichedPosts.push(enrichedPost);
+      }
 
-      const enrichedPosts = await strapi
+      const finalPosts = await strapi
         .service("api::post.post")
-        .preparePosts(posts, userId, { includeStories: true });
+        .preparePosts(enrichedPosts, userId, {
+          includeStories: true,
+        });
 
       return ctx.send({
-        data: enrichedPosts,
+        data: finalPosts,
         meta: {
           pagination: {
             ...defaultPagination,
@@ -1060,13 +1302,16 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         message: "Posts fetched successfully",
       });
     } catch (e) {
-      strapi.log.error("feed fetch error", e);
+      ctx.logger.error("feed fetch error", e);
       return ctx.internalServerError("An error occurred fetching feed posts");
     }
   },
+
   async findUserPosts(ctx) {
     const { id: targetUserId } = ctx.params;
-    const { id: currentUserId } = ctx.state.user;
+    const { id: currentUserId, play_mature_content } = ctx.state.user;
+    const playMatureContent = play_mature_content === true;
+
     if (!targetUserId) return ctx.badRequest("User ID is required");
 
     try {
@@ -1084,29 +1329,43 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       const canView = targetUser.is_public || isOwner || isFollowing;
       if (!canView) return ctx.send({ data: [] });
 
-      const posts = await strapi
+      const allPosts = await strapi
         .service("api::post.post")
         .fetchUserPosts(targetUserId);
 
-      const filteredPosts = posts.filter((post) => {
-        if (isOwner || post.share_with === "PUBLIC") return true;
+      const filteredPosts = allPosts.filter((post) => {
+        if (!playMatureContent && post.is_mature) return false;
+
+        if (isOwner) return true;
+        if (post.share_with === "PUBLIC") return true;
         if (post.share_with === "FOLLOWERS") return isFollowing;
         if (post.share_with === "CLOSE_FRIENDS") return isCloseFriend;
         return false;
       });
 
       if (!filteredPosts.length) return ctx.send({ data: [] });
+      const commentService = strapi.service("api::comment.comment");
 
-      const enrichedPosts = await strapi
+      const enrichedPosts = [];
+      for (const post of filteredPosts) {
+        const enrichedPost = await commentService.enrichPostMentions(
+          post,
+          currentUserId,
+          "post"
+        );
+        enrichedPosts.push(enrichedPost);
+      }
+
+      const finalPosts = await strapi
         .service("api::post.post")
-        .preparePosts(filteredPosts, currentUserId);
+        .preparePosts(enrichedPosts, currentUserId);
 
       return ctx.send({
-        data: enrichedPosts,
+        data: finalPosts,
         message: "User posts fetched successfully",
       });
     } catch (e) {
-      strapi.log.error("findUserPosts error", e);
+      ctx.logger.error("findUserPosts error", e);
       return ctx.internalServerError("An error occurred fetching user posts");
     }
   },

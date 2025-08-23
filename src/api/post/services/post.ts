@@ -128,77 +128,50 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     currentUserId: string | number
   ): Promise<Post[]> {
     if (!posts?.length) return posts;
-    const repostIds = posts
-      .filter((p) => p.repost_of)
-      .map((p) =>
-        typeof p.repost_of === "number" || typeof p.repost_of === "string"
-          ? p.repost_of
-          : p.repost_of.id
-      )
-      .filter(
-        (id): id is string | number =>
-          typeof id === "string" || typeof id === "number"
-      );
-    if (!repostIds.length) return posts;
-    const originals = await strapi.entityService.findMany("api::post.post", {
-      filters: { id: { $in: repostIds } },
-      populate: {
-        posted_by: {
-          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
-          populate: { profile_picture: true },
-        },
-        category: true,
-        tagged_users: {
-          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
-          populate: { profile_picture: true },
-        },
-        location: true,
-        media: true,
-        viewers: true,
-        share_with_close_friends: true,
-        repost_of: true,
-        reposted_from: true,
-      },
-    });
-    const originalsMap = new Map<string | number, Post>(
-      originals.map((o: any) => [o.id, o])
-    );
-    const skipKeys = [
-      "id",
-      "documentId",
-      "createdAt",
-      "updatedAt",
-      "publishedAt",
-      "posted_by",
-      "repost_of",
-      "reposted_from",
-      "repost_caption",
-      "likes_count",
-      "is_liked",
-      "dislikes_count",
-      "is_disliked",
-      "comments_count",
-      "share_count",
-    ];
-    return posts.map((post: Post) => {
-      if (post.repost_of) {
-        const origId =
-          typeof post.repost_of === "number" ||
-          typeof post.repost_of === "string"
-            ? post.repost_of
-            : post.repost_of.id;
-        const orig = originalsMap.get(origId);
-        if (orig) {
-          post.is_repost = true;
-          Object.keys(orig).forEach((key) => {
-            if (!skipKeys.includes(key)) post[key] = orig[key];
-          });
-          post.repost_of = orig;
-          post.reposted_from = orig?.posted_by || null;
+
+    // Loop through each post that has a repost_of
+    return await Promise.all(
+      posts.map(async (post: Post) => {
+        if (post.repost_of) {
+          const repostId =
+            typeof post.repost_of === "number" ||
+            typeof post.repost_of === "string"
+              ? post.repost_of
+              : post.repost_of.id;
+
+          const orig = await this.resolveOriginalPost(repostId);
+
+          if (orig) {
+            post.is_repost = true;
+
+            const skipKeys = [
+              "id",
+              "documentId",
+              "createdAt",
+              "updatedAt",
+              "publishedAt",
+              "posted_by",
+              "repost_of",
+              "reposted_from",
+              "repost_caption",
+              "likes_count",
+              "is_liked",
+              "dislikes_count",
+              "is_disliked",
+              "comments_count",
+              "share_count",
+            ];
+            Object.keys(orig).forEach((key) => {
+              if (!skipKeys.includes(key)) post[key] = orig[key];
+            });
+
+            post.repost_of = orig;
+            post.reposted_from = orig.posted_by || null;
+          }
         }
-      }
-      return post;
-    });
+        return post;
+      })
+    );
   },
 
   async resolveOriginalPost(postId: number): Promise<any | null> {
@@ -215,11 +188,17 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
           "api::post.post",
           currentPostId,
           {
-            fields: ["id", "title", "description", "createdAt"],
             populate: {
               repost_of: { fields: ["id"] },
               posted_by: { fields: ["id", "username", "name", "fcm_token"] },
               media: { fields: ["id", "url", "mime"] },
+              mentioned_users: {
+                populate: {
+                  user: {
+                    fields: ["id", "username", "name", "fcm_token"],
+                  },
+                },
+              },
             },
           }
         );
@@ -581,55 +560,36 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     const filters: any = {
       post_type: "post",
       posted_by: { id: { $notIn: blockList.length ? blockList : [-1] } },
-      $and: [
+      $or: [
+        { share_with: "PUBLIC" },
         {
-          $or: [
-            // No repost, and must have media
+          $and: [
+            { share_with: "FOLLOWERS" },
             {
-              $and: [
-                { repost_of: { $null: true } },
-                { media: { id: { $notNull: true } } },
-              ],
+              posted_by: {
+                id: { $in: followingList.length ? followingList : [-1] },
+              },
             },
-            // Is a repost (original present)
-            { repost_of: { id: { $notNull: true } } },
           ],
         },
         {
-          $or: [
-            { share_with: "PUBLIC" },
+          $and: [
+            { share_with: "CLOSE_FRIENDS" },
             {
-              $and: [
-                { share_with: "FOLLOWERS" },
-                {
-                  posted_by: {
-                    id: { $in: followingList.length ? followingList : [-1] },
-                  },
-                },
-              ],
+              posted_by: {
+                id: { $in: closeFriendList.length ? closeFriendList : [-1] },
+              },
             },
-            {
-              $and: [
-                { share_with: "CLOSE_FRIENDS" },
-                {
-                  posted_by: {
-                    id: {
-                      $in: closeFriendList.length ? closeFriendList : [-1],
-                    },
-                  },
-                },
-              ],
-            },
-            { posted_by: { id: userId } },
           ],
         },
+        { posted_by: { id: userId } },
       ],
     };
 
     const [posts, total] = await Promise.all([
       strapi.entityService.findMany("api::post.post", {
         filters,
-        sort: { createdAt: "desc" },
+        sort: { createdAt: "desc" }, // sorts posts and reposts by their createdAt descending
         populate: {
           posted_by: {
             fields: ["id", "username", "name", "avatar_ring_color"],
@@ -641,7 +601,14 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
             populate: { profile_picture: true },
           },
           media: true,
-          repost_of: true,
+          repost_of: {
+            populate: {
+              posted_by: true,
+              media: true,
+              category: true,
+              tagged_users: true,
+            },
+          },
         },
         start: (pagination.page - 1) * pagination.pageSize,
         limit: pagination.pageSize,
@@ -651,7 +618,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
 
     return { posts, total };
   },
-
   async getUserRelationsAndBlocks(userId: number) {
     if (!userId)
       return {
@@ -932,17 +898,60 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
   ) {
     if (!posts || posts.length === 0) return [];
 
-    // Enrich posts with stats, repost data, media, user info, etc.
+    const mentionService = strapi.service("api::mention-policy.mention-policy");
+
+    // 1. Enrich mentions on each post (both component and text-based)
+    for (const post of posts) {
+      // Extract mentions from title + description
+      const combinedText = `${post.title || ""} ${post.description || ""}`;
+      const textMentions = await mentionService.mentionUser(
+        currentUserId,
+        combinedText,
+        "post"
+      );
+
+      const componentMentions = Array.isArray(post.mentioned_users)
+        ? post.mentioned_users
+        : [];
+
+      // Avoid duplicates
+      const componentUsernames = new Set(
+        componentMentions.map((m) => m.username)
+      );
+      const filteredTextMentions = textMentions.filter(
+        (m) => !componentUsernames.has(m.username)
+      );
+
+      // Helper to enrich with is_allowed
+      const enrichMentions = async (mentions: any[]) => {
+        const enriched: any[] = [];
+        for (const mention of mentions) {
+          const policy = mention.policy || mention.comment_policy || "any";
+          const mentionedId = mention.user?.id || mention.user;
+          const allowed = await mentionService.isMentionAllowed(
+            currentUserId,
+            mentionedId,
+            policy
+          );
+          enriched.push({
+            ...mention,
+            is_allowed: allowed,
+          });
+        }
+        return enriched;
+      };
+
+      post.mentioned_users = await enrichMentions(componentMentions);
+      post.mentioned_users_in_content =
+        await enrichMentions(filteredTextMentions);
+    }
+
+    // Existing enrichment pipeline, fix destructor names below:
     let enrichedPosts = await this.enrichRepostsAndStats(posts, currentUserId);
-
-    // Map subcategories
     const categoryMap = await this.mapSubcategoriesToPosts(enrichedPosts);
-
-    // Enrich media and follow status
     const { optimizedMediaMap, followStatusMap } =
       await this.enrichMediaAndFollowStatus(enrichedPosts, currentUserId);
 
-    // Map final structured posts
     enrichedPosts = this.mapFinalPosts(
       enrichedPosts,
       categoryMap,
@@ -950,10 +959,9 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       followStatusMap
     );
 
-    // Optionally add hasStories flag
     if (opts.includeStories) {
       const authorIds = enrichedPosts
-        .map((post) => post.posted_by?.id)
+        .map((p) => p.posted_by?.id)
         .filter(Boolean);
       const usersWithStories = await this.getUsersWithStories(authorIds);
       enrichedPosts = enrichedPosts.map((post) => ({
@@ -967,7 +975,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
 
     return enrichedPosts;
   },
-
   async getUserRelationsData(userId: number) {
     if (!userId)
       return {
@@ -1003,5 +1010,92 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
       .filter(Boolean);
 
     return { blockList, followingList, closeFriendList };
+  },
+  async getPost(postId: number | string) {
+    return await strapi.entityService.findOne("api::post.post", postId, {
+      populate: {
+        posted_by: {
+          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
+          populate: { profile_picture: true },
+        },
+        tagged_users: {
+          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
+          populate: { profile_picture: true },
+        },
+        category: {
+          fields: ["id", "name"],
+        },
+        location: true,
+        media: true,
+        viewers: {
+          fields: ["id", "username", "name"],
+          populate: { profile_picture: true },
+        },
+        repost_of: {
+          populate: {
+            posted_by: {
+              fields: [
+                "id",
+                "username",
+                "name",
+                "avatar_ring_color",
+                "is_public",
+              ],
+              populate: { profile_picture: true },
+            },
+            category: { fields: ["id", "name"] },
+            media: true,
+            location: true,
+            tagged_users: {
+              fields: [
+                "id",
+                "username",
+                "name",
+                "avatar_ring_color",
+                "is_public",
+              ],
+              populate: { profile_picture: true },
+            },
+            mentioned_users: {
+              populate: {
+                user: {
+                  fields: [
+                    "id",
+                    "username",
+                    "name",
+                    "avatar_ring_color",
+                    "is_public",
+                  ],
+                  populate: { profile_picture: true },
+                },
+              },
+            },
+          },
+        },
+        reposted_from: {
+          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
+          populate: { profile_picture: true },
+        },
+        share_with_close_friends: {
+          fields: ["id", "username", "name", "avatar_ring_color", "is_public"],
+          populate: { profile_picture: true },
+        },
+        mentioned_users: {
+          populate: {
+            user: {
+              fields: [
+                "id",
+                "username",
+                "name",
+                "avatar_ring_color",
+                "is_public",
+              ],
+              populate: { profile_picture: true },
+            },
+          },
+        },
+        tags: true,
+      },
+    });
   },
 }));
