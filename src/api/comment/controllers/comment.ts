@@ -541,12 +541,17 @@ export default factories.createCoreController(
 
         const isRepost = !!post.repost_of;
         const repostCaption = post.repost_caption?.trim() || "";
-
-        // Fetch pinned comment separately
+        let pstId = post.id;
+        if (isRepost) {
+          const og = await postService.resolveOriginalPost(
+            post.repost_of.id || post.repost_of
+          );
+          pstId = og?.id || pstId;
+        }
         const pinnedComments = await strapi.entityService.findMany(
           "api::comment.comment",
           {
-            filters: { post: postId, parent_comment: null, pinned: true },
+            filters: { post: pstId, parent_comment: null, pinned: true },
             fields: ["id", "comment", "createdAt", "pinned"],
             populate: {
               commented_by: {
@@ -567,7 +572,6 @@ export default factories.createCoreController(
           }
         );
 
-        // Enrich pinned comment stats
         const enrichedPinned = await commentService.enrichCommentStats(
           pinnedComments,
           userId
@@ -578,7 +582,6 @@ export default factories.createCoreController(
           )
         );
 
-        // Prepare repost caption block if needed
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
           const reposts = await postService.populateRepostData([post]);
@@ -591,11 +594,10 @@ export default factories.createCoreController(
           repostCaptionBlock = [block];
         }
 
-        // Fetch paginated normal comments
         const paginated = await strapi.entityService.findPage(
           "api::comment.comment",
           {
-            filters: { post: postId, parent_comment: null, pinned: false },
+            filters: { post: pstId, parent_comment: null, pinned: false },
             fields: ["id", "comment", "createdAt", "pinned"],
             populate: {
               commented_by: {
@@ -641,7 +643,7 @@ export default factories.createCoreController(
 
         return ctx.send({ data: response, meta: paginated.pagination });
       } catch (error) {
-        ctx.log.error("Error fetching comments:", error);
+        console.log("Error fetching comments:", error);
         return ctx.internalServerError("Error retrieving comments.");
       }
     },
