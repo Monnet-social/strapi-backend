@@ -591,6 +591,7 @@ export default factories.createCoreController(
             mentionPolicyService,
             true
           );
+          block.author = reposts[0].posted_by;
           repostCaptionBlock = [block];
         }
 
