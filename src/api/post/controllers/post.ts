@@ -26,7 +26,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       ) {
         if (typeof data.tagged_users[0] === "number") {
           data.mentioned_users = data.tagged_users
-            .filter((id) => id !== null && id !== undefined)
+            // .filter((id) => id !== null && id !== undefined)
             .map((userId) => ({
               user: userId,
               username: "",
@@ -34,9 +34,10 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
               end: 0,
               mention_status: true,
             }));
-        } else {
-          data.mentioned_users = data.tagged_users.filter((m) => m && m.user);
         }
+        // else {
+        //   data.mentioned_users = data.tagged_users.filter((m) => m && m.user);
+        // }
       } else if (
         !data.mentioned_users ||
         !Array.isArray(data.mentioned_users)
@@ -60,6 +61,11 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         } else {
           data.mentioned_users = [];
         }
+      }
+
+      if (data?.media?.length > 0) {
+        //parse to number array of id
+        data.media = data.media.map((id) => Number(id));
       }
       if (data.share_with === "PUBLIC") {
         data.share_with_close_friends = [];
@@ -147,18 +153,20 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
             : {}),
         },
       });
+      console.log("NEW POST", newPost);
 
       // Extract tags asynchronously
-      if (typeof data.title === "string") {
-        await strapi
-          .service("api::tag.tag")
-          .extractTags(data.title, newPost.id);
-      }
-      if (typeof data.description === "string") {
-        await strapi
-          .service("api::tag.tag")
-          .extractTags(data.description, newPost.id);
-      }
+
+      // if (typeof data.title === "string") {
+      //   await strapi
+      //     .service("api::tag.tag")
+      //     .extractTags(data.title, newPost.id);
+      // }
+      // if (typeof data.description === "string") {
+      //   await strapi
+      //     .service("api::tag.tag")
+      //     .extractTags(data.description, newPost.id);
+      // }
 
       // Send notifications to mentioned users
       await strapi.service("api::post.post").notifyMentionsInPost(

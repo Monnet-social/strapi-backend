@@ -3,6 +3,7 @@ import AlgorithmControlService from "../../../../utils/algorithm_control_service
 export default {
   async afterCreate(event) {
     const { result } = event;
+    console.log("TRITERED AFTER CREATE", result, result.id);
     await strapi.service("api::tag.tag").extractTags(
       result.title,
 
