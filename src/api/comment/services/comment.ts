@@ -139,7 +139,7 @@ export default factories.createCoreService(
           user: mention.user,
           start: mention.start,
           end: mention.end,
-          isAllowed: enriched.is_allowed,
+          is_allowed: enriched.is_allowed,
         });
       }
 
@@ -151,15 +151,15 @@ export default factories.createCoreService(
         comment: isRepostCaption
           ? item.comment || item.repost_caption || ""
           : item.comment || "",
-        mentionedUsers: enrichedMentions,
+        mentioned_users: enrichedMentions,
         createdAt: item.createdAt,
-        repostCaption: isRepostCaption ? item.repost_caption || "" : "",
-        isRepostCaption,
+        repost_caption: isRepostCaption ? item.repost_caption || "" : "",
+        is_repost_caption: isRepostCaption,
         stats: {
           likes: item.stats?.likes ?? 0,
           replies: item.stats?.replies ?? 0,
-          isLiked: item.stats?.is_liked ?? false,
-          isLikedByAuthor: item.stats?.is_liked_by_author ?? false,
+          is_liked: item.stats?.is_liked ?? false,
+          is_liked_by_author: item.stats?.is_liked_by_author ?? false,
         },
         author: author
           ? {
@@ -179,7 +179,7 @@ export default factories.createCoreService(
           : null,
         pinned: item.pinned ?? false,
         parent: item.parent_comment ?? null,
-        repostOf: item.repost_of ?? null,
+        repost_of: item.repost_of ?? null,
       };
     },
     async enrichPostMentions(

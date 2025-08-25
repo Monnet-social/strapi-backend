@@ -20,7 +20,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       if (!data)
         return ctx.badRequest("Request body must contain a data object.");
 
-      // Normalize mentioned_users from tagged_users if tagged_users present
       if (
         data.tagged_users &&
         Array.isArray(data.tagged_users) &&
@@ -66,7 +65,6 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
       if (data.share_with === "PUBLIC") {
         data.share_with_close_friends = [];
       }
-      // Validate other fields
       await strapi
         .service("api::post.post")
         .validateCloseFriendsList(
@@ -1302,7 +1300,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         message: "Posts fetched successfully",
       });
     } catch (e) {
-      ctx.logger.error("feed fetch error", e);
+      console.log("feed fetch error", e);
       return ctx.internalServerError("An error occurred fetching feed posts");
     }
   },
@@ -1365,7 +1363,7 @@ module.exports = createCoreController("api::post.post", ({ strapi }) => ({
         message: "User posts fetched successfully",
       });
     } catch (e) {
-      ctx.logger.error("findUserPosts error", e);
+      console.log("FETCH USER POSTS ERROR : \n", e);
       return ctx.internalServerError("An error occurred fetching user posts");
     }
   },
