@@ -12,19 +12,20 @@ export default factories.createCoreController(
           "Either postId or profileId is required to create a share."
         );
 
-      let shareData = {
-        shared_by: userId,
-      };
-
+      let shareData: any = { shared_by: userId };
       let shareUrl = "";
       let successMessage = "";
 
       if (postId) {
-        (shareData as any).post = postId;
+        const postService = strapi.service("api::post.post");
+        const originalPost = await postService.resolveOriginalPost(postId);
+        const originalId = originalPost ? originalPost.id : postId;
+
+        shareData.post = originalId;
         successMessage = "Post shared successfully";
-        shareUrl = `${process.env.FRONTEND_URL}/post/${postId}`;
+        shareUrl = `${process.env.FRONTEND_URL}/post/${originalId}`;
       } else if (profileId) {
-        (shareData as any).shared_profile = profileId;
+        shareData.shared_profile = profileId;
         successMessage = "Profile shared successfully";
         shareUrl = `${process.env.FRONTEND_URL}/profile/${profileId}`;
       }
@@ -33,7 +34,6 @@ export default factories.createCoreController(
         await strapi.entityService.create("api::share.share", {
           data: shareData,
         });
-
         return {
           message: successMessage,
           share: shareUrl,

@@ -238,5 +238,64 @@ export default factories.createCoreService(
       post.mentioned_users = enrichedMentions;
       return post;
     },
+
+    async enrichCommentStats(comments: any[], currentUserId: number) {
+      const enriched = [];
+      for (const comment of comments) {
+        const [likes_count, is_liked, replies_count, is_liked_by_author] =
+          await Promise.all([
+            this.getLikesCount(comment.id),
+            this.verifyCommentLikedByUser(comment.id, currentUserId),
+            this.getRepliesCount(comment.id),
+            this.verifyCommentLikedByAuthor(
+              comment.id,
+              comment.commented_by?.id
+            ),
+          ]);
+        enriched.push({
+          ...comment,
+          stats: {
+            likes: likes_count,
+            replies: replies_count,
+            is_liked,
+            is_liked_by_author,
+          },
+        });
+      }
+      return enriched;
+    },
+
+    async getLikesCount(commentId: number | any): Promise<number> {
+      return await strapi.entityService.count("api::like.like", {
+        filters: { comment: commentId },
+      });
+    },
+
+    async getRepliesCount(commentId: number | any): Promise<number> {
+      return await strapi.entityService.count("api::comment.comment", {
+        filters: { parent_comment: commentId },
+      });
+    },
+
+    async verifyCommentLikedByUser(
+      commentId: number | any,
+      userId: number | any
+    ): Promise<boolean> {
+      const count = await strapi.entityService.count("api::like.like", {
+        filters: { comment: commentId, liked_by: userId },
+      });
+      return count > 0;
+    },
+
+    async verifyCommentLikedByAuthor(
+      commentId: number | any,
+      authorId: number | any
+    ): Promise<boolean> {
+      if (!authorId) return false;
+      const count = await strapi.entityService.count("api::like.like", {
+        filters: { comment: commentId, liked_by: authorId },
+      });
+      return count > 0;
+    },
   })
 );

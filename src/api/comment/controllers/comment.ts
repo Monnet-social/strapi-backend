@@ -13,72 +13,70 @@ export default factories.createCoreController(
         parent_comment_id?: number;
         repost_of_id?: number;
       };
-      const { post_id, comment, parent_comment_id, repost_of_id } = body;
+      let { post_id, comment, parent_comment_id, repost_of_id } = body;
 
-      if (!userId) return ctx.unauthorized("You must be logged in to comment.");
+      if (!userId) return ctx.unauthorized("You must be logged in.");
       if (!post_id || isNaN(post_id))
-        return ctx.badRequest('A valid "post_id" is required.');
+        return ctx.badRequest('Valid "post_id" required.');
       if (
         !comment ||
         typeof comment !== "string" ||
         comment.trim().length === 0
       )
-        return ctx.badRequest("Comment text cannot be empty.");
-
-      const dataToCreate: any = {
-        post: post_id,
-        commented_by: userId,
-        comment: comment.trim(),
-      };
+        return ctx.badRequest("Comment cannot be empty.");
 
       try {
-        const postExists = await strapi.entityService.findOne(
-          "api::post.post",
-          post_id
-        );
-        if (!postExists)
-          return ctx.notFound(
-            "The post you are trying to comment on does not exist."
-          );
+        const postService = strapi.service("api::post.post");
+
+        // Resolve the true original post (follow repost chain if exists)
+        const originalPost = await postService.resolveOriginalPost(post_id);
+        if (!originalPost) return ctx.notFound("Original post not found.");
+
+        const targetPostId = originalPost.id;
+
+        const dataToCreate: any = {
+          post: targetPostId,
+          commented_by: userId,
+          comment: comment.trim(),
+        };
 
         if (parent_comment_id) {
           if (isNaN(parent_comment_id))
-            return ctx.badRequest("parent_comment_id must be a number.");
+            return ctx.badRequest("parent_comment_id must be number.");
           const parentComment = await strapi.entityService.findOne(
             "api::comment.comment",
             parent_comment_id,
-            { populate: { post: { fields: ["id"] } } }
+            {
+              populate: { post: { fields: ["id"] } },
+            }
           );
-          if (!parentComment)
-            return ctx.notFound(
-              "The comment you are trying to reply to does not exist."
-            );
-          if ((parentComment as any).post?.id !== Number(post_id))
+          if (!parentComment) return ctx.notFound("Parent comment not found.");
+          if ((parentComment as any).post?.id !== targetPostId)
             return ctx.badRequest(
-              "The parent comment does not belong to this post."
+              "Parent comment does not belong to this post."
             );
           dataToCreate.parent_comment = parent_comment_id;
         }
 
         if (repost_of_id) {
           if (isNaN(repost_of_id))
-            return ctx.badRequest("repost_of_id must be a number.");
+            return ctx.badRequest("repost_of_id must be number.");
           const originalComment = await strapi.entityService.findOne(
             "api::comment.comment",
             repost_of_id
           );
           if (!originalComment)
-            return ctx.notFound(
-              "The comment you are trying to repost does not exist."
-            );
+            return ctx.notFound("Reposted comment not found.");
           dataToCreate.repost_of = repost_of_id;
         }
 
-        let mentionData = await strapi
+        // Resolve mentions from comment text
+        const mentionData = await strapi
           .service("api::mention-policy.mention-policy")
           .mentionUser(userId, comment, "comment");
         if (mentionData) dataToCreate.mentioned_users = mentionData;
 
+        // Create the comment on the original post
         const newComment = await strapi.entityService.create(
           "api::comment.comment",
           {
@@ -97,6 +95,7 @@ export default factories.createCoreController(
         const actorUserName =
           ctx.state.user.username || ctx.state.user.name || "a user";
 
+        // Send mention notifications
         if (dataToCreate.mentioned_users?.length) {
           for (const mention of dataToCreate.mentioned_users) {
             if (mention.user && mention.user !== userId) {
@@ -109,7 +108,7 @@ export default factories.createCoreController(
                 userId,
                 mention.user,
                 (newComment as any).id,
-                post_id,
+                targetPostId,
                 actorUserName,
                 tokens[0]
               );
@@ -117,6 +116,7 @@ export default factories.createCoreController(
           }
         }
 
+        // Notify original comment owner if repost
         if (dataToCreate.repost_of) {
           const originalComments = await strapi.entityService.findMany(
             "api::comment.comment",
@@ -131,19 +131,20 @@ export default factories.createCoreController(
               limit: 1,
             }
           );
-          const origComment = originalComments[0];
-          if ((origComment as any)?.commented_by?.fcm_token?.length) {
+          const origComment = originalComments[0] as any;
+          if (origComment?.commented_by?.fcm_token?.length) {
             await notificationUtil.notifyRepost(
               userId,
-              (origComment as any).commented_by.id,
+              origComment.commented_by.id,
               (newComment as any).id,
-              post_id,
+              targetPostId,
               actorUserName,
-              (origComment as any).commented_by.fcm_token
+              origComment.commented_by.fcm_token
             );
           }
         }
 
+        // Notify original comment owner if reply
         if (dataToCreate.parent_comment) {
           const parentComments = await strapi.entityService.findMany(
             "api::comment.comment",
@@ -157,55 +158,47 @@ export default factories.createCoreController(
               limit: 1,
             }
           );
-          const parentComment = parentComments[0];
-          if ((parentComment as any)?.commented_by?.fcm_token?.length) {
+          const parentComment = parentComments[0] as any;
+          if (parentComment?.commented_by?.fcm_token?.length) {
             await notificationUtil.notifyReply(
               userId,
-              (parentComment as any).commented_by.id,
+              parentComment.commented_by.id,
               (newComment as any).id,
-              post_id,
+              targetPostId,
               actorUserName,
-              (parentComment as any).commented_by.fcm_token
+              parentComment.commented_by.fcm_token
             );
           }
         }
 
-        if (dataToCreate.post) {
-          const postService = strapi.service("api::post.post");
-          const postRecord = await postService.resolveOriginalPost(
-            dataToCreate.post
+        // Notify original post owner with comment details
+        if (targetPostId) {
+          const tokens = originalPost.posted_by?.fcm_token || [];
+          await notificationUtil.notifyComment(
+            userId,
+            originalPost.posted_by.id,
+            (newComment as any).id,
+            targetPostId,
+            actorUserName,
+            tokens,
+            originalPost.title || ""
           );
-          if (postRecord) {
-            const tokens = postRecord.posted_by?.fcm_token ?? [];
-            await notificationUtil.notifyComment(
-              userId,
-              postRecord.posted_by.id,
-              (newComment as any).id,
-              postRecord.id,
-              actorUserName,
-              tokens,
-              postRecord.title ?? ""
-            );
 
-            (newComment as any).original_post_details = {
-              id: postRecord.id,
-              title: postRecord.title,
-              description: postRecord.description,
-              posted_by: postRecord.posted_by,
-              media: postRecord.media,
-            };
-          }
+          (newComment as any).original_post_details = {
+            id: originalPost.id,
+            title: originalPost.title,
+            description: originalPost.description,
+            posted_by: originalPost.posted_by,
+            media: originalPost.media,
+          };
         }
 
         return ctx.send(newComment);
       } catch (error) {
-        strapi.log.error("Error creating comment/reply:", error);
-        return ctx.internalServerError(
-          "An error occurred while posting your comment."
-        );
+        strapi.log.error("Error creating comment:", error);
+        return ctx.internalServerError("Error posting comment.");
       }
     },
-
     async pinComment(ctx: Context) {
       const { comment_id } = ctx.params;
       const userId = ctx.state.user.id;
@@ -525,41 +518,35 @@ export default factories.createCoreController(
     //   }
     // },
 
-    async getCommentsByPostId(ctx: any) {
-      const { post_id: postIdParam } = ctx.params as { post_id?: string };
-      const { user } = ctx.state as { user?: { id: number } };
-      const { page = "1", pageSize = "10" } = ctx.query as Record<
-        string,
-        string
-      >;
+    async getCommentsByPostId(ctx) {
+      const { post_id: postIdParam } = ctx.params;
+      const user = ctx.state.user;
+      const { page = "1", pageSize = "10" } = ctx.query;
 
       if (!user) return ctx.unauthorized("You must be logged in.");
 
       const userId = user.id;
-      const postId = Number(postIdParam);
+      const postId: any = postIdParam;
       if (!postId || isNaN(postId)) return ctx.badRequest("Invalid Post ID.");
 
-      const mentionPolicyService = strapi.service(
-        "api::mention-policy.mention-policy"
-      );
-      const commentService = strapi.service("api::comment.comment");
-      const postService = strapi.service("api::post.post");
-
       try {
+        const postService = strapi.service("api::post.post");
+        const commentService = strapi.service("api::comment.comment");
+        const mentionPolicyService = strapi.service(
+          "api::mention-policy.mention-policy"
+        );
+
         const post = await postService.getPost(postId);
         if (!post) return ctx.notFound("Post not found");
 
-        const isRepost = !!(post as any).repost_of;
+        const isRepost = !!post.repost_of;
         const repostCaption = post.repost_caption?.trim() || "";
 
+        // Fetch pinned comment separately
         const pinnedComments = await strapi.entityService.findMany(
           "api::comment.comment",
           {
-            filters: {
-              post: { id: postId },
-              parent_comment: null,
-              pinned: true,
-            },
+            filters: { post: postId, parent_comment: null, pinned: true },
             fields: ["id", "comment", "createdAt", "pinned"],
             populate: {
               commented_by: {
@@ -579,17 +566,22 @@ export default factories.createCoreController(
             sort: { createdAt: "desc" },
           }
         );
+
+        // Enrich pinned comment stats
+        const enrichedPinned = await commentService.enrichCommentStats(
+          pinnedComments,
+          userId
+        );
         const pinnedBlock = await Promise.all(
-          pinnedComments.map((item) =>
+          enrichedPinned.map((item) =>
             commentService.shapeCommentData(item, userId, mentionPolicyService)
           )
         );
 
+        // Prepare repost caption block if needed
         let repostCaptionBlock: any[] = [];
         if (isRepost && repostCaption) {
-          const repostUser = (post as any).posted_by;
           const reposts = await postService.populateRepostData([post]);
-          console.log(reposts);
           const block = await commentService.shapeCommentData(
             reposts[0],
             userId,
@@ -599,15 +591,11 @@ export default factories.createCoreController(
           repostCaptionBlock = [block];
         }
 
-        const paginatedComments = await strapi.entityService.findPage(
+        // Fetch paginated normal comments
+        const paginated = await strapi.entityService.findPage(
           "api::comment.comment",
           {
-            filters: {
-              post: { id: postId },
-              parent_comment: null,
-              pinned: false,
-            },
-            sort: { createdAt: "desc" },
+            filters: { post: postId, parent_comment: null, pinned: false },
             fields: ["id", "comment", "createdAt", "pinned"],
             populate: {
               commented_by: {
@@ -623,32 +611,41 @@ export default factories.createCoreController(
                 },
               },
             },
+            sort: { createdAt: "desc" },
             page: Number(page),
             pageSize: Number(pageSize),
           }
         );
-        const comments = paginatedComments.results || [];
-        const pagination = paginatedComments.pagination || {};
 
-        const enrichedComments = await Promise.all(
-          comments.map((item) =>
+        const comments = paginated.results || [];
+
+        // Enrich comments with realtime stats
+        const enrichedComments = await commentService.enrichCommentStats(
+          comments,
+          userId
+        );
+
+        // Shape all comments
+        const shapedComments = await Promise.all(
+          enrichedComments.map((item) =>
             commentService.shapeCommentData(item, userId, mentionPolicyService)
           )
         );
 
+        // Combine all comment blocks
         const response = [
           ...pinnedBlock,
           ...repostCaptionBlock,
-          ...enrichedComments,
+          ...shapedComments,
         ];
 
-        return ctx.send({ data: response, meta: { pagination } });
+        return ctx.send({ data: response, meta: paginated.pagination });
       } catch (error) {
         ctx.log.error("Error fetching comments:", error);
         return ctx.internalServerError("Error retrieving comments.");
       }
     },
-    async likeComment(ctx: Context) {
+    async likeComment(ctx: any) {
       const { id: commentId } = ctx.params;
       const { id: userId } = ctx.state.user;
 
@@ -658,19 +655,32 @@ export default factories.createCoreController(
         return ctx.badRequest("A valid comment ID is required.");
 
       try {
-        const comment = await strapi.entityService.findOne(
+        const comment = (await strapi.entityService.findOne(
           "api::comment.comment",
-          commentId
-        );
-        //tes
+          commentId,
+          {
+            populate: { post: { populate: ["repost_of"] } },
+          }
+        )) as any;
         if (!comment) return ctx.notFound("Comment not found.");
 
+        // Resolve original post of the comment's post if repost
+        let postId = comment.post?.id;
+        const postService = strapi.service("api::post.post");
+        const originalPost = postId
+          ? await postService.resolveOriginalPost(postId)
+          : null;
+        if (originalPost) {
+          postId = originalPost.id;
+        }
+
+        // Check if like exists
         const existingLike = await strapi.entityService.findMany(
           "api::like.like",
           {
             filters: {
-              comment: { id: commentId },
-              liked_by: { id: userId },
+              comment: commentId,
+              liked_by: userId,
             },
             limit: 1,
           }
@@ -691,7 +701,7 @@ export default factories.createCoreController(
             data: {
               liked_by: userId,
               comment: commentId,
-              post: null,
+              post: postId,
             },
           });
           return ctx.send({
@@ -705,7 +715,6 @@ export default factories.createCoreController(
         return ctx.internalServerError("An error occurred.");
       }
     },
-
     async dislikeComment(ctx: Context) {
       const { id: commentId } = ctx.params;
       const { id: userId } = ctx.state.user;
