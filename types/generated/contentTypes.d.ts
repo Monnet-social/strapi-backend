@@ -898,6 +898,9 @@ export interface ApiPostPost extends Struct.CollectionTypeSchema {
       true
     >;
     mentioned_users: Schema.Attribute.Component<'mention.mention', true>;
+    post_status: Schema.Attribute.Enumeration<
+      ['IN_REVIEW', 'APPROVED', 'BLOCKED']
+    >;
     post_type: Schema.Attribute.Enumeration<['story', 'post']>;
     posted_by: Schema.Attribute.Relation<
       'oneToOne',

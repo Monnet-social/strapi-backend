@@ -101,6 +101,14 @@
     },
     "is_mature": {
       "type": "boolean"
+    },
+    "post_status": {
+      "type": "enumeration",
+      "enum": [
+        "IN_REVIEW",
+        "APPROVED",
+        "BLOCKED"
+      ]
     }
   }
 }
