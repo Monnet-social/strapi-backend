@@ -53,7 +53,8 @@ export default factories.createCoreService("api::tag.tag", ({ strapi }) => ({
   async extractTags(content, id) {
     // 1. Extract tags
     if (typeof content !== "string" || !content) content = "";
-    const matches = content.match(/#\w+/g) || [];
+    const matches = content.match(/#[\w-]+/g) || [];
+
     const finalTags = matches.map((tag) => tag.slice(1).toLowerCase()); // remove "#", lowercase
 
     let finalTagIds: any = [];
