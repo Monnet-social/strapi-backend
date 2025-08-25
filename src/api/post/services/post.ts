@@ -1207,20 +1207,20 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
 
   async enrichPosts(posts, currentUserId, opts = {}) {
     if (!Array.isArray(posts)) posts = [posts];
-    // Populate reposts, stats, media, user data
     for (const post of posts) {
-      // Populate repost_of deeply
+      let statId = post.id;
       if (post.repost_of) {
         const orig = await this.resolveOriginalPost(
           post.repost_of.id || post.repost_of
         );
         if (orig) {
+          statId = orig.id;
           post.is_repost = true;
           post.repost_of = orig;
           post.reposted_from = (orig as any).posted_by || null;
         }
+        console.log("ORID ID ", statId, orig.id);
       }
-      // Stats
       const [
         likes_count,
         is_liked,
@@ -1229,19 +1229,17 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         comments_count,
         share_count,
       ] = await Promise.all([
-        strapi.services["api::like.like"].getLikesCount(post.id),
+        strapi.services["api::like.like"].getLikesCount(statId),
         strapi.services["api::like.like"].verifyPostLikeByUser(
-          post.id,
+          statId,
           currentUserId
         ),
+        strapi.service("api::dislike.dislike").getDislikesCountByPostId(statId),
         strapi
           .service("api::dislike.dislike")
-          .getDislikesCountByPostId(post.id),
-        strapi
-          .service("api::dislike.dislike")
-          .verifyPostDislikedByUser(post.id, currentUserId),
-        strapi.services["api::comment.comment"].getCommentsCount(post.id),
-        strapi.services["api::share.share"].countShares(post.id),
+          .verifyPostDislikedByUser(statId, currentUserId),
+        strapi.services["api::comment.comment"].getCommentsCount(statId),
+        strapi.services["api::share.share"].countShares(statId),
       ]);
       Object.assign(post, {
         likes_count,
@@ -1407,6 +1405,19 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
     const postList = isArray ? posts : [posts];
     await Promise.all(
       postList.map(async (post) => {
+        let statId = post.id;
+        if (post.repost_of) {
+          const orig = await this.resolveOriginalPost(
+            post.repost_of.id || post.repost_of
+          );
+          if (orig) {
+            statId = orig.id;
+            post.is_repost = true;
+            post.repost_of = orig;
+            post.reposted_from = (orig as any).posted_by || null;
+          }
+          console.log("ORID ID ", statId, orig.id);
+        }
         const [
           likes_count,
           is_liked,
@@ -1415,19 +1426,19 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
           comments_count,
           share_count,
         ] = await Promise.all([
-          strapi.services["api::like.like"].getLikesCount(post.id),
+          strapi.services["api::like.like"].getLikesCount(statId),
           strapi.services["api::like.like"].verifyPostLikeByUser(
-            post.id,
+            statId,
             currentUserId
           ),
           strapi
             .service("api::dislike.dislike")
-            .getDislikesCountByPostId(post.id),
+            .getDislikesCountByPostId(statId),
           strapi
             .service("api::dislike.dislike")
-            .verifyPostDislikedByUser(post.id, currentUserId),
-          strapi.services["api::comment.comment"].getCommentsCount(post.id),
-          strapi.services["api::share.share"].countShares(post.id),
+            .verifyPostDislikedByUser(statId, currentUserId),
+          strapi.services["api::comment.comment"].getCommentsCount(statId),
+          strapi.services["api::share.share"].countShares(statId),
         ]);
         Object.assign(post, {
           likes_count,
@@ -1454,22 +1465,18 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         typeof post.repost_of === "object" ? post.repost_of.id : post.repost_of
       );
 
-    // Fetch all original repost posts at once with full populate needed (add relations you want)
     const originals = await strapi.entityService.findMany("api::post.post", {
       filters: { id: { $in: repostIds } },
       populate: {
         category: true,
         media: true,
         posted_by: true,
-        tagged_users: true,
-        // Add any other relations needed on original post
+        mentioned_users: true,
       },
     });
 
-    // Enrich originals with stats
     await this.enrichPostsWithStats(originals, currentUserId);
 
-    // Create map for quick lookup
     const originalsMap = new Map(originals.map((orig) => [orig.id, orig]));
 
     return Promise.all(
@@ -1485,7 +1492,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         if (original) {
           post.is_repost = true;
 
-          // Copy all fields except keys to skip to preserve repost identity
           const keysToSkip = new Set([
             "id",
             "documentId",
@@ -1499,24 +1505,11 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
           ]);
 
           Object.keys(original).forEach((key) => {
-            if (!keysToSkip.has(key)) {
-              post[key] = original[key];
-            }
+            if (!keysToSkip.has(key)) post[key] = original[key];
           });
 
           post.repost_of = original as any;
           post.reposted_from = original.posted_by || null;
-
-          // Copy enriched stats from original into a separate field on repost post
-          let original_stats = {
-            likes_count: original.likes_count ?? 0,
-            comments_count: original.comments_count ?? 0,
-            share_count: original.share_count ?? 0,
-            is_liked: !!original.is_liked,
-            is_disliked: !!original.is_disliked,
-            dislikes_count: original.dislikes_count ?? 0,
-          };
-          post.stats = original_stats;
         }
         return post;
       })
@@ -1832,7 +1825,6 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         await enrichMentions(filteredTextMentions);
     }
 
-    // Existing enrichment pipeline, fix destructor names below:
     let enrichedPosts = await this.enrichRepostsAndStats(posts, currentUserId);
     const categoryMap = await this.mapSubcategoriesToPosts(enrichedPosts);
     const { optimizedMediaMap, followStatusMap } =
