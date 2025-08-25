@@ -2076,4 +2076,99 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
 
     return postEntity;
   },
+
+  async getUserRelationsAndBlocks(userId: number) {
+    if (!userId)
+      return {
+        following: [],
+        followers: [],
+        closeFriends: [],
+        blocked: [],
+        hidden: [],
+      };
+
+    const [
+      followingEntries,
+      followerEntries,
+      closeFriendsEntries,
+      blockedEntries,
+      hiddenEntries,
+    ] = await Promise.all([
+      strapi.entityService.findMany("api::following.following", {
+        filters: { follower: { id: userId } },
+        populate: { subject: true },
+      }),
+      strapi.entityService.findMany("api::following.following", {
+        filters: { subject: { id: userId } },
+        populate: { follower: true },
+      }),
+      strapi.entityService.findMany("api::following.following", {
+        filters: { follower: { id: userId }, is_close_friend: true },
+        populate: { subject: true },
+      }),
+      strapi.entityService.findMany("api::block.block", {
+        filters: { blocked_by: { id: userId } },
+        populate: { blocked_user: true },
+      }),
+      strapi.entityService.findMany("api::hide-story.hide-story", {
+        filters: { owner: { id: userId } },
+        populate: { target: true },
+      }),
+    ]);
+
+    return {
+      following: followingEntries
+        .map((e: any) => e.subject?.id)
+        .filter(Boolean),
+      followers: followerEntries
+        .map((e: any) => e.follower?.id)
+        .filter(Boolean),
+      closeFriends: closeFriendsEntries
+        .map((e: any) => e.subject?.id)
+        .filter(Boolean),
+      blocked: blockedEntries
+        .map((e: any) => e.blocked_user?.id)
+        .filter(Boolean),
+      hidden: hiddenEntries.map((e: any) => e.target?.id).filter(Boolean),
+    };
+  },
+
+  async enrichStories(stories, currentUserId) {
+    if (!stories.length) return;
+
+    const usersToProcess = stories
+      .flatMap((story) => [story.posted_by, ...(story.tagged_users || [])])
+      .filter(Boolean);
+
+    await Promise.all([
+      strapi.service("api::following.following").enrichItemsWithFollowStatus({
+        items: stories,
+        userPaths: ["posted_by", "tagged_users"],
+        currentUserId,
+      }),
+      strapi
+        .service("api::post.post")
+        .enrichUsersWithOptimizedProfilePictures(usersToProcess),
+    ]);
+
+    await Promise.all(
+      stories.map(async (story) => {
+        const [likes_count, is_liked, viewers_count, optimizedMedia] =
+          await Promise.all([
+            strapi.service("api::like.like").getLikesCount(story.id),
+            strapi
+              .service("api::like.like")
+              .verifyPostLikeByUser(story.id, currentUserId),
+            strapi.service("api::post.post").getStoryViewersCount(story.id),
+            strapi.service("api::post.post").getOptimisedFileData(story.media),
+          ]);
+        story.expiration_time =
+          new Date(story.createdAt).getTime() + 24 * 60 * 60 * 1000;
+        story.likes_count = likes_count;
+        story.is_liked = is_liked;
+        story.viewers_count = viewers_count;
+        story.media = optimizedMedia || [];
+      })
+    );
+  },
 }));
