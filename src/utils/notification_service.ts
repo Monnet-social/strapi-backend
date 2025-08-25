@@ -16,11 +16,17 @@ export default class NotificationService {
     fcm_token: string
   ) {
     if (!fcm_token) return;
+    console.log("TEST FCM TOKEN:", fcm_token, title, body, data);
     const message = {
       notification: { title, body },
       data,
       token: fcm_token,
     };
+    // const message = {
+    //   notification: { title: "TITLWE", body: "TEST BY ANKIT" },
+    //   data,
+    //   token: fcm_token,
+    // };
     try {
       const response = await getMessaging(
         NotificationService.FIREBASE_APP

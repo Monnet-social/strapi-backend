@@ -1277,7 +1277,8 @@ export default factories.createCoreService("api::post.post", ({ strapi }) => ({
         {
           populate: {
             repost_of: { fields: ["id"] },
-            posted_by: { fields: ["id", "username", "name"] },
+            posted_by: { fields: ["id", "username", "name", "fcm_token"] },
+
             media: { fields: ["id", "url", "mime"] },
             category: true,
             tagged_users: true,

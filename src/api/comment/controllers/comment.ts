@@ -173,7 +173,7 @@ export default factories.createCoreController(
 
         // Notify original post owner with comment details
         if (targetPostId) {
-          const tokens = originalPost.posted_by?.fcm_token || [];
+          const tokens = originalPost.posted_by?.fcm_token || null;
           await notificationUtil.notifyComment(
             userId,
             originalPost.posted_by.id,
